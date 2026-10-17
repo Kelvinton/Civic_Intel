@@ -1,0 +1,83 @@
+
+
+const snapshotCards = [
+  {
+    label: "STATES",
+    value: "36",
+    title: "States",
+    description: "Plus 1 Federal Capital Territory",
+    verification: "Aligned with Nigerian Constitution schedule",
+  },
+  {
+    label: "HEALTH INDICATORS",
+    value: "14",
+    title: "Audited Metrics Map",
+    description: "Primary care density & bed capacity",
+    verification: "Provenance check complete",
+  },
+  {
+    label: "EDUCATION INDICATORS",
+    value: "12",
+    title: "State-wide metrics tracker",
+    description: "Literacy, UBE enrolment, teacher ratios",
+    verification: "Schedule alignment verified",
+  },
+  {
+    label: "PUBLIC PROVENANCE",
+    value: "100%",
+    title: "Verified Citations",
+    description: "No synthesized rankings or black-box metrics",
+    verification: "Open-source and public-domain data only",
+  },
+];
+
+function NationalSnapshot() {
+  return (
+    <section className="bg-[#dce3e6] px-5 py-8 text-black sm:px-8 lg:px-14 border-b border-gray-400">
+      <div className="mx-auto max-w-6xl">
+        {/* Section heading */}
+        <div className="mb-5 flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#1F7A3F]" />
+          <h2 className="text-lg font-bold tracking-wide sm:text-3xl">
+            NATIONAL SNAPSHOT
+          </h2>
+        </div>
+
+        {/* Statistic cards */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 px-8">
+          {snapshotCards.map((card) => (
+            <article
+              key={card.label}
+              className="flex min-w-0 flex-col rounded-lg border-l-4 border-[#0B3C5D] bg-white p-4 text-[#171717] shadow-sm"
+            >
+              <p className="text-[10px] font-medium tracking-wide text-[#1F7A3F]">
+                {card.label}
+              </p>
+
+              <p className="mt-2 text-2xl font-bold leading-none">
+                {card.value}
+              </p>
+
+              <h3 className="mt-2 text-xs font-medium">
+                {card.title}
+              </h3>
+
+              <p className="mt-1 min-h-8 text-[11px] leading-4 text-gray-500">
+                {card.description}
+              </p>
+
+              <div className="mt-3 border-t border-gray-200 pt-2">
+                <p className="flex items-start gap-1 text-[10px] leading-4 text-[#1F7A3F]">
+                  <span aria-hidden="true">✓</span>
+                  <span>{card.verification}</span>
+                </p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export default NationalSnapshot;
