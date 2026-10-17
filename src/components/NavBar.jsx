@@ -30,7 +30,7 @@ function NavBar() {
             <img
               src={civicIntelLogo}
               alt="CivicIntel logo"
-              className="h-12 w-auto max-w-[250px] rounded-md bg-white/55 object-contain p-2"
+              className="h-12 w-auto max-w-62.5 rounded-md bg-white/55 object-contain p-2"
             />
           </a>
 
