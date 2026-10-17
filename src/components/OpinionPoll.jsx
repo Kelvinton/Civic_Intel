@@ -2,12 +2,12 @@ import { useState } from "react";
 
 const pollOptions = [
   "Reducing inflation and food prices",
-  "Creating more jobs",
-  "Supporting small businesses",
-  "Others",
   "Strengthening the Naira",
+  "Creating more jobs",
   "Improving electricity supply",
+  "Supporting small businesses",
   "Technological improvement",
+  "Others",
 ];
 
 function OpinionPoll() {

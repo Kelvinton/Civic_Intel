@@ -1,5 +1,5 @@
-import OperatingRoom from "../assets/operating.room.png";
-import StudentsInClass from "../assets/students.inclass.png";
+import OperatingRoom from "../assets/category/operating.room.png";
+import StudentsInClass from "../assets/category/students.inclass.png";
 
 
 

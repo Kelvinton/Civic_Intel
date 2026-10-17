@@ -1,4 +1,7 @@
 
+import Category1 from "../assets/latest report/category1.png";
+import Category2 from "../assets/latest report/category2.png";
+import Category3 from "../assets/latest report/category3.png";
 const reports = [
   {
     id: 1,
@@ -8,7 +11,7 @@ const reports = [
       "Explore maternal health coverage and the differences in access to care across states.",
     date: "September 2026",
     image:
-      "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=900&q=85",
+      Category3,
     imageAlt: "Healthcare professional working in a clinical setting",
     href: "/reports/maternal-health",
   },
@@ -20,7 +23,7 @@ const reports = [
       "Examine education completion indicators and identify differences between states.",
     date: "August 2026",
     image:
-      "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=900&q=85",
+      Category2,
     imageAlt: "Students participating in a classroom lesson",
     href: "/reports/primary-school-completion",
   },
@@ -32,7 +35,7 @@ const reports = [
       "Review public spending indicators and how budget allocations vary across states.",
     date: "August 2026",
     image:
-      "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=900&q=85",
+      Category1,
     imageAlt: "Financial documents and calculations on a desk",
     href: "/reports/state-budgets",
   },
