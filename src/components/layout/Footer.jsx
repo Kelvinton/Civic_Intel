@@ -1,5 +1,5 @@
 
-import civicIntelLogo from "../assets/civicintel.footer.logo.png";
+import civicIntelLogo from "../../assets/civicintel.footer.logo.png";
 
 const footerSections = [
   {

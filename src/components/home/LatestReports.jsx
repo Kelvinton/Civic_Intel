@@ -1,7 +1,8 @@
 
-import Category1 from "../assets/latest report/category1.png";
-import Category2 from "../assets/latest report/category2.png";
-import Category3 from "../assets/latest report/category3.png";
+import Category1 from "../../assets/latest report/category1.png";
+import Category2 from "../../assets/latest report/category2.png";
+import Category3 from "../../assets/latest report/category3.png";
+
 const reports = [
   {
     id: 1,
@@ -87,7 +88,12 @@ function LatestReports() {
           {reports.map((report) => (
             <article
               key={report.id}
-              className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-gray bg-white transition-colors duration-300 hover:border-gray-400 border-gray-300"
+              className="group flex min-w-0 flex-col overflow-hidden rounded-xl
+                border border-gray-300 bg-white
+                transition-all duration-300
+                hover:-translate-y-1 hover:border-[#1F7A3F] hover:shadow-lg
+                active:scale-[0.99]
+                focus-within:border-[#1F7A3F]"
             >
               {/* Image */}
               <a
@@ -99,7 +105,11 @@ function LatestReports() {
                   src={report.image}
                   alt={report.imageAlt}
                   loading="lazy"
-                  className="h-48 w-full object-cover transition-transform duration-500 group-hover:scale-105 sm:h-52 border border-gray-300"
+                  className="h-48 w-full border border-gray-300 object-cover
+                  transition-transform duration-500
+                  group-hover:scale-105
+                  group-active:scale-[1.02]
+                  sm:h-52"
                 />
               </a>
 
@@ -112,7 +122,12 @@ function LatestReports() {
                 <h3 className="mt-3 text-base font-semibold leading-6 text-black">
                   <a
                     href={report.href}
-                    className="transition-colors hover:text-black/60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#65C98A]" 
+                    className="transition-colors duration-300
+                  hover:text-[#1F7A3F]
+                  active:text-[#1F7A3F]
+                  focus-visible:outline-2
+                  focus-visible:outline-offset-4
+                  focus-visible:outline-[#65C98A]" 
                   >
                     {report.title}
                   </a>

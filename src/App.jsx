@@ -1,34 +1,21 @@
-import NavBar from "./components/NavBar.jsx";
-import Hero from "./components/Hero.jsx";
-import Footer from "./components/Footer.jsx";
-import NationalSnapshot from "./components/NationalSnapshot.jsx";
-import Categories from "./components/Categories.jsx";
-import CompareStates from "./components/CompareStates.jsx";
-import FeaturedRelease from "./components/FeaturedRelease.jsx";
-import LatestReports from "./components/LatestReports.jsx";
-import OpinionPoll from "./components/OpinionPoll.jsx";
 
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-function App(){
-  return(
-    <>
-      <NavBar />
-      <Hero/>
-      <main>
-        <NationalSnapshot />
-        <Categories />
-        <CompareStates />
-        <FeaturedRelease />
-        <LatestReports />
-        <OpinionPoll />
+import Layout from "./components/layout/Layout.jsx";
+import Home from "./pages/Home.jsx";
+import Health from "./pages/Health.jsx";
 
-      </main>
-      <Footer />
-
-      
-      
-    </>
-  )
-  
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/health" element={<Health />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
 }
-export default App
+
+export default App;
