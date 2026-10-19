@@ -70,7 +70,7 @@ function Hero() {
       <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-8 py-12 sm:px-8 sm:py-16 md:px-12 lg:grid-cols-[1.15fr_0.85fr] lg:gap-12 lg:px-18 lg:py-8">
 
         {/* Left: Hero Content */}
-        <div className="mt-4 min-w-0 w-full lg:h-125.75 lg:w-153.25 lg:max-w-full">
+        <div className="mx-auto mt-4 flex min-w-0 w-full flex-col items-center text-center lg:mx-0 lg:items-start lg:text-left lg:h-125.75 lg:w-153.25 lg:max-w-full">
           <h2 className="mb-4 text-xs tracking-wider text-white/80 sm:text-sm">
             NIGERIA • HEALTH AND EDUCATION DATA
           </h2>
@@ -78,7 +78,7 @@ function Hero() {
           {/* Animated heading */}
           <h1
             aria-label={fullHeading}
-            className="min-h-[3.6em] text-4xl font-bold leading-tight sm:text-5xl lg:min-h-[2.4em] lg:text-6xl"
+            className="min-h-[3.6em] text-center text-4xl font-bold leading-tight sm:text-5xl lg:min-h-[2.4em] lg:text-left lg:text-6xl"
           >
             {animatedHeading.map((part, index) => (
               <span
@@ -98,14 +98,14 @@ function Hero() {
             </span>
           </h1>
 
-          <p className="mt-6 max-w-lg text-sm text-white/80">
+          <p className="mt-6 max-w-lg text-md text-white/80">
             CivicIntel brings together sourced, dated, and verifiable
             indicators across all 36 states and the FCT, built for clarity,
             not headlines.
           </p>
 
           {/* Action Buttons */}
-          <div className="mt-8 flex flex-wrap items-center gap-3">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
             <a
               href="/signup"
               className="inline-flex items-center justify-center rounded-full bg-[#1F7A3F] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#176331] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
@@ -122,7 +122,7 @@ function Hero() {
           </div>
 
           {/* Trust Indicators */}
-          <div className="mt-10 flex flex-wrap gap-3 lg:mt-14">
+          <div className="mt-10 flex flex-wrap justify-center gap-3 lg:mt-14 lg:justify-start">
             {[
               "Dual Pass Auditor QA",
               "Quality Datasets",
@@ -159,7 +159,7 @@ function Hero() {
           <img
             src={civicIntel}
             alt="CivicIntel health and education data illustration"
-            className="h-auto w-full max-w-md object-contain sm:max-w-lg lg:h-148.75 lg:w-122 lg:max-w-full"
+            className="h-auto w-full max-w-md object-contain sm:max-w-lg lg:h-130.75 lg:w-122 lg:max-w-full"
           />
         </div>
       </div>

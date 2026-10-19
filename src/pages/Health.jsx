@@ -2,6 +2,9 @@
 import { useState } from "react";
 import civicIntel from "../assets/civicintel.hero.logo.png"; 
 import civicIntelLogo from "../assets/civicintellogo1.png";
+import HealthPic1 from "../assets/health/Health1.png";
+import HealthPic2 from "../assets/health/Health2.png";
+import HealthPic3 from "../assets/health/Health3.png";
 
 const overviewStats = [
   {
@@ -58,20 +61,17 @@ const releases = [
   {
     category: "Health • Kano state",
     title: "Immunisation coverage trends 2019 to 2024",
-    image:
-      "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=800&q=80",
+    image: HealthPic1,
   },
   {
     category: "Health • National",
     title: "Maternal mortality: state-by-state, 2023",
-    image:
-      "https://images.unsplash.com/photo-1584982751601-97dcc096659c?auto=format&fit=crop&w=800&q=80",
+    image: HealthPic2,
   },
   {
     category: "Health • Rivers state",
     title: "Health budget execution, FY2025",
-    image:
-      "https://images.unsplash.com/photo-1505751172876-fa1923c5c528?auto=format&fit=crop&w=800&q=80",
+    image: HealthPic3,
   },
 ];
 
@@ -133,7 +133,7 @@ function Health() {
 
         <div className="order-1 flex justify-center md:order-2 md:justify-end">
           {/* Image wrapper */}
-          <div className="relative h-64 w-full max-w-md rounded-bl-[80px] rounded-tr-[80px] bg-[#0B3C5D] sm:h-80 md:h-82.5 lg:h-148.75">
+          <div className="relative h-64 w-full max-w-xs rounded-bl-[80px] rounded-tr-[80px] bg-[#0B3C5D] sm:h-80 md:h-82.5 lg:h-120.25 lg:max-w-md">
 
             {/* Main image */}
             <img
@@ -249,7 +249,7 @@ function Health() {
               type="submit"
               className="mx-auto mt-5 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] md:w-1/2"
             >
-              Apply filters <span aria-hidden="true">→</span>
+              Apply <span aria-hidden="true">→</span>
             </button>
           </form>
         </div>

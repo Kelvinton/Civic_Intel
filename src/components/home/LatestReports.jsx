@@ -61,7 +61,7 @@ function LatestReports() {
 
           <a
             href="/reports"
-            className="inline-flex items-center gap-2 text-xs font-medium text-[#65C98A] transition-colors hover:text-white sm:text-sm"
+            className="inline-flex items-center gap-2 text-xs font-medium text-green-500  sm:text-sm"
           >
             View All Releases
 
