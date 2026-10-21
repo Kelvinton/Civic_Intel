@@ -1,5 +1,12 @@
 
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  Outlet,
+  useLocation,
+} from "react-router-dom";
 
 import Layout from "./components/layout/Layout.jsx";
 import Home from "./pages/Home.jsx";
@@ -7,21 +14,121 @@ import Health from "./pages/Health.jsx";
 import Education from "./pages/Education.jsx";
 import States from "./pages/States.jsx";
 import StateDetails from "./pages/StatesDetail.jsx";
+import AuthPage from "./pages/AuthPage.jsx";
+import Explore from "./pages/Explore.jsx";
 
-function App() {
+import { useAuth } from "./context/AuthContext.jsx";
+
+// Protect only routes that require authentication.
+function RequireAuth() {
+  const { isLoggedIn, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-[#0B3C5D]">
+        Checking your session...
+      </div>
+    );
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{
+          from: location,
+          message: "Please log in to use this feature.",
+        }}
+      />
+    );
+  }
+
+  return <Outlet />;
+}
+
+function AppContent() {
+  const { isLoggedIn, loading, login, signup, logout } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-[#0B3C5D]">
+        Checking your session...
+      </div>
+    );
+  }
+
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<Home />} />
-          <Route path="/health" element={<Health />} />
-          <Route path="/education" element={<Education />} />
-          <Route path="/states" element={<States />} />
-          <Route path="/states/:stateSlug" element={<StateDetails />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <Routes>
+      {/* Authentication pages */}
+      <Route
+        path="/login"
+        element={
+          isLoggedIn ? (
+            <Navigate to="/" replace />
+          ) : (
+            <AuthPage onLogin={login} onSignup={signup} />
+          )
+        }
+      />
+
+      <Route
+        path="/signup"
+        element={
+          isLoggedIn ? (
+            <Navigate to="/" replace />
+          ) : (
+            <AuthPage onLogin={login} onSignup={signup} />
+          )
+        }
+      />
+
+      <Route
+        path="/forgot-password"
+        element={<Navigate to="/login" replace />}
+      />
+
+      {/* Public platform pages */}
+      <Route
+        element={
+          <Layout
+            isLoggedIn={isLoggedIn}
+            onLogout={logout}
+          />
+        }
+      >
+        <Route path="/" element={<Home />} />
+        
+        <Route path="/health" element={<Health />} />
+        <Route path="/education" element={<Education />} />
+        <Route path="/states" element={<States />} />
+        <Route
+          path="/states/:stateSlug"
+          element={<StateDetails />}
+        />
+        <Route path="/explore" element={<Explore />} />
+      </Route>
+
+      {/* Add future protected pages inside this route group. */}
+      <Route element={<RequireAuth />}>
+        {/* Example for a future dedicated comparison page:
+        <Route path="/compare" element={<CompareStatesPage />} />
+        */}
+      </Route>
+
+      <Route
+        path="*"
+        element={<Navigate to="/" replace />}
+      />
+    </Routes>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
+  );
+}

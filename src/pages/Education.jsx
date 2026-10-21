@@ -1,7 +1,12 @@
 
 import { useMemo, useState } from "react";
-import EducationHero from "../assets/Education.hero.png"
+import { useAuth } from "../context/AuthContext.jsx";
+
+import EducationHero from "../assets/Education.hero.png";
 import civicIntelLogo from "../assets/civicintellogo1.png";
+import Education1 from "../assets/Education/Education1.png";
+import Education2 from "../assets/Education/Education2.png";
+import Education3 from "../assets/Education/Education3.png";
 
 const overviewStats = [
   {
@@ -41,7 +46,8 @@ const overviewStats = [
   },
 ];
 
-// DEMONSTRATION DATA ONLY — replace with verified records before publication.
+// DEMONSTRATION DATA ONLY.
+// Verify every figure and source before publication.
 const examSummaries = {
   WAEC: [
     { state: "Lagos State", value: 84.2 },
@@ -130,24 +136,22 @@ const releases = [
   {
     category: "Education • National",
     title: "WAEC pass rates by state, 2025",
-    image:
-      "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=800&q=80",
+    image: Education2,
   },
   {
     category: "Education • Kano State",
     title: "Out-of-school children estimate update",
-    image:
-      "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?auto=format&fit=crop&w=800&q=80",
+    image: Education1,
   },
   {
     category: "Education • National",
     title: "Education budget execution, FY2025",
-    image:
-      "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=800&q=80",
+    image: Education3,
   },
 ];
 
-const formatNumber = (number) => new Intl.NumberFormat("en-NG").format(number);
+const formatNumber = (number) =>
+  new Intl.NumberFormat("en-NG").format(number);
 
 function SectionHeading({ children, dark = false }) {
   return (
@@ -163,17 +167,36 @@ function SectionHeading({ children, dark = false }) {
 }
 
 function Education() {
+  const { isLoggedIn } = useAuth();
+
   const [exam, setExam] = useState("WAEC");
   const [indicator, setIndicator] = useState("cohort");
   const [state, setState] = useState("all");
   const [year, setYear] = useState("2023-2024");
   const [search, setSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+
   const [appliedFilters, setAppliedFilters] = useState({
     indicator: "cohort",
     state: "all",
     year: "2023-2024",
   });
+
+  // Prompt logged-out visitors to sign in before using
+  // interactive dashboard features.
+  const requireLogin = (action) => {
+    if (isLoggedIn) return true;
+
+    const shouldLogin = window.confirm(
+      `Please log in to ${action}. Would you like to go to the login page?`
+    );
+
+    if (shouldLogin) {
+      window.location.assign("/login");
+    }
+
+    return false;
+  };
 
   const filteredRecords = useMemo(() => {
     return cohortRecords.filter((record) => {
@@ -191,19 +214,68 @@ function Education() {
 
   const handleApplyFilters = (event) => {
     event.preventDefault();
+
+    if (!requireLogin("apply filters")) return;
+
     setAppliedFilters({ indicator, state, year });
   };
 
   const handleExport = () => {
-    window.alert(
-      "Education data export will be available when the verified dataset is connected."
-    );
+    if (!requireLogin("export education data")) return;
+
+    // The current project has demo records, not a connected
+    // verified export dataset. Export the currently displayed
+    // records to CSV so the control is functional for testing.
+    const headers = [
+      "State",
+      "Geopolitical Zone",
+      "Region",
+      "Registered Candidates",
+      "Pass Rate (%)",
+      "Male Pass (%)",
+      "Female Pass (%)",
+      "Source",
+    ];
+
+    const rows = filteredRecords.map((record) => [
+      record.state,
+      record.zone,
+      record.region,
+      record.candidates,
+      record.passRate,
+      record.malePass,
+      record.femalePass,
+      record.source,
+    ]);
+
+    const escapeCsv = (value) =>
+      `"${String(value ?? "").replace(/"/g, '""')}"`;
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map(escapeCsv).join(","))
+      .join("\r\n");
+
+    const blob = new Blob(["\uFEFF", csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "civic-intel-education-data.csv";
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    URL.revokeObjectURL(url);
   };
 
   return (
     <main className="bg-[#E7EDF0] text-[#20272B]">
       {/* HERO */}
-      <section className="mx-auto grid max-w-7xl items-center gap-10 px-5 py-10 sm:px-8 md:min-h-[370px] md:grid-cols-2 md:py-12 lg:px-12">
+      <section className="mx-auto grid max-w-7xl items-center gap-10 px-5 py-10 sm:px-8 md:min-h-92.5 md:grid-cols-2 md:py-12 lg:px-12">
         <div className="order-2 md:order-1">
           <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-[#1F7A3F]">
             Nigeria · Education data
@@ -223,30 +295,25 @@ function Education() {
         </div>
 
         <div className="order-1 flex justify-center md:order-2 md:justify-end">
-            {/* Image wrapper */}
-            <div className="relative h-64 w-full max-w-xs rounded-bl-[80px] rounded-tr-[80px] bg-[#0B3C5D] sm:h-80 md:h-82.5 lg:h-120.25 lg:max-w-md">
-        
-                {/* Main image */}
-                <img
-                    src={EducationHero}
-                    alt="Digital technology and data visualisation"
-                    className="h-full w-full rounded-bl-[80px] rounded-tr-[80px] object-cover opacity-80"
-                />
-        
-                
-                    <img
-                      src={civicIntelLogo}
-                      alt="CivicIntel logo"
-                      className="absolute -bottom-10 -right-4 z-10 w-24 h-auto object-contain sm:w-28 md:w-32"
-                    />
-        
-                  </div>
-                </div>
+          <div className="relative h-64 w-full max-w-xs rounded-bl-[80px] rounded-tr-[80px] bg-[#0B3C5D] sm:h-80 md:h-82.5 lg:h-120.25 lg:max-w-md">
+            <img
+              src={EducationHero}
+              alt="Digital technology and data visualisation"
+              className="h-full w-full rounded-bl-[80px] rounded-tr-[80px] object-cover opacity-80"
+            />
+
+            <img
+              src={civicIntelLogo}
+              alt="CivicIntel logo"
+              className="absolute -bottom-10 -right-4 z-10 h-auto w-24 object-contain sm:w-28 md:w-32"
+            />
+          </div>
+        </div>
       </section>
 
       {/* NATIONAL EDUCATION OVERVIEW */}
       <section className="bg-[#B5C7D1] px-5 py-8 sm:px-8 lg:px-12">
-        <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-6xl">
           <SectionHeading>
             <span className="text-[#1F7A3F]">
               NATIONAL EDUCATION OVERVIEW
@@ -270,9 +337,16 @@ function Education() {
                 <p className="mt-2 text-lg font-bold text-[#20272B]">
                   {stat.value}
                 </p>
-                <p className="mt-1 text-xs leading-5">{stat.description}</p>
+
+                <p className="mt-1 text-xs leading-5">
+                  {stat.description}
+                </p>
+
                 <div className="my-2 border-t border-dashed border-gray-400" />
-                <p className="text-[10px] text-gray-600">{stat.source}</p>
+
+                <p className="text-[10px] text-gray-600">
+                  {stat.source}
+                </p>
               </article>
             ))}
           </div>
@@ -291,6 +365,7 @@ function Education() {
                     key={examName}
                     type="button"
                     onClick={() => setExam(examName)}
+                    aria-pressed={exam === examName}
                     className={`pb-3 text-xs transition ${
                       exam === examName
                         ? "border-b-2 border-[#1F7A3F] font-semibold text-[#1F7A3F]"
@@ -343,12 +418,14 @@ function Education() {
                     UBE National Blueprint
                   </span>
                 </div>
+
                 <div className="flex items-start justify-between gap-3">
                   <span className="text-gray-500">Audited classrooms</span>
                   <span className="text-right font-semibold">
                     3,241 (Kaduna)
                   </span>
                 </div>
+
                 <div className="flex items-start justify-between gap-3">
                   <span className="text-gray-500">Teacher census match</span>
                   <span className="text-right font-semibold text-[#1F7A3F]">
@@ -371,7 +448,7 @@ function Education() {
 
       {/* EDUCATION INDICATOR FILTERS */}
       <section className="px-5 py-8 sm:px-8 lg:px-12">
-        <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-6xl">
           <SectionHeading>EDUCATION INDICATOR</SectionHeading>
 
           <form onSubmit={handleApplyFilters}>
@@ -398,7 +475,8 @@ function Education() {
                   onChange={(event) => setState(event.target.value)}
                   className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
                 >
-                  <option value="all">All Geo-political zones</option>
+                  <option value="all">All states</option>
+
                   {cohortRecords.map((record) => (
                     <option key={record.state} value={record.state}>
                       {record.state}
@@ -435,12 +513,13 @@ function Education() {
 
       {/* SUB-NATIONAL COHORT RECORDS */}
       <section className="rounded-md bg-[#061D2A] px-4 py-8 text-white sm:px-6 lg:px-12">
-        <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-6xl">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-lg font-bold sm:text-2xl">
                 Sub-National Cohort Records
               </h2>
+
               <span className="rounded-sm bg-gray-200 px-2 py-1 text-[10px] text-gray-700">
                 Showing {filteredRecords.length} of {cohortRecords.length} demo
                 records
@@ -450,11 +529,16 @@ function Education() {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => setShowFilters((previous) => !previous)}
+                onClick={() => {
+                  if (requireLogin("use the data filters")) {
+                    setShowFilters((previous) => !previous);
+                  }
+                }}
                 className="rounded-full bg-white px-6 py-2 text-xs font-semibold text-[#1F7A3F] hover:bg-gray-100"
               >
                 {showFilters ? "Hide filter" : "Filter"} ☰
               </button>
+
               <button
                 type="button"
                 onClick={handleExport}
@@ -471,7 +555,11 @@ function Education() {
                 Search state
                 <input
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => {
+                    if (requireLogin("search records")) {
+                      setSearch(event.target.value);
+                    }
+                  }}
                   placeholder="Type a state name..."
                   className="mt-2 w-full rounded-lg border border-white/20 bg-white px-3 py-2 text-sm text-[#20272B] outline-none focus:border-[#1F7A3F] sm:max-w-sm"
                 />
@@ -485,15 +573,21 @@ function Education() {
           </p>
 
           <div className="overflow-x-auto rounded-sm">
-            <table className="w-full min-w-[850px] border-collapse bg-[#FFFBEF] text-left text-[#20272B]">
+            <table className="w-full min-w-212.5 border-collapse bg-[#FFFBEF] text-left text-[#20272B]">
               <thead className="bg-[#E5EBEE] text-[10px] uppercase">
                 <tr>
                   <th className="px-4 py-4">State / entity</th>
-                  <th className="px-4 py-4 text-right">Registered candidates</th>
-                  <th className="px-4 py-4 text-right">Pass rate (5+ credits)</th>
+                  <th className="px-4 py-4 text-right">
+                    Registered candidates
+                  </th>
+                  <th className="px-4 py-4 text-right">
+                    Pass rate (5+ credits)
+                  </th>
                   <th className="px-4 py-4 text-right">Male pass %</th>
                   <th className="px-4 py-4 text-right">Female pass %</th>
-                  <th className="px-4 py-4">Source / integrity status</th>
+                  <th className="px-4 py-4">
+                    Source / integrity status
+                  </th>
                 </tr>
               </thead>
 
@@ -508,6 +602,7 @@ function Education() {
                         <span className="rounded-sm bg-[#416B84] px-1.5 py-1 text-[9px] font-bold text-white">
                           {record.zone}
                         </span>
+
                         <div>
                           <p className="font-semibold">{record.state}</p>
                           <p className="mt-1 text-[9px] text-gray-500">
@@ -516,20 +611,30 @@ function Education() {
                         </div>
                       </div>
                     </td>
+
                     <td className="px-4 py-4 text-right tabular-nums">
                       {formatNumber(record.candidates)}
                     </td>
+
                     <td className="px-4 py-4 text-right">
-                      <span className="font-semibold">{record.passRate}%</span>
+                      <span className="font-semibold">
+                        {record.passRate}%
+                      </span>
                     </td>
-                    <td className="px-4 py-4 text-right">{record.malePass}%</td>
+
+                    <td className="px-4 py-4 text-right">
+                      {record.malePass}%
+                    </td>
+
                     <td className="px-4 py-4 text-right text-[#1F7A3F]">
                       {record.femalePass}%
                     </td>
+
                     <td className="px-4 py-4">
                       <span className="font-semibold text-[#1F7A3F]">
                         ● {record.source}
                       </span>
+
                       <p className="mt-1 text-[9px] text-gray-500">
                         Demo — unverified
                       </p>
@@ -555,6 +660,7 @@ function Education() {
             <p className="text-xs font-bold">
               ✓ Dataset Provenance &amp; Rigour Declaration
             </p>
+
             <p className="mt-2 text-[10px] leading-5">
               Source: education examination and administrative data
               <br />
@@ -568,9 +674,12 @@ function Education() {
 
       {/* LATEST EDUCATION RELEASES */}
       <section className="px-5 py-10 sm:px-8 lg:px-12">
-        <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-5xl">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <SectionHeading>LATEST EDUCATION RELEASE</SectionHeading>
+            <SectionHeading>
+              LATEST EDUCATION RELEASE
+            </SectionHeading>
+
             <a
               href="#education-releases"
               className="mb-6 text-xs font-semibold text-[#1F7A3F] hover:underline"
@@ -594,13 +703,16 @@ function Education() {
                   loading="lazy"
                   className="h-48 w-full object-cover"
                 />
+
                 <div className="p-4">
                   <p className="text-[10px] text-gray-500">
                     {release.category}
                   </p>
+
                   <h3 className="mt-3 text-sm font-semibold leading-6">
                     {release.title}
                   </h3>
+
                   <p className="mt-3 text-xs text-[#1F7A3F]">
                     Demonstration release
                   </p>

@@ -1,5 +1,6 @@
 
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import civicIntelLogo from "../../assets/civicintellogo1.png";
 
 const navLinks = [
@@ -17,11 +18,98 @@ const getNavLinkClass = ({ isActive }) =>
    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white
    ${
      isActive
-       ? " font-semibold text-[#1F7A3F]"
-       : "text-white/90  hover:text-[#1F7A3F]"
+       ? "font-semibold text-[#1F7A3F]"
+       : "text-white/90 hover:text-[#1F7A3F]"
    }`;
 
-function NavBar() {
+function NavBar({ isLoggedIn = false, onLogout }) {
+  const navigate = useNavigate();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+
+    setLoggingOut(true);
+
+    try {
+      if (onLogout) {
+        await onLogout();
+      }
+
+      navigate("/login", { replace: true });
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
+  const AuthLinks = ({ mobile = false }) => (
+    <div
+      className={
+        mobile
+          ? "mt-4 flex flex-col gap-3 border-t border-white/20 pt-4"
+          : "hidden shrink-0 items-center gap-2 xl:flex"
+      }
+    >
+      {isLoggedIn ? (
+        <>
+          <span className="text-sm text-white/80">
+            Signed in
+          </span>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className={`rounded-full border border-white/50 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-60 ${
+              mobile ? "w-full py-3" : ""
+            }`}
+          >
+            {loggingOut ? "Logging out..." : "Log Out"}
+          </button>
+        </>
+      ) : (
+        <>
+          <Link
+            to="/signup"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-[#1F7A3F] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#176331] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            Sign Up
+            <span
+              className="flex size-5 shrink-0 items-center justify-center rounded-full bg-white"
+              aria-hidden="true"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#0B3C5D"
+                strokeWidth={1.8}
+                className="h-4 w-4"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4.5 12h15m-7.5-7.5L19.5 12 12 19.5"
+                />
+              </svg>
+            </span>
+          </Link>
+
+          <Link
+            to="/login"
+            className={`rounded-full border border-white/50 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
+              mobile ? "py-3 text-center" : ""
+            }`}
+          >
+            Log In
+          </Link>
+        </>
+      )}
+    </div>
+  );
+
   return (
     <header className="relative z-50 w-full bg-[#0B3C5D] text-white shadow-sm">
       <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
@@ -60,40 +148,7 @@ function NavBar() {
           </nav>
 
           {/* Desktop authentication */}
-          <div className="hidden shrink-0 items-center gap-2 xl:flex">
-            <Link
-              to="/signup"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#1F7A3F] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#176331] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            >
-              Sign Up
-              <span
-                className="flex size-5 shrink-0 items-center justify-center rounded-full bg-white"
-                aria-hidden="true"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#0B3C5D"
-                  strokeWidth={1.8}
-                  className="h-4 w-4"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M4.5 12h15m-7.5-7.5L19.5 12 12 19.5"
-                  />
-                </svg>
-              </span>
-            </Link>
-
-            <Link
-              to="/login"
-              className="rounded-full border border-white/50 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            >
-              Log In
-            </Link>
-          </div>
+          <AuthLinks />
 
           {/* Mobile and tablet menu */}
           <details className="group relative ml-auto lg:hidden">
@@ -160,21 +215,7 @@ function NavBar() {
                 ))}
               </ul>
 
-              <div className="mt-4 flex flex-col gap-3 border-t border-white/20 pt-4">
-                <Link
-                  to="/signup"
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#1F7A3F] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#176331]"
-                >
-                  Sign Up <span aria-hidden="true">→</span>
-                </Link>
-
-                <Link
-                  to="/login"
-                  className="rounded-full border border-white/40 px-4 py-3 text-center text-sm font-medium transition-colors hover:bg-white/10"
-                >
-                  Log In
-                </Link>
-              </div>
+              <AuthLinks mobile />
             </nav>
           </details>
         </div>

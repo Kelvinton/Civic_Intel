@@ -12,7 +12,9 @@ function Home() {
             <Hero />
             <NationalSnapshot />
             <Categories />
-            <CompareStates />
+            <section id="compare-states">
+                <CompareStates />
+            </section>
             <FeaturedRealeased />
             <LatestReports />
             <OpinionPoll />

@@ -66,7 +66,7 @@ function CategoryRow({ category, reverse = false }) {
           src={category.image}
           alt={category.imageAlt}
           loading="lazy"
-          className={`h-72 w-full object-cover sm:h-96 lg:h-102.5 ${
+          className={`h-72 w-full object-cover sm:h-96 lg:h-108.5 ${
             reverse
               ? "rounded-bl-[5rem] rounded-tr-[5rem]"
               : "rounded-br-[5rem] rounded-tl-[5rem]"

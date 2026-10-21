@@ -1,5 +1,7 @@
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext.jsx";
 
 const indicators = [
   "Maternal health coverage",
@@ -11,77 +13,79 @@ const indicators = [
 ];
 
 const states = [
-  "Abia",
-  "Adamawa",
-  "Akwa Ibom",
-  "Anambra",
-  "Bauchi",
-  "Bayelsa",
-  "Benue",
-  "Borno",
-  "Cross River",
-  "Delta",
-  "Ebonyi",
-  "Edo",
-  "Ekiti",
-  "Enugu",
-  "Gombe",
-  "Imo",
-  "Jigawa",
-  "Kaduna",
-  "Kano",
-  "Katsina",
-  "Kebbi",
-  "Kogi",
-  "Kwara",
-  "Lagos",
-  "Nasarawa",
-  "Niger",
-  "Ogun",
-  "Ondo",
-  "Osun",
-  "Oyo",
-  "Plateau",
-  "Rivers",
-  "Sokoto",
-  "Taraba",
-  "Yobe",
-  "Zamfara",
+  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi",
+  "Bayelsa", "Benue", "Borno", "Cross River", "Delta",
+  "Ebonyi", "Edo", "Ekiti", "Enugu", "Gombe", "Imo",
+  "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi",
+  "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger",
+  "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers",
+  "Sokoto", "Taraba", "Yobe", "Zamfara",
   "Federal Capital Territory",
 ];
 
-const years = ["2026", "2025", "2024", "2023", "2022", "2021", "2020"];
+const years = [
+  "2026", "2025", "2024", "2023", "2022", "2021", "2020",
+];
 
 function CompareStates() {
+  const navigate = useNavigate();
+  const { isLoggedIn } = useAuth();
+  
+
   const [indicator, setIndicator] = useState("");
   const [primaryState, setPrimaryState] = useState("");
   const [comparisonState, setComparisonState] = useState("");
   const [year, setYear] = useState("");
   const [error, setError] = useState("");
 
+  
+  
   function handleCompare(event) {
     event.preventDefault();
+    setError("");
 
+    // 1. Validate the form
     if (!indicator || !primaryState || !comparisonState || !year) {
       setError("Please select an indicator, both states, and a year.");
       return;
     }
 
+    // 2. Prevent comparing a state with itself
     if (primaryState === comparisonState) {
       setError("Please choose two different states to compare.");
       return;
     }
 
-    setError("");
-
-    // The comparison results page will be connected in a later step.
-    console.log({
+    // 3. Save the user's selections
+    const comparison = {
       indicator,
       primaryState,
       comparisonState,
       year,
+    };
+
+    // 4. Require login before viewing the comparison
+    if (!isLoggedIn) {
+      navigate("/login", {
+        state: {
+          from: {
+            pathname: "/explore",
+            state: { comparison },
+          },
+          message: "Please log in to view your state comparison.",
+        },
+      });
+
+      return;
+    }
+
+    // 5. If logged in, proceed to Explore
+    navigate("/explore", {
+      state: { comparison },
     });
   }
+
+
 
   const selectClass =
     "mt-2 h-11 w-full rounded-xl border border-transparent bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-[#1F7A3F] focus:ring-2 focus:ring-[#1F7A3F]/30";
@@ -101,7 +105,6 @@ function CompareStates() {
           </h2>
 
           <div className="mt-6">
-            {/* Indicator */}
             <label
               htmlFor="indicator"
               className="block text-xs font-medium"
@@ -125,7 +128,6 @@ function CompareStates() {
             </select>
           </div>
 
-          {/* State selectors */}
           <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label
@@ -178,10 +180,9 @@ function CompareStates() {
             </div>
           </div>
 
-          {/* Year */}
           <div className="mt-5">
             <label htmlFor="year" className="block text-xs font-medium">
-              Years
+              Year
             </label>
 
             <select
@@ -206,10 +207,9 @@ function CompareStates() {
             </p>
           )}
 
-          {/* Submit */}
           <button
             type="submit"
-            className="mt-5 flex h-12 w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 text-sm  text-white transition-colors hover:bg-[#176331] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+            className="mt-5 flex h-12 w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 text-sm text-white transition-colors hover:bg-[#176331] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
           >
             Compare
             <svg

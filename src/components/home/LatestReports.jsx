@@ -61,7 +61,7 @@ function LatestReports() {
 
           <a
             href="/reports"
-            className="inline-flex items-center gap-2 text-xs font-medium text-green-500  sm:text-sm"
+            className="inline-flex items-center gap-2 text-xs font-medium text-[#1F7A3F]  sm:text-sm"
           >
             View All Releases
 

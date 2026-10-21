@@ -1,6 +1,9 @@
 
 import { useState } from "react";
-import civicIntel from "../assets/civicintel.hero.logo.png"; 
+import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
+
+import civicIntel from "../assets/civicintel.hero.logo.png";
 import civicIntelLogo from "../assets/civicintellogo1.png";
 import HealthPic1 from "../assets/health/Health1.png";
 import HealthPic2 from "../assets/health/Health2.png";
@@ -89,31 +92,97 @@ function SectionHeading({ children, dark = false }) {
 }
 
 function Health() {
-  const [indicator, setIndicator] = useState("anc");
-  const [state, setState] = useState("all");
-  const [year, setYear] = useState("2020-2024");
-  const [appliedFilters, setAppliedFilters] = useState({
-    indicator: "anc",
-    state: "all",
-    year: "2020-2024",
-  });
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { isLoggedIn } = useAuth();
+
+  // Restore filters passed back from the login page.
+  const restoredFilters = location.state?.healthFilters;
+
+  const [indicator, setIndicator] = useState(
+    restoredFilters?.indicator ?? "anc"
+  );
+
+  const [state, setState] = useState(
+    restoredFilters?.state ?? "all"
+  );
+
+  const [year, setYear] = useState(
+    restoredFilters?.year ?? "2020-2024"
+  );
+
+  // Restore the analysis only when the user is logged in.
+  const [appliedFilters, setAppliedFilters] = useState(
+    isLoggedIn && restoredFilters ? restoredFilters : null
+  );
+
+  const [hasAppliedFilters, setHasAppliedFilters] = useState(
+    Boolean(isLoggedIn && restoredFilters)
+  );
 
   const handleApplyFilters = (event) => {
     event.preventDefault();
-    setAppliedFilters({ indicator, state, year });
+
+    const filters = { indicator, state, year };
+
+    if (!isLoggedIn) {
+      navigate("/login", {
+        state: {
+          from: {
+            pathname: "/health",
+            state: {
+              healthFilters: filters,
+            },
+          },
+          message: "Please log in to view health charts and analysis.",
+        },
+      });
+
+      return;
+    }
+
+    setAppliedFilters(filters);
+    setHasAppliedFilters(true);
+  };
+
+  const handleLogin = () => {
+    navigate("/login", {
+      state: {
+        from: {
+          pathname: "/health",
+          state: {
+            healthFilters: { indicator, state, year },
+          },
+        },
+        message: "Please log in to access health data analysis.",
+      },
+    });
+  };
+
+  const handleSignup = () => {
+    navigate("/signup", {
+      state: {
+        from: {
+          pathname: "/health",
+          state: {
+            healthFilters: { indicator, state, year },
+          },
+        },
+      },
+    });
   };
 
   const indicatorLabel =
-    appliedFilters.indicator === "anc"
+    appliedFilters?.indicator === "anc"
       ? "ANC 4+ Attendance"
-      : appliedFilters.indicator === "immunization"
+      : appliedFilters?.indicator === "immunization"
         ? "Full Immunization Coverage"
         : "Maternal Mortality";
 
   return (
     <main className="bg-[#E8EEF1] text-[#20272B]">
       {/* HERO */}
-      <section className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-8 sm:px-8 md:min-h-148.75 md:grid-cols-2 md:py-16 lg:px-8 ">
+      <section className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-8 sm:px-8 md:min-h-148.75 md:grid-cols-2 md:py-16 lg:px-8">
         <div className="order-2 md:order-1">
           <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-[#1F7A3F]">
             Nigeria · Health data
@@ -132,23 +201,18 @@ function Health() {
         </div>
 
         <div className="order-1 flex justify-center md:order-2 md:justify-end">
-          {/* Image wrapper */}
           <div className="relative h-64 w-full max-w-xs rounded-bl-[80px] rounded-tr-[80px] bg-[#0B3C5D] sm:h-80 md:h-82.5 lg:h-120.25 lg:max-w-md">
-
-            {/* Main image */}
             <img
               src={civicIntel}
               alt="Digital technology and data visualisation"
               className="h-full w-full rounded-bl-[80px] rounded-tr-[80px] object-cover opacity-80"
             />
 
-            {/* Logo outside normal flow, anchored to image */}
             <img
               src={civicIntelLogo}
               alt="CivicIntel logo"
-              className="absolute -bottom-10 -right-4 z-10 w-24 h-auto object-contain sm:w-28 md:w-32"
+              className="absolute -bottom-10 -right-4 z-10 h-auto w-24 object-contain sm:w-28 md:w-32"
             />
-
           </div>
         </div>
       </section>
@@ -175,6 +239,7 @@ function Health() {
                 <p className="mt-2 text-xl font-bold text-[#20272B]">
                   {stat.value}
                 </p>
+
                 <p className="mt-1 text-xs leading-5 text-[#20272B]">
                   {stat.description}
                 </p>
@@ -208,7 +273,9 @@ function Health() {
                   className="w-full rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
                 >
                   <option value="anc">Antenatal Care (ANC 4+ Visits)</option>
-                  <option value="immunization">Full Immunization Coverage</option>
+                  <option value="immunization">
+                    Full Immunization Coverage
+                  </option>
                   <option value="maternal">Maternal Mortality</option>
                 </select>
               </label>
@@ -257,134 +324,188 @@ function Health() {
 
       {/* CHART + ANALYSIS */}
       <section className="bg-[#082C40] px-5 py-8 text-white sm:px-8 lg:px-12">
-        <div className="mx-auto grid max-w-5xl gap-7 lg:grid-cols-[1.8fr_0.8fr]">
-          <div className="rounded-sm bg-white p-4 text-[#20272B] sm:p-6">
-            <div className="mb-5">
-              <p className="text-base font-bold text-[#0B3C5D]">
-                {indicatorLabel} by Selected States
-              </p>
-              <p className="mt-1 text-xs text-gray-500">
-                Percentage (%) of live births in the 5-year survey window
-              </p>
-              <p className="mt-2 text-[10px] text-amber-700">
-                Demo chart — not verified health statistics
-              </p>
-            </div>
+        <div className="mx-auto max-w-5xl">
+          {!isLoggedIn ? (
+            <div className="mx-auto max-w-2xl rounded-2xl border border-white/20 bg-white/10 p-8 text-center sm:p-10">
+              <h2 className="text-xl font-bold sm:text-2xl">
+                Unlock Health Data Analysis
+              </h2>
 
-            <div className="space-y-4">
-              {demoStateData
-                .filter(
-                  (item) => appliedFilters.state === "all" || item.state === appliedFilters.state
-                )
-                .map((item) => (
-                  <div
-                    key={item.state}
-                    className="grid grid-cols-[48px_1fr_40px] items-center gap-2"
-                  >
-                    <span className="text-xs font-medium">{item.state}</span>
-                    <div className="h-5 overflow-hidden rounded-sm bg-[#E5EAED]">
-                      <div
-                        className="flex h-full items-center justify-end rounded-sm bg-[#164C32] pr-2 text-[10px] font-semibold text-white"
-                        style={{ width: `${item.value}%` }}
-                      >
-                        {item.value}%
-                      </div>
-                    </div>
-                    <span className="text-right text-[10px] text-gray-500">
-                      {item.zone}
-                    </span>
-                  </div>
-                ))}
-            </div>
-
-            <div className="mt-6 flex justify-between border-t border-gray-200 pt-3 text-[10px] text-gray-500">
-              <span>0%</span>
-              <span>25%</span>
-              <span>50%</span>
-              <span>75%</span>
-              <span>100%</span>
-            </div>
-
-            <div className="mt-8 rounded-md bg-[#E8EEF1] p-4">
-              <p className="text-xs font-bold text-[#145C3B]">
-                ✓ DATA PROVENANCE RECORD
-              </p>
-              <p className="mt-2 text-xs leading-5 text-gray-600">
-                Primary source, data vintage, audit date, licence, and
-                methodology will be displayed here when verified datasets are
-                connected.
-              </p>
-            </div>
-          </div>
-
-          <aside className="space-y-6">
-            <div>
-              <span className="bg-white px-2 py-1 text-[10px] text-[#0B3C5D]">
-                Analysis brief
-              </span>
-              <p className="mt-3 text-lg font-bold">
-                Health indicators across Nigeria
-              </p>
-              <p className="mt-3 text-sm leading-6 text-white/65">
-                Compare health outcomes by state, explore changes over time,
-                and review the sources behind each indicator.
-              </p>
-              <p className="mt-3 text-xs leading-5 text-white/50">
-                Selected filters: {appliedFilters.state === "all" ? "All states" : appliedFilters.state}
-                {" · "}{appliedFilters.year}
+              <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-white/70">
+                Create an account or log in to view health charts, explore
+                filtered data, and save or export your analysis.
               </p>
 
               <button
                 type="button"
-                onClick={() =>
-                  window.alert("Export will be enabled when the dataset is connected.")
-                }
-                className="mt-3 inline-flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold hover:bg-[#176331]"
+                onClick={handleLogin}
+                className="mt-6 rounded-full bg-[#1F7A3F] px-7 py-3 text-sm font-semibold text-white transition hover:bg-[#176331]"
               >
-                Export data
+                Log in to view data →
+              </button>
 
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  className="size-5"
-                  aria-hidden="true"
+              <p className="mt-4 text-xs text-white/50">
+                New to CivicIntel?{" "}
+                <button
+                  type="button"
+                  onClick={handleSignup}
+                  className="underline hover:text-white"
                 >
-                  <path
-                    fillRule="evenodd"
-                    d="M12.53 16.28a.75.75 0 0 1-1.06 0l-7.5-7.5a.75.75 0 0 1 1.06-1.06L12 14.69l6.97-6.97a.75.75 0 1 1 1.06 1.06l-7.5 7.5Z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  window.alert("Save will be enabled when user accounts are implemented.")
-                }
-                className="mt-3 w-full rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold hover:bg-[#176331]"
-              >
-                Save indicator ♧
-              </button>
-            </div>
-
-            <div>
-              <h3 className="text-base font-bold">Facility Spot Check</h3>
-              <p className="mt-2 text-sm leading-6 text-white/65">
-                A future map will show verified health facilities and their
-                locations.
+                  Create an account
+                </button>
               </p>
-              <div className="mt-4 flex min-h-44 items-center justify-center rounded-lg border border-white/20 bg-white/10 p-6 text-center">
-                <div>
-                  <p className="text-3xl" aria-hidden="true">⌖</p>
-                  <p className="mt-2 text-sm font-semibold">Facility map</p>
-                  <p className="mt-1 text-xs text-white/60">
-                    Map integration coming with verified facility data
+            </div>
+          ) : !hasAppliedFilters || !appliedFilters ? (
+            <div className="rounded-2xl border border-white/20 bg-white/10 p-8 text-center">
+              <h2 className="text-xl font-bold">Your Health Analysis</h2>
+
+              <p className="mt-3 text-sm leading-6 text-white/70">
+                Select your indicator, state, and year above, then click Apply
+                to view the chart and analysis.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-7 lg:grid-cols-[1.8fr_0.8fr]">
+              {/* GRAPH */}
+              <div className="rounded-sm bg-white p-4 text-[#20272B] sm:p-6">
+                <div className="mb-5">
+                  <p className="text-base font-bold text-[#0B3C5D]">
+                    {indicatorLabel} by Selected States
+                  </p>
+
+                  <p className="mt-1 text-xs text-gray-500">
+                    Demonstration data — not verified health statistics
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {demoStateData
+                    .filter(
+                      (item) =>
+                        appliedFilters.state === "all" ||
+                        item.state === appliedFilters.state
+                    )
+                    .map((item) => (
+                      <div
+                        key={item.state}
+                        className="grid grid-cols-[48px_1fr_40px] items-center gap-2"
+                      >
+                        <span className="text-xs font-medium">
+                          {item.state}
+                        </span>
+
+                        <div className="h-5 overflow-hidden rounded-sm bg-[#E5EAED]">
+                          <div
+                            className="flex h-full items-center justify-end rounded-sm bg-[#164C32] pr-2 text-[10px] font-semibold text-white"
+                            style={{ width: `${item.value}%` }}
+                          >
+                            {item.value}%
+                          </div>
+                        </div>
+
+                        <span className="text-right text-[10px] text-gray-500">
+                          {item.zone}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+
+                <div className="mt-6 flex justify-between border-t border-gray-200 pt-3 text-[10px] text-gray-500">
+                  <span>0%</span>
+                  <span>25%</span>
+                  <span>50%</span>
+                  <span>75%</span>
+                  <span>100%</span>
+                </div>
+
+                <div className="mt-8 rounded-md bg-[#E8EEF1] p-4">
+                  <p className="text-xs font-bold text-[#145C3B]">
+                    DATA PROVENANCE RECORD
+                  </p>
+
+                  <p className="mt-2 text-xs leading-5 text-gray-600">
+                    Primary source, data vintage, audit date, licence, and
+                    methodology will be displayed here when verified datasets
+                    are connected.
                   </p>
                 </div>
               </div>
+
+              {/* ANALYSIS AND ACCOUNT ACTIONS */}
+              <aside className="space-y-6">
+                <div>
+                  <span className="bg-white px-2 py-1 text-[10px] text-[#0B3C5D]">
+                    Analysis brief
+                  </span>
+
+                  <p className="mt-3 text-lg font-bold">
+                    Health indicators across Nigeria
+                  </p>
+
+                  <p className="mt-3 text-sm leading-6 text-white/65">
+                    Compare health outcomes by state, explore changes over
+                    time, and review the sources behind each indicator.
+                  </p>
+
+                  <p className="mt-3 text-xs leading-5 text-white/50">
+                    Selected filters:{" "}
+                    {appliedFilters.state === "all"
+                      ? "All states"
+                      : appliedFilters.state}
+                    {" · "}
+                    {appliedFilters.year}
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      window.alert(
+                        "Export will be enabled when the dataset is connected."
+                      )
+                    }
+                    className="mt-3 inline-flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold hover:bg-[#176331]"
+                  >
+                    Export data
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      window.alert(
+                        "Saving will be enabled when user accounts and the backend are connected."
+                      )
+                    }
+                    className="mt-3 w-full rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold hover:bg-[#176331]"
+                  >
+                    Save indicator ♧
+                  </button>
+                </div>
+
+                <div>
+                  <h3 className="text-base font-bold">Facility Spot Check</h3>
+
+                  <p className="mt-2 text-sm leading-6 text-white/65">
+                    A future map will show verified health facilities and
+                    their locations.
+                  </p>
+
+                  <div className="mt-4 flex min-h-44 items-center justify-center rounded-lg border border-white/20 bg-white/10 p-6 text-center">
+                    <div>
+                      <p className="text-3xl" aria-hidden="true">
+                        ⌖
+                      </p>
+                      <p className="mt-2 text-sm font-semibold">
+                        Facility map
+                      </p>
+                      <p className="mt-1 text-xs text-white/60">
+                        Map integration coming with verified facility data
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </aside>
             </div>
-          </aside>
+          )}
         </div>
       </section>
 
@@ -393,6 +514,7 @@ function Health() {
         <div className="mx-auto max-w-5xl">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <SectionHeading>LATEST HEALTH RELEASE</SectionHeading>
+
             <a
               href="#health-releases"
               className="mb-6 text-xs font-semibold text-[#1F7A3F] hover:underline"
@@ -401,7 +523,10 @@ function Health() {
             </a>
           </div>
 
-          <div id="health-releases" className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div
+            id="health-releases"
+            className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+          >
             {releases.map((release) => (
               <article
                 key={release.title}
@@ -413,11 +538,16 @@ function Health() {
                   loading="lazy"
                   className="h-48 w-full object-cover"
                 />
+
                 <div className="p-4">
-                  <p className="text-[10px] text-gray-500">{release.category}</p>
+                  <p className="text-[10px] text-gray-500">
+                    {release.category}
+                  </p>
+
                   <h3 className="mt-3 text-sm font-semibold leading-6">
                     {release.title}
                   </h3>
+
                   <p className="mt-3 text-xs text-[#1F7A3F]">
                     Demonstration release
                   </p>
