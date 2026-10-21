@@ -257,7 +257,7 @@ function SourcesAndMethods() {
       {/* Methodology: dark band with four columns */}
       <section
         id="methodology"
-        className="scroll-mt-6 bg-[#061B28] px-5 py-8 text-white sm:px-8 sm:py-10 lg:px-12"
+        className="scroll-mt-3 bg-[#061B28] px-5 py-8 text-white sm:px-8 sm:py-10 lg:px-12"
       >
         <div className="mx-auto max-w-7xl">
           <SectionTitle light>Methodology</SectionTitle>
