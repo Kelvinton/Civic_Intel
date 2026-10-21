@@ -111,7 +111,7 @@ function States() {
   return (
     <main className="min-h-screen bg-[#E7EDF0] text-[#0B3C5D]">
       {/* Hero */}
-      <section className="mx-auto max-w-6xl px-5 pb-16 pt-10 sm:px-8 md:pb-24 lg:px-12">
+      <section className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-8 md:pb-24 lg:px-12  lg:py-32">
         <div className="grid items-center gap-8 md:grid-cols-2">
           <div>
             <p className="mb-3 text-xs font-semibold uppercase text-[#1F7A3F]">

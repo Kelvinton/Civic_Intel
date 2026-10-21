@@ -159,7 +159,7 @@ function StateDetails() {
   return (
     <main className="bg-[#E7EDF0] text-[#0B3C5D]">
       {/* State hero */}
-      <section className="mx-auto max-w-[1440px] px-5 pb-16 pt-8 sm:px-10 lg:px-14 lg:pb-20">
+      <section className="mx-auto max-w-7xl px-5 pb-16  sm:px-10 lg:px-14 lg:pb-20 pt-24 lg:py-32">
         <div className="grid items-center gap-10 md:grid-cols-2">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-[#1F7A3F]">
@@ -215,7 +215,7 @@ function StateDetails() {
       </section>
 
       {/* Health and education indicators */}
-      <div className="mx-auto max-w-[1440px] px-5 pb-6 sm:px-10 lg:px-14">
+      <div className="mx-auto max-w-7xl px-5 pb-6 sm:px-10 lg:px-14">
         <IndicatorSection title="HEALTH" items={state.health} />
         <IndicatorSection title="EDUCATION" items={state.education} />
 

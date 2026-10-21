@@ -1,6 +1,6 @@
 
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { useState } from "react";
 import civicIntelLogo from "../../assets/civicintellogo1.png";
 
 const navLinks = [
@@ -14,17 +14,55 @@ const navLinks = [
 ];
 
 const getNavLinkClass = ({ isActive }) =>
-  `whitespace-nowrap rounded-md px-2 py-2 text-sm transition-colors
+  `whitespace-nowrap rounded-lg px-2.5 py-2 text-sm transition-colors
    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white
    ${
      isActive
-       ? "font-semibold text-[#1F7A3F]"
-       : "text-white/90 hover:text-[#1F7A3F]"
+       ? " font-semibold text-[#1F7A3F]"
+       : "text-white/90  hover:text-[#1F7A3F]"
    }`;
 
 function NavBar({ isLoggedIn = false, onLogout }) {
   const navigate = useNavigate();
+  const menuRef = useRef(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false);
+  };
+
+  // Close the mobile menu when the user presses Escape
+  // or clicks outside the menu.
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        closeMobileMenu();
+      }
+    };
+
+    const handleOutsideClick = (event) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target)
+      ) {
+        closeMobileMenu();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("pointerdown", handleOutsideClick);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener(
+        "pointerdown",
+        handleOutsideClick
+      );
+    };
+  }, [mobileMenuOpen]);
 
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -36,6 +74,7 @@ function NavBar({ isLoggedIn = false, onLogout }) {
         await onLogout();
       }
 
+      closeMobileMenu();
       navigate("/login", { replace: true });
     } catch (error) {
       console.error("Logout failed:", error);
@@ -44,95 +83,101 @@ function NavBar({ isLoggedIn = false, onLogout }) {
     }
   };
 
-  const AuthLinks = ({ mobile = false }) => (
-    <div
-      className={
-        mobile
-          ? "mt-4 flex flex-col gap-3 border-t border-white/20 pt-4"
-          : "hidden shrink-0 items-center gap-2 xl:flex"
-      }
-    >
-      {isLoggedIn ? (
-        <>
-          <span className="text-sm text-white/80">
-            Signed in
-          </span>
+  const AuthLinks = ({ mobile = false }) => {
+    const containerClass = mobile
+      ? "mt-4 flex flex-col gap-3 border-t border-white/15 pt-4"
+      : "hidden shrink-0 items-center gap-2 xl:flex";
 
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={loggingOut}
-            className={`rounded-full border border-white/50 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-60 ${
-              mobile ? "w-full py-3" : ""
-            }`}
-          >
-            {loggingOut ? "Logging out..." : "Log Out"}
-          </button>
-        </>
-      ) : (
-        <>
-          <Link
-            to="/signup"
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-[#1F7A3F] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#176331] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-          >
-            Sign Up
-            <span
-              className="flex size-5 shrink-0 items-center justify-center rounded-full bg-white"
-              aria-hidden="true"
+    const buttonWidth = mobile ? "w-full" : "";
+
+    return (
+      <div className={containerClass}>
+        {isLoggedIn ? (
+          <>
+            <div className="flex items-center gap-2 text-sm text-white/80">
+              <span
+                className="size-2 shrink-0 rounded-full bg-emerald-400"
+                aria-hidden="true"
+              />
+              <span>Signed in</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className={`${buttonWidth} rounded-full border border-white/40 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-60`}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#0B3C5D"
-                strokeWidth={1.8}
-                className="h-4 w-4"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M4.5 12h15m-7.5-7.5L19.5 12 12 19.5"
-                />
-              </svg>
-            </span>
-          </Link>
+              {loggingOut ? "Logging out..." : "Log Out"}
+            </button>
+          </>
+        ) : (
+          <>
+            <Link
+              to="/signup"
+              onClick={closeMobileMenu}
+              className={`${buttonWidth} inline-flex items-center justify-center gap-2 rounded-full bg-[#1F7A3F] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#176331] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white`}
+            >
+              Sign Up
 
-          <Link
-            to="/login"
-            className={`rounded-full border border-white/50 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
-              mobile ? "py-3 text-center" : ""
-            }`}
-          >
-            Log In
-          </Link>
-        </>
-      )}
-    </div>
-  );
+              <span
+                className="flex size-5 shrink-0 items-center justify-center rounded-full bg-white"
+                aria-hidden="true"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#0B3C5D"
+                  strokeWidth={1.8}
+                  className="size-4"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4.5 12h15m-7.5-7.5L19.5 12 12 19.5"
+                  />
+                </svg>
+              </span>
+            </Link>
+
+            <Link
+              to="/login"
+              onClick={closeMobileMenu}
+              className={`${buttonWidth} rounded-full border border-white/40 px-4 py-2.5 text-center text-sm font-medium transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white`}
+            >
+              Log In
+            </Link>
+          </>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <header className="relative z-50 w-full bg-[#0B3C5D] text-white shadow-sm">
-      <div className="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
-        <div className="flex min-h-20 items-center justify-between gap-4">
+    <header className="fixed inset-x-0 top-0 z-50 w-full border-b border-white/10 bg-[#0B3C5D] text-white shadow-md">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex min-h-18 items-center justify-between gap-3 sm:min-h-20">
           {/* Logo */}
           <Link
             to="/"
-            className="flex shrink-0 items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            onClick={closeMobileMenu}
+            className="flex min-w-0 shrink-0 items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             aria-label="CivicIntel home"
           >
             <img
               src={civicIntelLogo}
               alt="CivicIntel"
-              className="h-11 w-auto max-w-40 rounded-md bg-white/65 p-1.5 object-contain sm:h-12 sm:max-w-48"
+              className="h-10 w-auto max-w-36.25 rounded-md bg-white/65 p-1.5 object-contain sm:h-12 sm:max-w-48"
             />
           </Link>
 
           {/* Desktop navigation */}
           <nav
             aria-label="Main navigation"
-            className="hidden min-w-0 flex-1 justify-center lg:flex"
+            className="hidden min-w-0 flex-1 justify-center xl:flex"
           >
-            <ul className="flex items-center gap-0.5 xl:gap-1">
+            <ul className="flex items-center gap-0.5 2xl:gap-1">
               {navLinks.map((link) => (
                 <li key={link.to}>
                   <NavLink
@@ -151,73 +196,94 @@ function NavBar({ isLoggedIn = false, onLogout }) {
           <AuthLinks />
 
           {/* Mobile and tablet menu */}
-          <details className="group relative ml-auto lg:hidden">
-            <summary
-              aria-label="Open navigation menu"
-              className="flex size-11 cursor-pointer list-none items-center justify-center rounded-lg border border-white/30 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white [&::-webkit-details-marker]:hidden"
+          <div
+            ref={menuRef}
+            className="relative ml-auto shrink-0 xl:hidden"
+          >
+            <button
+              type="button"
+              aria-label={
+                mobileMenuOpen
+                  ? "Close navigation menu"
+                  : "Open navigation menu"
+              }
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-navigation"
+              onClick={() =>
+                setMobileMenuOpen((isOpen) => !isOpen)
+              }
+              className="flex size-11 items-center justify-center rounded-xl border border-white/30 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
-              {/* Hamburger icon */}
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.8}
-                className="h-6 w-6 group-open:hidden"
-                aria-hidden="true"
+              {mobileMenuOpen ? (
+                // Close icon
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.8}
+                  className="size-6"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 6l12 12M18 6L6 18"
+                  />
+                </svg>
+              ) : (
+                // Hamburger icon
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.8}
+                  className="size-6"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
+                  />
+                </svg>
+              )}
+            </button>
+
+            {/* Mobile dropdown */}
+            {mobileMenuOpen && (
+              <nav
+                id="mobile-navigation"
+                aria-label="Mobile navigation"
+                className="absolute right-0 top-full mt-3 max-h-[calc(100dvh-6rem)] w-[min(20rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-2xl border border-white/15 bg-[#0B3C5D] p-4 shadow-2xl"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
-                />
-              </svg>
 
-              {/* Close icon */}
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.8}
-                className="hidden h-6 w-6 group-open:block"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 6l12 12M18 6L6 18"
-                />
-              </svg>
-            </summary>
+                <ul className="flex flex-col gap-1">
+                  {navLinks.map((link) => (
+                    <li key={link.to}>
+                      <NavLink
+                        to={link.to}
+                        end={link.to === "/"}
+                        onClick={closeMobileMenu}
+                        className={({ isActive }) =>
+                          `flex min-h-11 items-center rounded-xl px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
+                            isActive
+                              ? "bg-white/10 font-semibold text-white"
+                              : "text-white/85 hover:bg-white/10 hover:text-white"
+                          }`
+                        }
+                      >
+                        {link.label}
+                      </NavLink>
+                    </li>
+                  ))}
+                </ul>
 
-            <nav
-              aria-label="Mobile navigation"
-              className="absolute right-0 top-full mt-3 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-white/15 bg-[#0B3C5D] p-4 shadow-xl"
-            >
-              <ul className="flex flex-col gap-1">
-                {navLinks.map((link) => (
-                  <li key={link.to}>
-                    <NavLink
-                      to={link.to}
-                      end={link.to === "/"}
-                      className={({ isActive }) =>
-                        `block rounded-lg px-4 py-3 text-sm transition-colors ${
-                          isActive
-                            ? "bg-white/10 font-semibold text-white"
-                            : "text-white/90 hover:bg-white/10 hover:text-white"
-                        }`
-                      }
-                    >
-                      {link.label}
-                    </NavLink>
-                  </li>
-                ))}
-              </ul>
-
-              <AuthLinks mobile />
-            </nav>
-          </details>
+                <AuthLinks mobile />
+              </nav>
+            )}
+          </div>
         </div>
       </div>
     </header>

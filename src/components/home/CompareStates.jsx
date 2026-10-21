@@ -29,8 +29,7 @@ const years = [
 
 function CompareStates() {
   const navigate = useNavigate();
-  const { isLoggedIn } = useAuth();
-  
+  const { isLoggedIn, loading } = useAuth();
 
   const [indicator, setIndicator] = useState("");
   const [primaryState, setPrimaryState] = useState("");
@@ -38,25 +37,36 @@ function CompareStates() {
   const [year, setYear] = useState("");
   const [error, setError] = useState("");
 
-  
-  
+  const selectClass =
+    "mt-2 h-11 w-full rounded-xl border border-transparent bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-[#1F7A3F] focus:ring-2 focus:ring-[#1F7A3F]/30";
+
   function handleCompare(event) {
     event.preventDefault();
     setError("");
 
-    // 1. Validate the form
+    // 1. Validate the selections.
     if (!indicator || !primaryState || !comparisonState || !year) {
-      setError("Please select an indicator, both states, and a year.");
+      setError(
+        "Please select an indicator, both states, and a year."
+      );
       return;
     }
 
-    // 2. Prevent comparing a state with itself
+    // 2. Prevent comparing a state with itself.
     if (primaryState === comparisonState) {
       setError("Please choose two different states to compare.");
       return;
     }
 
-    // 3. Save the user's selections
+    // 3. Wait until the authentication status is known.
+    if (loading) {
+      setError(
+        "Checking your sign-in status. Please try again shortly."
+      );
+      return;
+    }
+
+    // 4. Package the comparison selections.
     const comparison = {
       indicator,
       primaryState,
@@ -64,31 +74,38 @@ function CompareStates() {
       year,
     };
 
-    // 4. Require login before viewing the comparison
+    // 5. Redirect logged-out users to login.
+    // Preserve the comparison so the user can continue after login.
     if (!isLoggedIn) {
       navigate("/login", {
         state: {
           from: {
-            pathname: "/explore",
-            state: { comparison },
+            pathname: "/compare-results",
           },
-          message: "Please log in to view your state comparison.",
+          comparison,
+          message:
+            "Please log in to view your state comparison. Your selections will be kept.",
         },
       });
 
       return;
     }
 
-    // 5. If logged in, proceed to Explore
-    navigate("/explore", {
-      state: { comparison },
+    // 6. Logged-in users go directly to the comparison results.
+    navigate("/compare-results", {
+      state: {
+        comparison: {
+          ...comparison,
+
+          // Supply the fields expected by the Explore comparison page,
+          // if those fields are needed elsewhere later.
+          selectedStates: [primaryState, comparisonState],
+          fromYear: year,
+          toYear: year,
+        },
+      },
     });
   }
-
-
-
-  const selectClass =
-    "mt-2 h-11 w-full rounded-xl border border-transparent bg-white px-3 text-sm text-gray-800 outline-none transition focus:border-[#1F7A3F] focus:ring-2 focus:ring-[#1F7A3F]/30";
 
   return (
     <section
@@ -120,6 +137,7 @@ function CompareStates() {
               required
             >
               <option value="">Select an indicator</option>
+
               {indicators.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -140,11 +158,14 @@ function CompareStates() {
               <select
                 id="primary-state"
                 value={primaryState}
-                onChange={(event) => setPrimaryState(event.target.value)}
+                onChange={(event) =>
+                  setPrimaryState(event.target.value)
+                }
                 className={selectClass}
                 required
               >
                 <option value="">Select primary state</option>
+
                 {states.map((state) => (
                   <option key={state} value={state}>
                     {state}
@@ -171,6 +192,7 @@ function CompareStates() {
                 required
               >
                 <option value="">Select comparison state</option>
+
                 {states.map((state) => (
                   <option key={state} value={state}>
                     {state}
@@ -181,7 +203,10 @@ function CompareStates() {
           </div>
 
           <div className="mt-5">
-            <label htmlFor="year" className="block text-xs font-medium">
+            <label
+              htmlFor="year"
+              className="block text-xs font-medium"
+            >
               Year
             </label>
 
@@ -193,6 +218,7 @@ function CompareStates() {
               required
             >
               <option value="">Select year</option>
+
               {years.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -202,16 +228,21 @@ function CompareStates() {
           </div>
 
           {error && (
-            <p role="alert" className="mt-4 text-sm text-red-200">
+            <p
+              role="alert"
+              className="mt-4 text-sm text-red-200"
+            >
               {error}
             </p>
           )}
 
           <button
             type="submit"
-            className="mt-5 flex h-12 w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 text-sm text-white transition-colors hover:bg-[#176331] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+            disabled={loading}
+            className="mt-5 flex h-12 w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 text-sm text-white transition-colors hover:bg-[#176331] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:cursor-wait disabled:opacity-70"
           >
-            Compare
+            {loading ? "Checking sign-in..." : "Compare"}
+
             <svg
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
@@ -228,6 +259,12 @@ function CompareStates() {
               />
             </svg>
           </button>
+
+          {!isLoggedIn && !loading && (
+            <p className="mt-3 text-center text-xs text-white/75">
+              Sign in is required to view your comparison results.
+            </p>
+          )}
         </form>
       </div>
     </section>

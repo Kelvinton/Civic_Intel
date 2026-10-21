@@ -16,7 +16,8 @@ import States from "./pages/States.jsx";
 import StateDetails from "./pages/StatesDetail.jsx";
 import AuthPage from "./pages/AuthPage.jsx";
 import Explore from "./pages/Explore.jsx";
-
+import CompareResults from "./pages/CompareResults.jsx";
+import SourcesAndMethods from "./pages/SourceAndMethods.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
 
 // Protect only routes that require authentication.
@@ -108,15 +109,16 @@ function AppContent() {
           element={<StateDetails />}
         />
         <Route path="/explore" element={<Explore />} />
-      </Route>
+        <Route
+          path="/compare-results"
+          element={<CompareResults />}
+        />
 
-      {/* Add future protected pages inside this route group. */}
-      <Route element={<RequireAuth />}>
-        {/* Example for a future dedicated comparison page:
-        <Route path="/compare" element={<CompareStatesPage />} />
-        */}
+        <Route
+          path="/sources-and-methods"
+          element={<SourcesAndMethods />}
+        />
       </Route>
-
       <Route
         path="*"
         element={<Navigate to="/" replace />}

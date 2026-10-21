@@ -67,7 +67,7 @@ function Hero() {
       id="home"
       className="w-full overflow-hidden bg-[#0B3C5D] text-white shadow-md"
     >
-      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-8 py-12 sm:px-8 sm:py-16 md:px-12 lg:grid-cols-[1.15fr_0.85fr] lg:gap-12 lg:px-18 lg:py-8">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-8 py-12 sm:px-8 sm:py-24 md:px-12 lg:grid-cols-[1.15fr_0.85fr] lg:gap-12 lg:px-18 lg:py-32 pt-24">
 
         {/* Left: Hero Content */}
         <div className="mx-auto mt-4 flex min-w-0 w-full flex-col items-center text-center lg:mx-0 lg:items-start lg:text-left lg:h-125.75 lg:w-153.25 lg:max-w-full">

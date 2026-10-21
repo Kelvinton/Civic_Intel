@@ -182,7 +182,7 @@ function Health() {
   return (
     <main className="bg-[#E8EEF1] text-[#20272B]">
       {/* HERO */}
-      <section className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-8 sm:px-8 md:min-h-148.75 md:grid-cols-2 md:py-16 lg:px-8">
+      <section className="mx-auto grid max-w-7xl items-center gap-10 px-5 py-10 sm:px-8 md:min-h-92.5 md:grid-cols-2 md:py-12 lg:px-12 pt-24 lg:py-32">
         <div className="order-2 md:order-1">
           <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-[#1F7A3F]">
             Nigeria · Health data

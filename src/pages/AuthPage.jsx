@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import civicIntelLogo from "../assets/civicintellogo1.png";
+import civicIntelLogo from "../assets/civicintel.footer.logo.png";
 
 const initialLogin = {
   email: "",
@@ -289,7 +289,7 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
     <main className="flex min-h-screen w-full items-center justify-center bg-[#E7ECEF] p-4 sm:p-6 lg:p-8">
         <div className="grid min-h-175 w-full max-w-5xl overflow-hidden rounded-2xl bg-[#E7ECEF] shadow-xl lg:min-h-152.5 lg:grid-cols-[45.15%_54.85%]">
             {/* Left branding panel */}
-            <aside className="relative hidden overflow-hidden bg-[#0B3C5D] px-10 text-white lg:flex lg:flex-col lg:items-center lg:justify-center">
+            <aside className="relative hidden overflow-hidden bg-[#0B3C5D] px-10 text-white lg:flex lg:flex-col lg:items-center lg:justify-center text-center">
                 {/* <div
                 aria-hidden="true"
                 className="absolute -right-1 -top-20 h-52 w-52
@@ -301,31 +301,30 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
                     rounded-full bg-[#638399]/90"
                 /> */}
 
-                <div className="relative z-10 flex w-full max-w-sm flex-col items-center">
-                <Link to="/" aria-label="CivicIntel home">
-                    <img
-                    src={civicIntelLogo}
-                    alt="CivicIntel"
-                    className="mx-auto mb-8 h-auto w-48 object-contain"
-                    />
-                </Link>
+                <div className="relative z-10 flex w-full max-w-sm flex-col items-center text-center">
+                  <Link to="/" aria-label="CivicIntel home">
+                      <img
+                      src={civicIntelLogo}
+                      alt="CivicIntel"
+                      className="mx-auto mb-8 h-auto w-48 "
+                      />
+                  </Link>
 
-                <p className="text-center text-base leading-6 text-white/90">
-                    A public data platform for health and education indicators.
-                </p>
+                  <p className="text-center text-base leading-6 text-white/90">
+                      A public data platform for health and education indicators.
+                  </p>
 
-                <div className="my-12 w-full border-t border-dashed border-white/50" />
+                  <div className="my-12 w-full border-t border-dashed border-white/50" />
 
-                <h2 className="mb-3 text-center text-base font-semibold">
-                    WHY CREATE AN ACCOUNT?
-                </h2>
+                  <h2 className="mb-3 text-center text-base font-semibold">
+                      WHY CREATE AN ACCOUNT?
+                  </h2>
 
-                <ul className="list-inside list-disc space-y-2 self-start
-                    text-base leading-6 text-white/90">
+                  <ul className=" list-disc space-y-2 text-center text-base leading-6 text-white/90">
                     <li>Save comparisons for later</li>
                     <li>Access previous analysis</li>
                     <li>Export data (PNG, PDF, CSV)</li>
-                </ul>
+                  </ul>
                 </div>
             </aside>
             
