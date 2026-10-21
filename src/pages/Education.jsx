@@ -4,9 +4,9 @@ import { useAuth } from "../context/AuthContext.jsx";
 
 import EducationHero from "../assets/Education.hero.png";
 import civicIntelLogo from "../assets/civicintellogo1.png";
-import Education1 from "../assets/education/Education1.png";
-import Education2 from "../assets/education/Education2.png";
-import Education3 from "../assets/education/Education3.png";
+import Education1 from "../assets/education/education1.png";
+import Education2 from "../assets/education/education2.png";
+import Education3 from "../assets/education/education3.png";
 
 const overviewStats = [
   {
