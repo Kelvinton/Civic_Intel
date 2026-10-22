@@ -187,9 +187,30 @@ function Navbar() {
           <div className="hidden items-center gap-3 lg:flex">
             <Link
               to="/signup"
-              className="rounded-full bg-[#1F7A3F] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#176331]"
+              className="rounded-full bg-[#1F7A3F] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#176331] inline-flex"
             >
               Sign Up
+
+              <span
+                className="flex size-5 items-center justify-center rounded-full bg-white text-[#1F7A3F] ml-4"
+                aria-hidden="true"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="#0B3C5D" 
+                  stroke-width="1.8" 
+                  class="w-4 h-4"
+                  aria-hidden="true"
+                >
+                  <path 
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M4.5 12h15m-7.5-7.5L19.5 12 12 19.5"
+                  />
+                </svg>
+              </span>
             </Link>
             <Link
               to="/login"

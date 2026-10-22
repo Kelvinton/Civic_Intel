@@ -339,7 +339,7 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
                   className="mb-6 inline-flex items-center gap-2 rounded-full
                     px-4 py-2 text-sm font-medium
                     text-[#0B3C5D] transition
-                    hover:border-[#1F7A3F]
+                    hover:border-[#1F7A3F] cursor-pointer
                     "
                 >
                   <svg
