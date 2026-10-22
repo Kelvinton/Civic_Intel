@@ -275,7 +275,7 @@ function Education() {
   return (
     <main className="bg-[#E7EDF0] text-[#20272B]">
       {/* HERO */}
-      <section className="mx-auto grid max-w-7xl items-center gap-10 px-5 py-10 sm:px-8 md:min-h-92.5 md:grid-cols-2 md:py-12 lg:px-12 pt-24 lg:py-32">
+      <section className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-10 sm:px-8 md:min-h-92.5 md:grid-cols-2 md:py-12 lg:px-12  lg:py-12">
         <div className="order-2 md:order-1">
           <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-[#1F7A3F]">
             Nigeria · Education data
@@ -313,7 +313,7 @@ function Education() {
 
       {/* NATIONAL EDUCATION OVERVIEW */}
       <section className="bg-[#B5C7D1] px-5 py-8 sm:px-8 lg:px-12">
-        <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-5xl">
           <SectionHeading>
             <span className="text-[#1F7A3F]">
               NATIONAL EDUCATION OVERVIEW
@@ -448,7 +448,7 @@ function Education() {
 
       {/* EDUCATION INDICATOR FILTERS */}
       <section className="px-5 py-8 sm:px-8 lg:px-12">
-        <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-5xl">
           <SectionHeading>EDUCATION INDICATOR</SectionHeading>
 
           <form onSubmit={handleApplyFilters}>
@@ -513,7 +513,7 @@ function Education() {
 
       {/* SUB-NATIONAL COHORT RECORDS */}
       <section className="rounded-md bg-[#061D2A] px-4 py-8 text-white sm:px-6 lg:px-12">
-        <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-5xl">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-lg font-bold sm:text-2xl">

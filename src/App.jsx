@@ -19,6 +19,7 @@ import Explore from "./pages/Explore.jsx";
 import CompareResults from "./pages/CompareResults.jsx";
 import SourcesAndMethods from "./pages/SourceAndMethods.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
+import Media from "./pages/Media.jsx";
 
 // Protect only routes that require authentication.
 function RequireAuth() {
@@ -118,7 +119,15 @@ function AppContent() {
           path="/sources-and-methods"
           element={<SourcesAndMethods />}
         />
+
+        <Route
+          path="/media"
+          element={<Media />}
+        />
+        
       </Route>
+      
+      
       <Route
         path="*"
         element={<Navigate to="/" replace />}

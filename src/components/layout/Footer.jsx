@@ -15,7 +15,7 @@ const footerSections = [
   {
     title: "Trust",
     links: [
-      { label: "Sources & Method", href: "/methodology" },
+      { label: "Sources & Method", href: "/sources-and-methods" },
       { label: "Methodology", href: "/methodology" },
       { label: "Revision History", href: "/revision-history" },
     ],

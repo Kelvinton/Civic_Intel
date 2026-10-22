@@ -1,5 +1,4 @@
 import { useState } from "react";
-
 const pollOptions = [
   "Reducing inflation and food prices",
   "Strengthening the Naira",
@@ -180,18 +179,7 @@ function OpinionPoll() {
 
         {/* Privacy notice */}
         <div className="mt-6 flex items-start gap-3 text-xs leading-5 text-[#B8C2C9] sm:mt-7 sm:items-center sm:text-sm">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            className="mt-0.5 h-5 w-5 shrink-0 text-[#21804B] sm:mt-0"
-            aria-hidden="true"
-          >
-            <circle cx="7" cy="17" r="3" />
-            <circle cx="17" cy="17" r="3" />
-            <path d="M2 5h3l4 9h7l4-6h-9M2 2l20 20" />
-          </svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hat-glasses preview-icon"><path d="M14 18a2 2 0 0 0-4 0"/><path d="m19 11-2.11-6.657a2 2 0 0 0-2.752-1.148l-1.276.61A2 2 0 0 1 12 4H8.5a2 2 0 0 0-1.925 1.456L5 11"/><path d="M2 11h20"/><circle cx="17" cy="18" r="3"/><circle cx="7" cy="18" r="3"/></svg>
 
           <p>
             Your response is anonymous. Results will be published when the poll

@@ -2,11 +2,7 @@
 import { useEffect, useState } from "react";
 import {
   BookOpen,
-  CheckCircle2,
-  ClipboardCheck,
-  Database,
   FileSearch,
-  History,
   ShieldCheck,
   Scale,
 } from "lucide-react";
@@ -165,24 +161,24 @@ function SourcesAndMethods() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[#062638] text-[#E7EDF0]"> 
+    <main className="min-h-screen  text-[#E7EDF0]"> 
       
       
         {/* Hero */}
-        <section className="mx-auto max-w-6xl px-4 py-10 sm:px-8 lg:px-12 lg:py-32 pt-24">
-        <div className="flex flex-col items-center justify-between gap-8 md:flex-row md:gap-12">
+        <section className="  pl-4  sm:pl-8  w-full ">
+          <div className="flex flex-col items-center  md:flex-row  w-full gap-8">
             {/* Hero text */}
-            <div className="w-full md:w-1/2">
-            <h1 className="text-4xl font-bold leading-tight tracking-normal text-white/80 sm:text-4xl lg:7xl">
-                Sources &amp;
-                <br />
-                Methodology
-            </h1>
+            <div className="w-full md:w-1/2  h-55 sm:h-75 lg:h-87.5 pl-5 sm:pl-16 py-18">
+              <h1 className="text-4xl font-bold leading-tight tracking-normal  text-white/80 sm:text-4xl lg:7xl ">
+                  Sources &amp;
+                  <br />
+                  Methodology
+              </h1>
 
-            <p className="mt-4 max-w-md text-xs leading-5 text-[#E7EDF0] sm:text-sm">
-                How CivicIntel selects, verifies, and publishes health and
-                education data for Nigeria — and how to interpret what you see.
-            </p>
+              <p className="mt-4 max-w-md text-xs leading-5 text-[#E7EDF0] sm:text-sm">
+                  How CivicIntel selects, verifies, and publishes health and
+                  education data for Nigeria — and how to interpret what you see.
+              </p>
             </div>
 
             {/* Hero image */}
@@ -190,10 +186,10 @@ function SourcesAndMethods() {
             <img
                 src={SourceHero}
                 alt="Open source written on a typewriter"
-                className="h-[220px] w-full rounded-lg object-cover sm:h-[300px] lg:h-[350px]"
+                className="h-55 w-full rounded-lg object-cover sm:h-75 lg:h-87.5"
             />
             </div>
-        </div>
+          </div>
         </section>
 
 
@@ -367,7 +363,7 @@ function SourcesAndMethods() {
             {interpretations.map((item, index) => (
               <article
                 key={item.title}
-                className="min-h-[150px] border-l-[4px] border-[#0B3C5D] px-4 py-3 text-center sm:min-h-[165px]"
+                className="min-h-37.5 border-l-4 border-[#0B3C5D] px-4 py-3 text-center sm:min-h-41.25"
               >
                 <span className="mx-auto flex h-5 w-5 items-center justify-center rounded-full bg-[#1F7A3F] text-[10px] font-bold text-white">
                   {index + 1}

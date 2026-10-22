@@ -102,7 +102,7 @@ function SectionDescription({ children }) {
 function ExploreHero() {
   return (
     <section className="bg-[#062638] text-white">
-      <div className="mx-auto grid max-w-6xl items-center gap-8 px-5 py-12 sm:px-8 sm:py-14 lg:grid-cols-2 lg:gap-12 lg:px-10 lg:py-28 pt-28 ">
+      <div className="mx-auto grid max-w-6xl items-center gap-8 px-5 py-12 sm:px-8 sm:py-14 lg:grid-cols-2 lg:gap-12 lg:px-10 lg:py-12  ">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-white/80">
             Civic Analytics Engine
@@ -120,7 +120,7 @@ function ExploreHero() {
           </p>
         </div>
 
-        <div className="h-56 overflow-hidden rounded-xl bg-[#0B3C5D] sm:h-72 lg:h-[20rem]">
+        <div className="h-56 overflow-hidden rounded-xl bg-[#0B3C5D] sm:h-72 lg:h-80">
           <img
             src={ExploreHeroPic}
             alt="Organised public records and documents"
@@ -136,7 +136,7 @@ function ExploreHero() {
 
 function StepProgress({ activeStep, onStepClick }) {
   return (
-    <div className="mx-auto w-full max-w-4xl px-3 pt-7 sm:px-8 sm:pt-8">
+    <div className="mx-auto w-full max-w-6xl px-3 pt-7 sm:px-8 sm:pt-8">
       <div className="grid grid-cols-5">
         {steps.map((step, index) => {
           const active = index === activeStep;
@@ -158,7 +158,7 @@ function StepProgress({ activeStep, onStepClick }) {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className={`pointer-events-none absolute left-1/2 top-[6px] z-0 h-6 w-full sm:top-3 ${
+                  className={`pointer-events-none absolute left-1/2 top-1.5 z-0 h-6 w-full sm:top-3 ${
                     completed
                       ? "text-[#1F7A3F]"
                       : "text-slate-400"
@@ -458,8 +458,8 @@ function Explore() {
         onStepClick={handleStepClick}
       />
 
-      <main className="mx-auto max-w-4xl px-4 pb-10 pt-7 sm:px-8 sm:pt-9">
-        <SectionCard className="min-h-[340px] sm:min-h-[390px]">
+      <main className="mx-auto max-w-6xl px-4 pb-10 pt-7 sm:px-8 sm:pt-9">
+        <SectionCard className="min-h-85 sm:min-h-97.5">
           {/* STEP 1: CHOOSE DOMAIN */}
           {activeStep === 0 && (
             <>
