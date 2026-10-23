@@ -20,6 +20,7 @@ import CompareResults from "./pages/CompareResults.jsx";
 import SourcesAndMethods from "./pages/SourceAndMethods.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
 import Media from "./pages/Media.jsx";
+import Account from "./pages/Account.jsx";
 
 // Protect only routes that require authentication.
 function RequireAuth() {
@@ -101,7 +102,7 @@ function AppContent() {
         }
       >
         <Route path="/" element={<Home />} />
-        
+        <Route path="/profile" element={<Account />} />
         <Route path="/health" element={<Health />} />
         <Route path="/education" element={<Education />} />
         <Route path="/states" element={<States />} />

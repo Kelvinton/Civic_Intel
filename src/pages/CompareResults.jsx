@@ -187,7 +187,7 @@ function AnalysisBrief({ comparison }) {
         <div className="flex items-start justify-between gap-3">
           <span className="text-slate-500">Indicator</span>
 
-          <span className="max-w-[65%] break-words text-right font-medium text-slate-700">
+          <span className="max-w-[65%] wrap-break-word text-right font-medium text-slate-700">
             {comparison.indicator}
           </span>
         </div>
@@ -195,7 +195,7 @@ function AnalysisBrief({ comparison }) {
         <div className="flex items-start justify-between gap-3">
           <span className="text-slate-500">Selected states</span>
 
-          <span className="max-w-[65%] break-words text-right font-medium text-slate-700">
+          <span className="max-w-[65%] wrap-break-word text-right font-medium text-slate-700">
             {comparison.selectedStates.length
               ? comparison.selectedStates.join(", ")
               : "None selected"}
@@ -379,7 +379,21 @@ function CompareResults() {
                     className="flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#176332] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F7A3F]"
                   >
                     Export
-                    <span aria-hidden="true">⌄</span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      className= "h-4 w-4 transition-transform duration-200" 
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="m6 9 6 6 6-6"
+                      />
+                    </svg>
                   </button>
 
                   {showExportMenu && (
@@ -432,9 +446,25 @@ function CompareResults() {
           >
             Back Home
 
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-[#1F7A3F]">
-              →
-            </span>
+            <span
+                className="flex size-5 items-center justify-center rounded-full bg-white text-[#1F7A3F] ml-4"
+                aria-hidden="true">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="#0B3C5D" 
+                  stroke-width="1.8" 
+                  class="w-4 h-4"
+                  aria-hidden="true"
+                >
+                  <path  
+                    stroke-linecap="round" 
+                    stroke-linejoin="round" 
+                    d="M4.5 12h15m-7.5-7.5L19.5 12 12 19.5" 
+                  />
+                </svg>
+              </span>
           </Link>
         </div>
 
@@ -452,7 +482,7 @@ function CompareResults() {
                   }
                 : undefined,
             }}
-            className="text-xs font-medium text-[#0B3C5D] underline underline-offset-4 hover:text-[#1F7A3F]"
+            className="text-xs font-medium text-[#0B3C5D]  hover:text-[#1F7A3F]"
           >
             Edit comparison selections
           </Link>

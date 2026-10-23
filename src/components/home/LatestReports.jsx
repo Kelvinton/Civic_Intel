@@ -11,8 +11,7 @@ const reports = [
     description:
       "Explore maternal health coverage and the differences in access to care across states.",
     date: "September 2026",
-    image:
-      Category3,
+    image: Category3,
     imageAlt: "Healthcare professional working in a clinical setting",
     href: "/reports/maternal-health",
   },
@@ -23,8 +22,7 @@ const reports = [
     description:
       "Examine education completion indicators and identify differences between states.",
     date: "August 2026",
-    image:
-      Category2,
+    image: Category2,
     imageAlt: "Students participating in a classroom lesson",
     href: "/reports/primary-school-completion",
   },
@@ -35,8 +33,7 @@ const reports = [
     description:
       "Review public spending indicators and how budget allocations vary across states.",
     date: "August 2026",
-    image:
-      Category1,
+    image: Category1,
     imageAlt: "Financial documents and calculations on a desk",
     href: "/reports/state-budgets",
   },
@@ -46,9 +43,9 @@ function LatestReports() {
   return (
     <section
       id="latest-reports"
-      className="bg-gray-200 px-5 py-12  sm:px-8 sm:py-16 lg:px-14"
+      className="bg-gray-200 px-5 py-12 sm:px-8 sm:py-16 lg:px-20"
     >
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-6xl">
         {/* Section heading */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
@@ -61,7 +58,16 @@ function LatestReports() {
 
           <a
             href="/reports"
-            className="inline-flex items-center gap-2 text-xs font-bold text-[#1F7A3F]  sm:text-sm"
+            className="
+              inline-flex items-center gap-2
+              text-xs font-bold text-[#1F7A3F]
+              transition-colors duration-300
+              hover:text-[#145C3B]
+              focus-visible:outline-2
+              focus-visible:outline-offset-4
+              focus-visible:outline-[#1F7A3F]
+              sm:text-sm
+            "
           >
             View All Releases
 
@@ -71,7 +77,7 @@ function LatestReports() {
               viewBox="0 0 24 24"
               strokeWidth={1.5}
               stroke="currentColor"
-              className="size-4"
+              className="size-4 transition-transform duration-300 group-hover:translate-x-1"
               aria-hidden="true"
             >
               <path
@@ -84,71 +90,111 @@ function LatestReports() {
         </div>
 
         {/* Report cards */}
-        <div className="mt-7 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 px-5">
+        <div className="mt-7 grid grid-cols-1 gap-5 px-5 sm:grid-cols-2 lg:grid-cols-3">
           {reports.map((report) => (
             <article
               key={report.id}
-              className="group flex min-w-0 flex-col overflow-hidden rounded-xl
-                border border-gray-300 bg-white
-                transition-all duration-300
-                hover:-translate-y-1 hover:border-[#1F7A3F] hover:shadow-lg
+              className="
+                group flex min-w-0 flex-col overflow-hidden
+                rounded-xl border border-gray-300
+                
+                bg-white text-[#171717] shadow-sm
+
+                transition-all duration-300 ease-out
+
+                hover:-translate-y-2
+                hover:border-gray-300
+                hover:shadow-xl
+
                 active:scale-[0.99]
-                focus-within:border-[#1F7A3F]"
+
+                focus-within:border-[#1F7A3F]
+
+                motion-reduce:transform-none
+                motion-reduce:transition-none
+              "
             >
-              {/* Image */}
+              {/* Report image */}
               <a
                 href={report.href}
                 aria-label={`Read ${report.title}`}
-                className="block overflow-hidden"
+                className="block overflow-hidden focus-visible:outline-2 focus-visible:outline-[#1F7A3F]"
               >
                 <img
                   src={report.image}
                   alt={report.imageAlt}
                   loading="lazy"
-                  className="h-48 w-full border border-gray-300 object-cover
-                  transition-transform duration-500
-                  group-hover:scale-105
-                  group-active:scale-[1.02]
-                  sm:h-52"
+                  className="
+                    h-48 w-full object-cover sm:h-52
+
+                    transition-transform duration-500 ease-out
+
+                    group-hover:scale-105
+                    group-active:scale-[1.02]
+
+                    motion-reduce:transform-none
+                    motion-reduce:transition-none
+                  "
                 />
               </a>
 
               {/* Card content */}
               <div className="flex flex-1 flex-col p-5 text-black">
-                <p className="text-[10px] font-semibold tracking-widest ">
+                {/* Category */}
+                <p
+                  className="
+                    text-[10px] font-semibold tracking-widest
+                    transition-colors duration-300
+                    group-hover:text-[#1F7A3F]
+                  "
+                >
                   {report.category}
                 </p>
 
-                <h3 className="mt-3 text-base font-semibold leading-6 text-black">
+                {/* Report title */}
+                <h3 className="mt-3 text-base font-semibold leading-6">
                   <a
                     href={report.href}
-                    className="transition-colors duration-300
-                  hover:text-[#1F7A3F]
-                  active:text-[#1F7A3F]
-                  focus-visible:outline-2
-                  focus-visible:outline-offset-4
-                  focus-visible:outline-[#65C98A]" 
+                    className="
+                      transition-colors duration-300
+                      hover:text-[#1F7A3F]
+                      active:text-[#1F7A3F]
+                      focus-visible:outline-2
+                      focus-visible:outline-offset-4
+                      focus-visible:outline-[#65C98A]
+                    "
                   >
                     {report.title}
                   </a>
                 </h3>
 
+                {/* Description */}
                 <p className="mt-3 text-sm leading-6 text-black">
                   {report.description}
                 </p>
 
+                {/* Date and read indicator */}
                 <div className="mt-auto flex items-center justify-between gap-3 pt-6">
-                  <span className="text-xs text-black">
+                  <span className="text-xs text-gray-600">
                     {report.date}
                   </span>
 
-                  {/* <a
-                    href={report.href}
-                    className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-[#65C98A] hover:text-white"
+                  <span
+                    aria-hidden="true"
+                    className="
+                      inline-flex shrink-0 items-center
+                      text-xs font-semibold text-[#1F7A3F]
+                      opacity-0 -translate-x-1
+                      transition-all duration-300
+
+                      group-hover:translate-x-0
+                      group-hover:opacity-100
+
+                      motion-reduce:transition-none
+                    "
                   >
-                    Read report
-                    <span aria-hidden="true">↗</span>
-                  </a> */}
+                    Read <span className="ml-1">↗</span>
+                  </span>
                 </div>
               </div>
             </article>

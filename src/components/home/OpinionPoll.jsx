@@ -36,9 +36,9 @@ function OpinionPoll() {
   return (
     <section
       id="opinion-poll"
-      className="overflow-hidden px-5 py-8 text-white sm:px-8 sm:py-10 lg:px-11 lg:py-11 bg-gray-300"
+      className="overflow-hidden px-5 py-8 text-white sm:px-8 sm:py-10 lg:px-20 lg:py-11 bg-gray-300"
     >
-      <div className="mx-auto max-w-5xl bg-[#061B27] p-8 rounded-4xl">
+      <div className="mx-auto max-w-6xl bg-[#061B27] p-8 rounded-4xl">
         {/* Header */}
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -46,7 +46,7 @@ function OpinionPoll() {
             <svg
               viewBox="0 0 24 24"
               fill="currentColor"
-              className="h-6 w-6 shrink-0 text-[#1F7A4D]"
+              className="h-6 w-6 shrink-0 text-[#1F7A3F]"
               aria-hidden="true"
             >
               <rect x="2" y="10" width="5" height="12" rx="2.5" />
@@ -54,7 +54,7 @@ function OpinionPoll() {
               <rect x="17" y="6" width="5" height="16" rx="2.5" />
             </svg>
 
-            <h2 className="text-base font-bold uppercase tracking-wide text-[#17664F] sm:text-xl">
+            <h2 className="text-base font-bold uppercase tracking-wide text-[#1F7A3F] sm:text-xl">
               CivicIntel’s Opinion Poll
             </h2>
           </div>
@@ -112,7 +112,7 @@ function OpinionPoll() {
                     value={option}
                     checked={selectedOption === option}
                     onChange={() => handleOptionChange(option)}
-                    className="h-5.25 w-5.25 shrink-0 cursor-pointer appearance-none rounded-full border-[1.5px] border-[#687782] bg-transparent transition checked:border-[#24834F] checked:bg-[#24834F] checked:shadow-[inset_0_0_0_5px_#061B27] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3CA66B]"
+                    className="h-5.25 w-5.25 shrink-0 cursor-pointer appearance-none rounded-full border-[1.5px] border-[#687782] bg-transparent transition checked:border-[#1F7A3F] checked:bg-[#24834F] checked:shadow-[inset_0_0_0_5px_#061B27] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3CA66B]"
                   />
 
                   <span>{option}</span>
@@ -148,7 +148,7 @@ function OpinionPoll() {
             disabled={
               !selectedOption || (isOtherSelected && !otherOpinion.trim())
             }
-            className="mt-6 inline-flex min-h-12 items-center justify-center gap-4 rounded-full bg-white px-4 py-3 text-sm font-medium text-[#16733D] transition hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+            className="mt-6 inline-flex min-h-12 items-center justify-center gap-4 rounded-full bg-white px-4 py-3 text-sm font-medium text-[#1F7A3F] transition hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
           >
             <span>Submit Feedback</span>
 

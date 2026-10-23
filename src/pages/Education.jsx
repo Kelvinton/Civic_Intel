@@ -1,6 +1,9 @@
 
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 import EducationHero from "../assets/Education.hero.png";
 import civicIntelLogo from "../assets/civicintellogo1.png";
@@ -153,6 +156,14 @@ const releases = [
 const formatNumber = (number) =>
   new Intl.NumberFormat("en-NG").format(number);
 
+const indicatorLabels = {
+  cohort: "Sub-National Records",
+  enrolment: "School Enrolment",
+  completion: "Completion Rate",
+  exam: "Examination Pass Rate",
+  teachers: "Teacher-Pupil Ratio",
+};
+
 function SectionHeading({ children, dark = false }) {
   return (
     <h2
@@ -168,37 +179,64 @@ function SectionHeading({ children, dark = false }) {
 
 function Education() {
   const { isLoggedIn } = useAuth();
+  const navigate = useNavigate();
 
   const [exam, setExam] = useState("WAEC");
   const [indicator, setIndicator] = useState("cohort");
   const [state, setState] = useState("all");
-  const [year, setYear] = useState("2023-2024");
+  const [year, setYear] = useState("2023");
   const [search, setSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
-  const [appliedFilters, setAppliedFilters] = useState({
-    indicator: "cohort",
-    state: "all",
-    year: "2023-2024",
-  });
+  // FIX: Declare the missing Export dropdown state.
+  const [showExportOptions, setShowExportOptions] = useState(false);
 
-  // Prompt logged-out visitors to sign in before using
-  // interactive dashboard features.
+  // Results remain hidden until an authenticated user applies filters.
+  const [appliedFilters, setAppliedFilters] = useState(null);
+
   const requireLogin = (action) => {
     if (isLoggedIn) return true;
 
-    const shouldLogin = window.confirm(
-      `Please log in to ${action}. Would you like to go to the login page?`
-    );
-
-    if (shouldLogin) {
-      window.location.assign("/login");
-    }
+    navigate("/login", {
+      state: {
+        from: {
+          pathname: "/education",
+        },
+        message: `Please log in to ${action}.`,
+      },
+    });
 
     return false;
   };
 
+  // FIX: Return new users to Education after signup, not Health.
+  const handleSignup = () => {
+    navigate("/signup", {
+      state: {
+        from: {
+          pathname: "/education",
+        },
+      },
+    });
+  };
+
+  const selectedIndicatorLabel =
+    indicatorLabels[appliedFilters?.indicator] ?? "Education Records";
+
+  // The supplied cohort dataset contains demonstration records from 2023.
+  // Other indicators require their own datasets before they can return results.
   const filteredRecords = useMemo(() => {
+    if (!isLoggedIn || !appliedFilters) {
+      return [];
+    }
+
+    if (
+      appliedFilters.indicator !== "cohort" ||
+      appliedFilters.year !== "2023"
+    ) {
+      return [];
+    }
+
     return cohortRecords.filter((record) => {
       const matchesState =
         appliedFilters.state === "all" ||
@@ -206,26 +244,52 @@ function Education() {
 
       const matchesSearch = record.state
         .toLowerCase()
-        .includes(search.toLowerCase());
+        .includes(search.trim().toLowerCase());
 
       return matchesState && matchesSearch;
     });
-  }, [appliedFilters, search]);
+  }, [isLoggedIn, appliedFilters, search]);
 
   const handleApplyFilters = (event) => {
     event.preventDefault();
 
-    if (!requireLogin("apply filters")) return;
+    if (!requireLogin("apply education indicators")) return;
 
-    setAppliedFilters({ indicator, state, year });
+    setAppliedFilters({
+      indicator,
+      state,
+      year,
+    });
+
+    setSearch("");
+    setShowExportOptions(false);
   };
 
-  const handleExport = () => {
+  const handleExport = (format) => {
     if (!requireLogin("export education data")) return;
 
-    // The current project has demo records, not a connected
-    // verified export dataset. Export the currently displayed
-    // records to CSV so the control is functional for testing.
+    // FIX: Explain why export cannot proceed if filters have not been applied.
+    if (!appliedFilters) {
+      alert("Please apply your filters before exporting data.");
+      return;
+    }
+
+    if (
+      appliedFilters.indicator !== "cohort" ||
+      appliedFilters.year !== "2023"
+    ) {
+      alert(
+        "There is no dataset available to export for this selection."
+      );
+      return;
+    }
+
+    // FIX: Prevent downloading an empty file when filters return no records.
+    if (filteredRecords.length === 0) {
+      alert("There are no matching records to export.");
+      return;
+    }
+
     const headers = [
       "State",
       "Geopolitical Zone",
@@ -248,34 +312,146 @@ function Education() {
       record.source,
     ]);
 
-    const escapeCsv = (value) =>
-      `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const fileName = `civic-intel-education-${appliedFilters.year}`;
 
-    const csvContent = [headers, ...rows]
-      .map((row) => row.map(escapeCsv).join(","))
-      .join("\r\n");
+    const downloadFile = (content, type, extension) => {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
 
-    const blob = new Blob(["\uFEFF", csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
+      link.href = url;
+      link.download = `${fileName}.${extension}`;
 
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
 
-    link.href = url;
-    link.download = "civic-intel-education-data.csv";
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
 
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    if (format === "csv") {
+      const escapeCsv = (value) =>
+        `"${String(value ?? "").replace(/"/g, '""')}"`;
 
-    URL.revokeObjectURL(url);
+      const csvContent = [headers, ...rows]
+        .map((row) => row.map(escapeCsv).join(","))
+        .join("\r\n");
+
+      downloadFile(
+        "\uFEFF" + csvContent,
+        "text/csv;charset=utf-8;",
+        "csv"
+      );
+
+      return;
+    }
+
+    if (format === "xml") {
+      const escapeXml = (value) =>
+        String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&apos;");
+
+      const xmlRecords = filteredRecords
+        .map(
+          (record) => `
+    <record>
+      <state>${escapeXml(record.state)}</state>
+      <zone>${escapeXml(record.zone)}</zone>
+      <region>${escapeXml(record.region)}</region>
+      <candidates>${record.candidates}</candidates>
+      <passRate>${record.passRate}</passRate>
+      <malePass>${record.malePass}</malePass>
+      <femalePass>${record.femalePass}</femalePass>
+      <source>${escapeXml(record.source)}</source>
+    </record>`
+        )
+        .join("");
+
+      const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<educationData>
+  <metadata>
+    <indicator>${escapeXml(appliedFilters.indicator)}</indicator>
+    <year>${escapeXml(appliedFilters.year)}</year>
+    <selectedState>${escapeXml(appliedFilters.state)}</selectedState>
+    <recordCount>${filteredRecords.length}</recordCount>
+    <dataStatus>Demonstration data - unverified</dataStatus>
+  </metadata>
+  <records>${xmlRecords}
+  </records>
+</educationData>`;
+
+      downloadFile(
+        xmlContent,
+        "application/xml;charset=utf-8;",
+        "xml"
+      );
+
+      return;
+    }
+
+    if (format === "pdf") {
+      const doc = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4",
+      });
+
+      doc.setFontSize(16);
+      doc.text("CivicIntel - Education Data", 14, 16);
+
+      doc.setFontSize(10);
+      doc.text(`Indicator: ${selectedIndicatorLabel}`, 14, 24);
+
+      doc.text(
+        `Year: ${appliedFilters.year} | State: ${
+          appliedFilters.state === "all"
+            ? "All states"
+            : appliedFilters.state
+        }`,
+        14,
+        30
+      );
+
+      doc.setFontSize(9);
+      doc.text(
+        "Demonstration data only - not verified for policy decisions.",
+        14,
+        36
+      );
+
+      autoTable(doc, {
+        head: [headers],
+        body: rows,
+        startY: 42,
+        styles: {
+          fontSize: 8,
+          cellPadding: 3,
+          overflow: "linebreak",
+        },
+        headStyles: {
+          fillColor: [11, 60, 93],
+        },
+        alternateRowStyles: {
+          fillColor: [240, 245, 247],
+        },
+        margin: {
+          left: 14,
+          right: 14,
+        },
+      });
+
+      doc.save(`${fileName}.pdf`);
+    }
   };
 
   return (
     <main className="bg-[#E7EDF0] text-[#20272B]">
       {/* HERO */}
-      <section className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-10 sm:px-8 md:min-h-92.5 md:grid-cols-2 md:py-12 lg:px-12  lg:py-12">
+      <section className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-10 sm:px-8 md:min-h-92.5 md:grid-cols-2 md:py-12 lg:px-12 lg:py-12">
         <div className="order-2 md:order-1">
           <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-[#1F7A3F]">
             Nigeria · Education data
@@ -289,8 +465,8 @@ function Education() {
 
           <p className="mt-4 max-w-lg text-sm leading-6 text-[#38464D]">
             Explore enrolment, completion, learning outcomes, teachers,
-            examinations, infrastructure, and financing — filterable by state
-            and year, with each figure traceable to its source.
+            examinations, infrastructure, and financing — with figures
+            traceable to their sources.
           </p>
         </div>
 
@@ -321,20 +497,35 @@ function Education() {
           </SectionHeading>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {overviewStats.map((stat) => (
+            {overviewStats.map((stat, index) => (
               <article
-                key={stat.label}
-                className="min-h-28 rounded-md border-l-4 bg-[#F0F1F0] p-3.5 shadow-sm"
-                style={{ borderLeftColor: stat.color }}
+                key={`${stat.label}-${stat.description}`}
+                tabIndex={0}
+                className="
+                  group relative min-h-28 cursor-pointer overflow-hidden
+                  rounded-md border border-transparent border-l-4
+                  bg-[#F0F1F0] p-3.5 shadow-sm
+                  transform-gpu transition-all duration-300 ease-out
+                  hover:-translate-y-1 hover:scale-[1.02]
+                  hover:border-[#1F7A3F] hover:shadow-xl
+                  active:scale-[0.98]
+                  focus-visible:outline-2 focus-visible:outline-offset-2
+                  focus-visible:outline-[#1F7A3F]
+                  motion-reduce:transform-none motion-reduce:transition-none
+                "
+                style={{
+                  borderLeftColor: stat.color,
+                  transitionDelay: `${index * 40}ms`,
+                }}
               >
                 <span
-                  className="inline-block rounded-full px-3 py-1 text-[9px] font-medium text-white"
+                  className="inline-block rounded-full px-3 py-1 text-[9px] font-medium text-white transition-transform duration-300 group-hover:scale-105"
                   style={{ backgroundColor: stat.color }}
                 >
                   {stat.label}
                 </span>
 
-                <p className="mt-2 text-lg font-bold text-[#20272B]">
+                <p className="mt-2 text-lg font-bold text-[#20272B] transition-transform duration-300 ease-out group-hover:translate-x-0.5">
                   {stat.value}
                 </p>
 
@@ -344,21 +535,25 @@ function Education() {
 
                 <div className="my-2 border-t border-dashed border-gray-400" />
 
-                <p className="text-[10px] text-gray-600">
-                  {stat.source}
-                </p>
+                <p className="text-[10px] text-gray-600">{stat.source}</p>
               </article>
             ))}
           </div>
 
-          <p className="mt-3 text-[10px] text-[#31434D]">
-            Demonstration values only — validate all figures and source dates
-            before publication.
+          <p className="mt-4 text-xs text-gray-700">
+            Figures shown are demonstration content and should be verified
+            against their original sources before publication.
           </p>
+        </div>
+      </section>
 
-          {/* EXAM SUMMARIES + AUDIT */}
-          <div className="mt-6 grid gap-5 lg:grid-cols-[2.2fr_0.8fr]">
-            <div className="rounded-lg bg-white p-4 sm:p-5">
+      {/* PUBLIC EXAM SUMMARIES */}
+      <section className="px-5 py-8 sm:px-8 lg:px-12">
+        <div className="mx-auto max-w-5xl">
+          <SectionHeading>EXAMINATION PERFORMANCE OVERVIEW</SectionHeading>
+
+          <div className="grid gap-5 lg:grid-cols-[2.2fr_0.8fr]">
+            <div className="rounded-lg bg-white p-4 shadow-sm sm:p-5">
               <div className="flex flex-wrap gap-5 border-b border-gray-200">
                 {Object.keys(examSummaries).map((examName) => (
                   <button
@@ -389,7 +584,7 @@ function Education() {
 
                     <div className="h-2 overflow-hidden rounded-full bg-gray-200">
                       <div
-                        className="h-full rounded-full bg-[#1F7A3F] transition-all"
+                        className="h-full rounded-full bg-[#1F7A3F] transition-all duration-500"
                         style={{ width: `${item.value}%` }}
                       />
                     </div>
@@ -402,11 +597,12 @@ function Education() {
               </div>
 
               <p className="mt-5 text-[10px] text-gray-500">
-                {exam} · Demo summary · Not verified examination statistics
+                {exam} · Demonstration summary · Not verified examination
+                statistics
               </p>
             </div>
 
-            <aside className="rounded-lg bg-white p-5">
+            <aside className="rounded-lg bg-white p-5 shadow-sm">
               <p className="text-sm font-bold text-[#0B3C5D]">
                 Trend Metadata &amp; Audit
               </p>
@@ -455,6 +651,7 @@ function Education() {
             <div className="grid gap-4 md:grid-cols-3">
               <label className="flex flex-col gap-2 text-xs">
                 Indicator
+
                 <select
                   value={indicator}
                   onChange={(event) => setIndicator(event.target.value)}
@@ -470,6 +667,7 @@ function Education() {
 
               <label className="flex flex-col gap-2 text-xs">
                 State
+
                 <select
                   value={state}
                   onChange={(event) => setState(event.target.value)}
@@ -487,14 +685,15 @@ function Education() {
 
               <label className="flex flex-col gap-2 text-xs">
                 Year
+
                 <select
                   value={year}
                   onChange={(event) => setYear(event.target.value)}
                   className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
                 >
+                  <option value="2023">2023</option>
                   <option value="2023-2024">2023–2024</option>
                   <option value="2025">2025</option>
-                  <option value="2023">2023</option>
                   <option value="2022">2022</option>
                   <option value="2021">2021</option>
                 </select>
@@ -503,7 +702,7 @@ function Education() {
 
             <button
               type="submit"
-              className="mx-auto mt-5 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] md:w-1/2"
+              className="mx-auto mt-5 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B3C5D] md:w-1/2"
             >
               Apply <span aria-hidden="true">→</span>
             </button>
@@ -511,164 +710,294 @@ function Education() {
         </div>
       </section>
 
-      {/* SUB-NATIONAL COHORT RECORDS */}
+      {/* PROTECTED SUB-NATIONAL COHORT DASHBOARD */}
       <section className="rounded-md bg-[#061D2A] px-4 py-8 text-white sm:px-6 lg:px-12">
         <div className="mx-auto max-w-5xl">
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <h2 className="text-lg font-bold sm:text-2xl">
-                Sub-National Cohort Records
+          {!isLoggedIn ? (
+            <div className="mx-auto max-w-2xl rounded-2xl border border-white/20 bg-white/10 p-8 text-center sm:p-10">
+              <h2 className="mt-4 text-xl font-bold sm:text-2xl">
+                Unlock Education Data Analysis
               </h2>
 
-              <span className="rounded-sm bg-gray-200 px-2 py-1 text-[10px] text-gray-700">
-                Showing {filteredRecords.length} of {cohortRecords.length} demo
-                records
-              </span>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (requireLogin("use the data filters")) {
-                    setShowFilters((previous) => !previous);
-                  }
-                }}
-                className="rounded-full bg-white px-6 py-2 text-xs font-semibold text-[#1F7A3F] hover:bg-gray-100"
-              >
-                {showFilters ? "Hide filter" : "Filter"} ☰
-              </button>
+              <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-white/70">
+                Log in to apply education indicators, view state-level cohort
+                records, search the dataset, and export your results.
+              </p>
 
               <button
                 type="button"
-                onClick={handleExport}
-                className="rounded-full bg-[#1F7A3F] px-6 py-2 text-xs font-semibold text-white hover:bg-[#176331]"
+                onClick={() =>
+                  requireLogin("view education data analysis")
+                }
+                className="mt-6 rounded-full bg-[#1F7A3F] px-7 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98]"
               >
-                Export ↓
+                Log in to view data →
               </button>
-            </div>
-          </div>
 
-          {showFilters && (
-            <div className="mb-4 rounded-lg border border-white/15 bg-white/5 p-4">
-              <label className="block text-xs text-white/70">
-                Search state
-                <input
-                  value={search}
-                  onChange={(event) => {
-                    if (requireLogin("search records")) {
-                      setSearch(event.target.value);
-                    }
-                  }}
-                  placeholder="Type a state name..."
-                  className="mt-2 w-full rounded-lg border border-white/20 bg-white px-3 py-2 text-sm text-[#20272B] outline-none focus:border-[#1F7A3F] sm:max-w-sm"
-                />
-              </label>
+              <p className="mt-4 text-xs text-white/50">
+                New to CivicIntel?{" "}
+                <button
+                  type="button"
+                  onClick={handleSignup}
+                  className="underline hover:text-white"
+                >
+                  Create an account
+                </button>
+              </p>
+            </div>
+          ) : !appliedFilters ? (
+            <div className="rounded-2xl border border-white/20 bg-white/10 p-8 text-center">
+              <h2 className="text-xl font-bold">Your Education Analysis</h2>
+
+              <p className="mt-3 text-sm leading-6 text-white/70">
+                Choose an indicator, state, and year above, then click Apply
+                to view your filtered education records.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-bold sm:text-2xl">
+                    {selectedIndicatorLabel}
+                  </h2>
+
+                  <p className="mt-2 text-xs text-white/70">
+                    Selected state:{" "}
+                    {appliedFilters.state === "all"
+                      ? "All states"
+                      : appliedFilters.state}
+                    {" · "}
+                    Selected year: {appliedFilters.year}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowFilters((previous) => !previous)}
+                    aria-expanded={showFilters}
+                    className="rounded-full bg-white px-6 py-2 text-xs font-semibold text-[#1F7A3F] transition hover:bg-gray-100 active:scale-[0.98]"
+                  >
+                    {showFilters ? "Hide search" : "Search records"} ☰
+                  </button>
+
+                  {/* FIX: Export dropdown now uses declared state. */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!requireLogin("export education data")) return;
+
+                        setShowExportOptions((previous) => !previous);
+                      }}
+                      aria-expanded={showExportOptions}
+                      aria-haspopup="true"
+                      className="inline-flex items-center gap-3 rounded-full bg-[#1F7A3F] px-6 py-2 text-xs font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98]"
+                    >
+                      Export
+
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        className={`h-4 w-4 transition-transform ${
+                          showExportOptions ? "rotate-180" : ""
+                        }`}
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="m6 9 6 6 6-6"
+                        />
+                      </svg>
+                    </button>
+
+                    {showExportOptions && (
+                      <div
+                        role="menu"
+                        className="absolute right-0 z-20 mt-2 w-44 overflow-hidden rounded-xl border border-gray-200 bg-white py-2 text-[#20272B] shadow-xl"
+                      >
+                        {[
+                          { label: "Export as CSV", format: "csv" },
+                          { label: "Export as PDF", format: "pdf" },
+                          { label: "Export as XML", format: "xml" },
+                        ].map((option) => (
+                          <button
+                            key={option.format}
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              handleExport(option.format);
+                              setShowExportOptions(false);
+                            }}
+                            className="block w-full px-4 py-3 text-left text-sm transition hover:bg-[#E7EDF0] hover:text-[#1F7A3F]"
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {showFilters && (
+                <div className="mb-4 rounded-lg border border-white/15 bg-white/5 p-4">
+                  <label className="block text-xs text-white/70">
+                    Search state
+
+                    <input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Type a state name..."
+                      className="mt-2 w-full rounded-lg border border-white/20 bg-white px-3 py-2 text-sm text-[#20272B] outline-none focus:border-[#1F7A3F] sm:max-w-sm"
+                    />
+                  </label>
+                </div>
+              )}
+
+              {appliedFilters.indicator !== "cohort" ||
+              appliedFilters.year !== "2023" ? (
+                <div className="rounded-xl border border-amber-300/30 bg-amber-300/10 p-5">
+                  <h3 className="font-semibold text-amber-200">
+                    Dataset not available for this selection
+                  </h3>
+
+                  <p className="mt-2 text-sm leading-6 text-white/75">
+                    The current demonstration dataset only supports
+                    Sub-National Records for 2023. Choose that indicator and
+                    year to view the available sample records. Other
+                    indicators and years need their own datasets before they
+                    can display accurate results.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4 flex flex-wrap items-center gap-3">
+                    <span className="rounded-sm bg-gray-200 px-2 py-1 text-[10px] text-gray-700">
+                      Showing {filteredRecords.length} of{" "}
+                      {cohortRecords.length} demo records
+                    </span>
+
+                    <span className="text-[10px] text-amber-300">
+                      Illustrative data only — not for policy decisions.
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto rounded-sm">
+                    <table className="w-full min-w-212.5 border-collapse bg-[#FFFBEF] text-left text-[#20272B]">
+                      <thead className="bg-[#E5EBEE] text-[10px] uppercase">
+                        <tr>
+                          <th className="px-4 py-4">State / entity</th>
+                          <th className="px-4 py-4 text-right">
+                            Registered candidates
+                          </th>
+                          <th className="px-4 py-4 text-right">
+                            Pass rate (5+ credits)
+                          </th>
+                          <th className="px-4 py-4 text-right">
+                            Male pass %
+                          </th>
+                          <th className="px-4 py-4 text-right">
+                            Female pass %
+                          </th>
+                          <th className="px-4 py-4">
+                            Source / integrity status
+                          </th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {filteredRecords.map((record) => (
+                          <tr
+                            key={record.state}
+                            className="border-b border-[#B7C7CF] text-xs transition-colors hover:bg-[#F4F0E3]"
+                          >
+                            <td className="px-4 py-4">
+                              <div className="flex items-center gap-2">
+                                <span className="rounded-sm bg-[#416B84] px-1.5 py-1 text-[9px] font-bold text-white">
+                                  {record.zone}
+                                </span>
+
+                                <div>
+                                  <p className="font-semibold">
+                                    {record.state}
+                                  </p>
+
+                                  <p className="mt-1 text-[9px] text-gray-500">
+                                    {record.region}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="px-4 py-4 text-right tabular-nums">
+                              {formatNumber(record.candidates)}
+                            </td>
+
+                            <td className="px-4 py-4 text-right">
+                              <span className="font-semibold">
+                                {record.passRate}%
+                              </span>
+                            </td>
+
+                            <td className="px-4 py-4 text-right">
+                              {record.malePass}%
+                            </td>
+
+                            <td className="px-4 py-4 text-right text-[#1F7A3F]">
+                              {record.femalePass}%
+                            </td>
+
+                            <td className="px-4 py-4">
+                              <span className="font-semibold text-[#1F7A3F]">
+                                ● {record.source}
+                              </span>
+
+                              <p className="mt-1 text-[9px] text-gray-500">
+                                Demo — unverified
+                              </p>
+                            </td>
+                          </tr>
+                        ))}
+
+                        {filteredRecords.length === 0 && (
+                          <tr>
+                            <td
+                              colSpan={6}
+                              className="px-4 py-8 text-center text-sm text-gray-500"
+                            >
+                              No matching records. Try another state or search
+                              term.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="mt-5 bg-[#E5EBEE] p-4 text-[#0B3C5D]">
+                    <p className="text-xs font-bold">
+                      Dataset Provenance &amp; Rigour Declaration
+                    </p>
+
+                    <p className="mt-2 text-[10px] leading-5">
+                      Source: education examination and administrative data
+                      <br />
+                      Vintage: demonstration dataset
+                      <br />
+                      Verification: pending connection to official, validated
+                      sources
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           )}
-
-          <p className="mb-3 text-[10px] text-amber-300">
-            Illustrative data for layout testing only. Do not use for policy
-            decisions.
-          </p>
-
-          <div className="overflow-x-auto rounded-sm">
-            <table className="w-full min-w-212.5 border-collapse bg-[#FFFBEF] text-left text-[#20272B]">
-              <thead className="bg-[#E5EBEE] text-[10px] uppercase">
-                <tr>
-                  <th className="px-4 py-4">State / entity</th>
-                  <th className="px-4 py-4 text-right">
-                    Registered candidates
-                  </th>
-                  <th className="px-4 py-4 text-right">
-                    Pass rate (5+ credits)
-                  </th>
-                  <th className="px-4 py-4 text-right">Male pass %</th>
-                  <th className="px-4 py-4 text-right">Female pass %</th>
-                  <th className="px-4 py-4">
-                    Source / integrity status
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {filteredRecords.map((record) => (
-                  <tr
-                    key={record.state}
-                    className="border-b border-[#B7C7CF] text-xs hover:bg-[#F4F0E3]"
-                  >
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className="rounded-sm bg-[#416B84] px-1.5 py-1 text-[9px] font-bold text-white">
-                          {record.zone}
-                        </span>
-
-                        <div>
-                          <p className="font-semibold">{record.state}</p>
-                          <p className="mt-1 text-[9px] text-gray-500">
-                            {record.region}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-4 text-right tabular-nums">
-                      {formatNumber(record.candidates)}
-                    </td>
-
-                    <td className="px-4 py-4 text-right">
-                      <span className="font-semibold">
-                        {record.passRate}%
-                      </span>
-                    </td>
-
-                    <td className="px-4 py-4 text-right">
-                      {record.malePass}%
-                    </td>
-
-                    <td className="px-4 py-4 text-right text-[#1F7A3F]">
-                      {record.femalePass}%
-                    </td>
-
-                    <td className="px-4 py-4">
-                      <span className="font-semibold text-[#1F7A3F]">
-                        ● {record.source}
-                      </span>
-
-                      <p className="mt-1 text-[9px] text-gray-500">
-                        Demo — unverified
-                      </p>
-                    </td>
-                  </tr>
-                ))}
-
-                {filteredRecords.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="px-4 py-8 text-center text-sm text-gray-500"
-                    >
-                      No matching records. Try another state or search term.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="mt-5 bg-[#E5EBEE] p-4 text-[#0B3C5D]">
-            <p className="text-xs font-bold">
-              ✓ Dataset Provenance &amp; Rigour Declaration
-            </p>
-
-            <p className="mt-2 text-[10px] leading-5">
-              Source: education examination and administrative data
-              <br />
-              Vintage: demonstration dataset
-              <br />
-              Verification: pending connection to official, validated sources
-            </p>
-          </div>
         </div>
       </section>
 
@@ -676,9 +1005,7 @@ function Education() {
       <section className="px-5 py-10 sm:px-8 lg:px-12">
         <div className="mx-auto max-w-5xl">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <SectionHeading>
-              LATEST EDUCATION RELEASE
-            </SectionHeading>
+            <SectionHeading>LATEST EDUCATION RELEASE</SectionHeading>
 
             <a
               href="#education-releases"
@@ -695,7 +1022,7 @@ function Education() {
             {releases.map((release) => (
               <article
                 key={release.title}
-                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-md"
               >
                 <img
                   src={release.image}
@@ -727,5 +1054,3 @@ function Education() {
 }
 
 export default Education;
-
-

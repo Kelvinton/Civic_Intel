@@ -3,9 +3,9 @@ function FeaturedRelease() {
   return (
     <section
       id="featured-release"
-      className="bg-[#91AAB7] px-5 py-10 text-[#17252C] sm:px-8 sm:py-12 lg:px-12 lg:py-14"
+      className="bg-[#91AAB7] px-5 py-10 text-[#17252C] sm:px-8 sm:py-12 lg:px-20 lg:py-14"
     >
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-6xl">
         {/* Section label */}
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#1F7A3F]" />

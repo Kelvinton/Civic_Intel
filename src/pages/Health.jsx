@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -120,6 +120,65 @@ function Health() {
     Boolean(isLoggedIn && restoredFilters)
   );
 
+  // Stores the current animated width of each state bar.
+  const [animatedValues, setAnimatedValues] = useState({});
+
+  // FIX: Reset bars to zero, allow the browser to render,
+  // then animate the bars to their target values.
+  useEffect(() => {
+    if (!isLoggedIn || !hasAppliedFilters || !appliedFilters) {
+      setAnimatedValues({});
+      return;
+    }
+
+    // First, reset every bar to 0%.
+    setAnimatedValues({});
+
+    let firstFrame;
+    let secondFrame;
+
+    // Wait for the browser to process the reset.
+    firstFrame = requestAnimationFrame(() => {
+      // A second frame gives the browser a chance to paint
+      // the zero-width bars before applying target widths.
+      secondFrame = requestAnimationFrame(() => {
+        const filteredData = demoStateData.filter(
+          (item) =>
+            appliedFilters.state === "all" ||
+            item.state === appliedFilters.state
+        );
+
+        // Apply the final widths to trigger CSS transitions.
+        setAnimatedValues(
+          Object.fromEntries(
+            filteredData.map((item) => [
+              item.state,
+              item.value,
+            ])
+          )
+        );
+      });
+    });
+
+    // Clean up both frames if filters change or the
+    // component unmounts before the animation begins.
+    return () => {
+      if (firstFrame !== undefined) {
+        cancelAnimationFrame(firstFrame);
+      }
+
+      if (secondFrame !== undefined) {
+        cancelAnimationFrame(secondFrame);
+      }
+    };
+  }, [
+    isLoggedIn,
+    hasAppliedFilters,
+    appliedFilters?.indicator,
+    appliedFilters?.state,
+    appliedFilters?.year,
+  ]);
+
   const handleApplyFilters = (event) => {
     event.preventDefault();
 
@@ -134,7 +193,8 @@ function Health() {
               healthFilters: filters,
             },
           },
-          message: "Please log in to view health charts and analysis.",
+          message:
+            "Please log in to view health charts and analysis.",
         },
       });
 
@@ -154,7 +214,8 @@ function Health() {
             healthFilters: { indicator, state, year },
           },
         },
-        message: "Please log in to access health data analysis.",
+        message:
+          "Please log in to access health data analysis.",
       },
     });
   };
@@ -182,14 +243,15 @@ function Health() {
   return (
     <main className="bg-[#E8EEF1] text-[#20272B]">
       {/* HERO */}
-      <section className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-10 sm:px-8 md:min-h-92.5 md:grid-cols-2 md:py-12 lg:px-12  lg:py-12">
+      <section className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-10 sm:px-8 md:min-h-92.5 md:grid-cols-2 md:py-12 lg:px-12 lg:py-12">
         <div className="order-2 md:order-1">
           <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-[#1F7A3F]">
             Nigeria · Health data
           </p>
 
           <h1 className="max-w-xl text-3xl font-bold leading-tight text-[#0B3C5D] sm:text-4xl lg:text-5xl">
-            Nigeria&apos;s <span className="text-[#1F7A3F]">Health</span>{" "}
+            Nigeria&apos;s{" "}
+            <span className="text-[#1F7A3F]">Health</span>{" "}
             indicators, by state and over time
           </h1>
 
@@ -220,23 +282,40 @@ function Health() {
       {/* NATIONAL OVERVIEW */}
       <section className="bg-[#0B3C5D] px-5 py-8 sm:px-8 lg:px-12">
         <div className="mx-auto max-w-5xl">
-          <SectionHeading dark>NATIONAL HEALTH OVERVIEW</SectionHeading>
+          <SectionHeading dark>
+            NATIONAL HEALTH OVERVIEW
+          </SectionHeading>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {overviewStats.map((stat) => (
               <article
                 key={stat.description}
-                className="min-h-32 rounded-md border-l-4 bg-[#F0F1F0] p-4 shadow-sm"
+                tabIndex={0}
+                className="
+                  group min-h-32 cursor-pointer rounded-md border
+                  border-transparent border-l-4 bg-[#F0F1F0] p-4 shadow-sm
+                  transition-all duration-300 ease-out
+                  hover:-translate-y-1 hover:border-[#1F7A3F]
+                  hover:shadow-lg active:scale-[0.98]
+                  focus-visible:outline-2 focus-visible:outline-offset-2
+                  focus-visible:outline-[#1F7A3F]
+                "
                 style={{ borderLeftColor: stat.color }}
               >
                 <span
-                  className="inline-block rounded-full px-3 py-1 text-[9px] font-medium text-white"
+                  className="inline-block rounded-full px-3 py-1 text-[9px] font-medium text-white transition-transform duration-300 group-hover:scale-105 group-active:scale-105"
                   style={{ backgroundColor: stat.color }}
                 >
                   {stat.label}
                 </span>
 
-                <p className="mt-2 text-xl font-bold text-[#20272B]">
+                <p
+                  className="
+                    mt-2 text-xl font-bold text-[#20272B]
+                    transition-transform duration-300 ease-out
+                    group-hover:scale-105 group-active:scale-105
+                  "
+                >
                   {stat.value}
                 </p>
 
@@ -246,7 +325,9 @@ function Health() {
 
                 <div className="my-3 border-t border-dashed border-gray-400" />
 
-                <p className="text-[10px] text-gray-600">{stat.source}</p>
+                <p className="text-[10px] text-gray-600">
+                  {stat.source}
+                </p>
               </article>
             ))}
           </div>
@@ -269,14 +350,20 @@ function Health() {
                 Indicator
                 <select
                   value={indicator}
-                  onChange={(event) => setIndicator(event.target.value)}
+                  onChange={(event) =>
+                    setIndicator(event.target.value)
+                  }
                   className="w-full rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
                 >
-                  <option value="anc">Antenatal Care (ANC 4+ Visits)</option>
+                  <option value="anc">
+                    Antenatal Care (ANC 4+ Visits)
+                  </option>
                   <option value="immunization">
                     Full Immunization Coverage
                   </option>
-                  <option value="maternal">Maternal Mortality</option>
+                  <option value="maternal">
+                    Maternal Mortality
+                  </option>
                 </select>
               </label>
 
@@ -284,7 +371,9 @@ function Health() {
                 State
                 <select
                   value={state}
-                  onChange={(event) => setState(event.target.value)}
+                  onChange={(event) =>
+                    setState(event.target.value)
+                  }
                   className="w-full rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
                 >
                   <option value="all">All Geo-political zones</option>
@@ -300,7 +389,9 @@ function Health() {
                 Year
                 <select
                   value={year}
-                  onChange={(event) => setYear(event.target.value)}
+                  onChange={(event) =>
+                    setYear(event.target.value)
+                  }
                   className="w-full rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
                 >
                   <option value="2020-2024">2020–2024</option>
@@ -314,7 +405,7 @@ function Health() {
 
             <button
               type="submit"
-              className="mx-auto mt-5 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] md:w-1/2"
+              className="mx-auto mt-5 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.99] md:w-1/2"
             >
               Apply <span aria-hidden="true">→</span>
             </button>
@@ -339,7 +430,7 @@ function Health() {
               <button
                 type="button"
                 onClick={handleLogin}
-                className="mt-6 rounded-full bg-[#1F7A3F] px-7 py-3 text-sm font-semibold text-white transition hover:bg-[#176331]"
+                className="mt-6 rounded-full bg-[#1F7A3F] px-7 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98]"
               >
                 Log in to view data →
               </button>
@@ -357,7 +448,9 @@ function Health() {
             </div>
           ) : !hasAppliedFilters || !appliedFilters ? (
             <div className="rounded-2xl border border-white/20 bg-white/10 p-8 text-center">
-              <h2 className="text-xl font-bold">Your Health Analysis</h2>
+              <h2 className="text-xl font-bold">
+                Your Health Analysis
+              </h2>
 
               <p className="mt-3 text-sm leading-6 text-white/70">
                 Select your indicator, state, and year above, then click Apply
@@ -367,7 +460,14 @@ function Health() {
           ) : (
             <div className="grid gap-7 lg:grid-cols-[1.8fr_0.8fr]">
               {/* GRAPH */}
-              <div className="rounded-sm bg-white p-4 text-[#20272B] sm:p-6">
+              <div
+                className="
+                  rounded-sm bg-white p-4 text-[#20272B] shadow-sm
+                  transition-all duration-300 ease-out
+                  hover:shadow-lg active:scale-[0.995]
+                  sm:p-6
+                "
+              >
                 <div className="mb-5">
                   <p className="text-base font-bold text-[#0B3C5D]">
                     {indicatorLabel} by Selected States
@@ -378,36 +478,66 @@ function Health() {
                   </p>
                 </div>
 
-                <div className="space-y-4">
+                {/* ANIMATED GRAPH BARS */}
+                <div className="space-y-5">
                   {demoStateData
                     .filter(
                       (item) =>
                         appliedFilters.state === "all" ||
                         item.state === appliedFilters.state
                     )
-                    .map((item) => (
-                      <div
-                        key={item.state}
-                        className="grid grid-cols-[48px_1fr_40px] items-center gap-2"
-                      >
-                        <span className="text-xs font-medium">
-                          {item.state}
-                        </span>
+                    .map((item, index) => {
+                      const animatedValue =
+                        animatedValues[item.state] ?? 0;
 
-                        <div className="h-5 overflow-hidden rounded-sm bg-[#E5EAED]">
+                      return (
+                        <div
+                          key={item.state}
+                          className="grid grid-cols-[48px_minmax(0,1fr)_40px] items-center gap-2"
+                        >
+                          <span className="text-xs font-medium">
+                            {item.state}
+                          </span>
+
                           <div
-                            className="flex h-full items-center justify-end rounded-sm bg-[#164C32] pr-2 text-[10px] font-semibold text-white"
-                            style={{ width: `${item.value}%` }}
+                            className="
+                              h-5 overflow-hidden rounded-sm bg-[#E5EAED]
+                              ring-1 ring-transparent transition-all duration-300
+                              focus-within:ring-[#1F7A3F]
+                            "
                           >
-                            {item.value}%
+                            <div
+                              className="
+                                flex h-full items-center justify-end
+                                rounded-sm bg-[#164C32] pr-2
+                                text-[10px] font-semibold text-white
+                                transition-[width] duration-1000 ease-out
+                                hover:brightness-110
+                                active:brightness-125
+                                motion-reduce:transition-none
+                              "
+                              style={{
+                                width: `${animatedValue}%`,
+                                transitionDelay: `${index * 100}ms`,
+                              }}
+                              role="progressbar"
+                              aria-label={`${item.state} demonstration health indicator`}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-valuenow={animatedValue}
+                            >
+                              {animatedValue > 0
+                                ? `${item.value}%`
+                                : ""}
+                            </div>
                           </div>
-                        </div>
 
-                        <span className="text-right text-[10px] text-gray-500">
-                          {item.zone}
-                        </span>
-                      </div>
-                    ))}
+                          <span className="text-right text-[10px] text-gray-500">
+                            {item.zone}
+                          </span>
+                        </div>
+                      );
+                    })}
                 </div>
 
                 <div className="mt-6 flex justify-between border-t border-gray-200 pt-3 text-[10px] text-gray-500">
@@ -463,7 +593,7 @@ function Health() {
                         "Export will be enabled when the dataset is connected."
                       )
                     }
-                    className="mt-3 inline-flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold hover:bg-[#176331]"
+                    className="mt-3 inline-flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold transition hover:bg-[#176331] active:scale-[0.98]"
                   >
                     Export data
                   </button>
@@ -475,28 +605,32 @@ function Health() {
                         "Saving will be enabled when user accounts and the backend are connected."
                       )
                     }
-                    className="mt-3 w-full rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold hover:bg-[#176331]"
+                    className="mt-3 w-full rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold transition hover:bg-[#176331] active:scale-[0.98]"
                   >
                     Save indicator ♧
                   </button>
                 </div>
 
                 <div>
-                  <h3 className="text-base font-bold">Facility Spot Check</h3>
+                  <h3 className="text-base font-bold">
+                    Facility Spot Check
+                  </h3>
 
                   <p className="mt-2 text-sm leading-6 text-white/65">
                     A future map will show verified health facilities and
                     their locations.
                   </p>
 
-                  <div className="mt-4 flex min-h-44 items-center justify-center rounded-lg border border-white/20 bg-white/10 p-6 text-center">
+                  <div className="mt-4 flex min-h-44 items-center justify-center rounded-lg border border-white/20 bg-white/10 p-6 text-center transition-all duration-300 hover:bg-white/15 active:scale-[0.99]">
                     <div>
                       <p className="text-3xl" aria-hidden="true">
                         ⌖
                       </p>
+
                       <p className="mt-2 text-sm font-semibold">
                         Facility map
                       </p>
+
                       <p className="mt-1 text-xs text-white/60">
                         Map integration coming with verified facility data
                       </p>
@@ -513,11 +647,13 @@ function Health() {
       <section className="px-5 py-10 sm:px-8 lg:px-12">
         <div className="mx-auto max-w-5xl">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <SectionHeading>LATEST HEALTH RELEASE</SectionHeading>
+            <SectionHeading>
+              LATEST HEALTH RELEASE
+            </SectionHeading>
 
             <a
               href="#health-releases"
-              className="mb-6 text-xs font-semibold text-[#1F7A3F] hover:underline"
+              className="mb-6 text-xs font-semibold text-[#1F7A3F] transition-colors hover:underline"
             >
               View all releases →
             </a>
@@ -530,14 +666,27 @@ function Health() {
             {releases.map((release) => (
               <article
                 key={release.title}
-                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                className="
+                  group overflow-hidden rounded-2xl border border-gray-200
+                  bg-white shadow-sm
+                  transition-all duration-300 ease-out
+                  hover:-translate-y-1 hover:border-gray-200
+                  hover:shadow-lg active:scale-[0.99]
+                  focus-within:border-[#1F7A3F]
+                "
               >
-                <img
-                  src={release.image}
-                  alt=""
-                  loading="lazy"
-                  className="h-48 w-full object-cover"
-                />
+                <div className="overflow-hidden">
+                  <img
+                    src={release.image}
+                    alt=""
+                    loading="lazy"
+                    className="
+                      h-48 w-full object-cover
+                      transition-transform duration-500 ease-out
+                      group-hover:scale-105 group-active:scale-[1.02]
+                    "
+                  />
+                </div>
 
                 <div className="p-4">
                   <p className="text-[10px] text-gray-500">

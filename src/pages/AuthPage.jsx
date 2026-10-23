@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import civicIntelLogo from "../assets/civicintel.footer.logo.png";
+import civicIntelLogo from "../assets/signup.logo.png";
 
 const initialLogin = {
   email: "",
@@ -287,30 +287,30 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
 
   return (
     <main className="flex min-h-screen w-full items-center justify-center bg-[#E7ECEF] p-4 sm:p-6 lg:p-8">
-        <div className="grid min-h-175 w-full max-w-5xl overflow-hidden rounded-2xl bg-[#E7ECEF] shadow-xl lg:min-h-152.5 lg:grid-cols-[45.15%_54.85%]">
+        <div className="grid min-h-175 w-full max-w-5xl overflow-hidden  bg-[#E7ECEF] shadow-xl lg:min-h-152.5 lg:grid-cols-[45.15%_54.85%]">
             {/* Left branding panel */}
-            <aside className="relative hidden overflow-hidden bg-[#0B3C5D] px-10 text-white lg:flex lg:flex-col lg:items-center lg:justify-center text-center">
-                {/* <div
+            <aside className="relative hidden overflow-hidden bg-[#0B3C5D] px-10 text-white lg:flex lg:flex-col lg:pt-30 text-center ">
+                <div
                 aria-hidden="true"
-                className="absolute -right-1 -top-20 h-52 w-52
+                className="absolute -right-2 -top-35 h-48 w-38
                     rounded-full bg-[#638399]/90"
                 />
                 <div
                 aria-hidden="true"
-                className="absolute -bottom-24 -left-10 h-52 w-52
+                className="absolute -bottom-38 -left-3 h-48 w-40
                     rounded-full bg-[#638399]/90"
-                /> */}
+                />
 
-                <div className="relative z-10 flex w-full max-w-sm flex-col items-center text-center">
+                <div className="relative z-10 flex w-full max-w-sm flex-col items-center text-center ">
                   <Link to="/" aria-label="CivicIntel home">
                       <img
                       src={civicIntelLogo}
                       alt="CivicIntel"
-                      className="mx-auto mb-8 h-auto w-48 "
+                      className="h-20 w-auto max-w-28.5  object-contain"
                       />
                   </Link>
 
-                  <p className="text-center text-base leading-6 text-white/90">
+                  <p className="text-center text-base leading-6 text-white/90 mt-5">
                       A public data platform for health and education indicators.
                   </p>
 

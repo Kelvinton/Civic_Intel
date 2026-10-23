@@ -16,7 +16,6 @@ function Hero() {
   const [visibleCharacters, setVisibleCharacters] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  
   useEffect(() => {
     let delay;
 
@@ -41,8 +40,6 @@ function Hero() {
     return () => clearTimeout(timeout);
   }, [visibleCharacters, isDeleting]);
 
-
-  // Calculate visible characters for each text segment.
   const animatedHeading = headingParts.map((part, index) => {
     const charactersBefore = headingParts
       .slice(0, index)
@@ -67,15 +64,13 @@ function Hero() {
       id="home"
       className="w-full overflow-hidden bg-[#0B3C5D] text-white shadow-md"
     >
-      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-8 py-12 sm:px-8 sm:py-12 md:px-12 lg:grid-cols-[1.15fr_0.85fr] lg:gap-12 lg:px-16 lg:py-12 ">
-
-        {/* Left: Hero Content */}
-        <div className="mx-auto mt-4 flex min-w-0 w-full flex-col items-center text-center lg:mx-0 lg:items-start lg:text-left lg:h-125.75 lg:w-153.25 lg:max-w-full">
-          <h2 className="mb-4 text-xs tracking-wider text-white/80 sm:text-sm">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-8 py-12 sm:px-8 sm:py-12 md:px-12 lg:grid-cols-[1.15fr_0.85fr] lg:gap-12 lg:px-16 lg:py-12">
+        {/* Hero content */}
+        <div className="mx-auto mt-4 flex min-w-0 w-full flex-col items-center text-center lg:mx-0 lg:h-125.75 lg:w-153.25 lg:max-w-full lg:items-start lg:text-left">
+          <h2 className="mb-4 text-xs tracking-wider text-white/80 sm:text-xs">
             NIGERIA • HEALTH AND EDUCATION DATA
           </h2>
 
-          {/* Animated heading */}
           <h1
             aria-label={fullHeading}
             className="min-h-[3.6em] text-center text-4xl font-bold leading-tight sm:text-5xl lg:min-h-[2.4em] lg:text-left lg:text-6xl"
@@ -104,7 +99,7 @@ function Hero() {
             not headlines.
           </p>
 
-          {/* Action Buttons */}
+          {/* Hero actions */}
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
             <a
               href="/explore"
@@ -121,7 +116,7 @@ function Hero() {
             </a>
           </div>
 
-          {/* Trust Indicators */}
+          {/* Trust indicators */}
           <div className="mt-10 flex flex-wrap justify-center gap-3 lg:mt-14 lg:justify-start">
             {[
               "Dual Pass Auditor QA",
@@ -130,7 +125,7 @@ function Hero() {
             ].map((item) => (
               <div
                 key={item}
-                className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white px-2 py-1 text-xs text-[#65C98A]"
+                className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white px-2 py-1 text-xs text-[#1F7A3F]"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -138,7 +133,7 @@ function Hero() {
                   viewBox="0 0 24 24"
                   strokeWidth={1.5}
                   stroke="currentColor"
-                  className="size-4 shrink-0 text-[#65C98A]"
+                  className="size-4 shrink-0 text-[#1F7A3F]"
                   aria-hidden="true"
                 >
                   <path
@@ -154,7 +149,7 @@ function Hero() {
           </div>
         </div>
 
-        {/* Right: Hero Image */}
+        {/* Hero image */}
         <div className="flex min-w-0 items-center justify-center">
           <img
             src={civicIntel}

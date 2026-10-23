@@ -133,7 +133,7 @@ function Categories() {
     <section id="categories" className="bg-white  text-black ">
         {/* Section heading */}
         <div className=" pt-12 pb-4 bg-[#dce3e6]" >
-          <div className="flex items-center gap-2 px-5 sm:px-8 lg:px-2 mx-auto max-w-6xl">
+          <div className="flex items-center gap-2 px-5 sm:px-8 lg:px-4 mx-auto max-w-6xl">
             <span className="h-2.5 w-2.5 rounded-full bg-[#1F7A3F]" />
             <h2 className="text-lg font-bold tracking-wide sm:text-3xl ">
               THE CATEGORIES
@@ -141,7 +141,7 @@ function Categories() {
           </div>
         </div>
         
-      <div className="mx-auto max-w-6xl px-5 sm:px-8 lg:px-16">
+      <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-22">
         
 
         {/* Health: text left, image right */}

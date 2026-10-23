@@ -110,9 +110,9 @@ function CompareStates() {
   return (
     <section
       id="compare-states"
-      className="bg-gray-200 px-5 py-10 sm:px-8 sm:py-14 lg:px-14"
+      className="bg-gray-200 px-5 py-10 sm:px-8 sm:py-14 lg:px-20"
     >
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-6xl">
         <form
           onSubmit={handleCompare}
           className="rounded-2xl bg-[#0B3C5D] px-5 py-7 text-white sm:px-8 sm:py-9 lg:px-10"

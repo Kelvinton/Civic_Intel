@@ -1,5 +1,4 @@
 
-
 const snapshotCards = [
   {
     label: "STATES",
@@ -33,41 +32,71 @@ const snapshotCards = [
 
 function NationalSnapshot() {
   return (
-    <section className="bg-[#dce3e6] px-5 py-8 text-black sm:px-8 lg:px-14 border-b border-gray-400">
+    <section className="border-b border-gray-400 bg-[#dce3e6] px-5 py-8 text-black sm:px-8 lg:px-18">
       <div className="mx-auto max-w-6xl">
         {/* Section heading */}
         <div className="mb-5 flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-[#1F7A3F]" />
+
           <h2 className="text-lg font-bold tracking-wide sm:text-3xl">
             NATIONAL SNAPSHOT
           </h2>
         </div>
 
         {/* Statistic cards */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 px-8">
+        <div className="grid grid-cols-1 gap-3 px-8 sm:grid-cols-2 lg:grid-cols-4">
           {snapshotCards.map((card) => (
             <article
               key={card.label}
-              className="flex min-w-0 flex-col rounded-lg border-l-4 border-[#0B3C5D] bg-white p-4 text-[#171717] shadow-sm"
+              className="
+                group flex min-w-0 flex-col
+                rounded-lg border-l-4 border-[#0B3C5D]
+                bg-white p-4 text-[#171717] shadow-sm
+                transition-all duration-300 ease-out
+                hover:-translate-y-2
+                hover:border-[#1F7A3F]
+                hover:shadow-xl
+                motion-reduce:transform-none
+                motion-reduce:transition-none
+              "
             >
+              {/* Card label */}
               <p className="text-[10px] font-medium tracking-wide text-[#1F7A3F]">
                 {card.label}
               </p>
 
-              <p className="mt-2 text-2xl font-bold leading-none">
+              {/* Statistic value */}
+              <p
+                className="
+                  mt-2 text-2xl font-bold leading-none
+                  transition-colors duration-300
+                  group-hover:text-[#1F7A3F]
+                  motion-reduce:transition-none
+                "
+              >
                 {card.value}
               </p>
 
+              {/* Card title */}
               <h3 className="mt-2 text-xs font-medium">
                 {card.title}
               </h3>
 
+              {/* Description */}
               <p className="mt-1 min-h-8 text-[11px] leading-4 text-gray-500">
                 {card.description}
               </p>
 
+              {/* Verification */}
               <div className="mt-3 border-t border-gray-200 pt-2">
-                <p className="flex items-start gap-1 text-[10px] leading-4 text-[#1F7A3F]">
+                <p
+                  className="
+                    flex items-start gap-1 text-[10px] leading-4 text-[#1F7A3F]
+                    transition-transform duration-300
+                    group-hover:translate-x-1
+                    motion-reduce:transition-none
+                  "
+                >
                   <span aria-hidden="true">✓</span>
                   <span>{card.verification}</span>
                 </p>
