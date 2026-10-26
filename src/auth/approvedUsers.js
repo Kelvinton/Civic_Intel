@@ -9,7 +9,7 @@ export const approvedUsers = [
     role: "member",
   },
   {
-    email: "tester@example.com",
+    email: "oguseaaron07@gmail.com",
     role: "tester",
   },
 ];
