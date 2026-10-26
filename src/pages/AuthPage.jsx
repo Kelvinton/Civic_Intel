@@ -214,6 +214,7 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
 
     try {
       if (isSignup) {
+        
         const result = await onSignup({
           firstName: signup.firstName.trim(),
           lastName: signup.lastName.trim(),
@@ -222,8 +223,10 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
           address: signup.address.trim(),
           state: signup.state,
           password: signup.password,
-          agreeToTerms: signup.agreeToTerms,
+          confirmPassword: signup.confirmPassword,
+          termsAccepted: signup.agreeToTerms,
         });
+
 
         if (result?.user) {
           navigate(location.state?.from?.pathname || "/", {

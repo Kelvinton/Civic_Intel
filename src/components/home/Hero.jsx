@@ -1,6 +1,8 @@
 
 import { useEffect, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import civicIntel from "../../assets/civicintel.hero.logo.png";
+import civicIntelLogo from "../../assets/civicintellogo1.png";
 
 const headingParts = [
   { text: "Exploring Nigeria Through " },
@@ -15,15 +17,16 @@ const fullHeading = headingParts.map((part) => part.text).join("");
 function Hero() {
   const [visibleCharacters, setVisibleCharacters] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
-    let delay;
-
-    if (isDeleting) {
-      delay = visibleCharacters === 0 ? 500 : 50;
-    } else {
-      delay = visibleCharacters === fullHeading.length ? 1800 : 65;
-    }
+    const delay = isDeleting
+      ? visibleCharacters === 0
+        ? 500
+        : 50
+      : visibleCharacters === fullHeading.length
+        ? 1800
+        : 65;
 
     const timeout = setTimeout(() => {
       if (!isDeleting && visibleCharacters === fullHeading.length) {
@@ -47,10 +50,7 @@ function Hero() {
 
     const charactersInSegment = Math.max(
       0,
-      Math.min(
-        part.text.length,
-        visibleCharacters - charactersBefore
-      )
+      Math.min(part.text.length, visibleCharacters - charactersBefore)
     );
 
     return {
@@ -59,21 +59,47 @@ function Hero() {
     };
   });
 
-  return (
-    <section
-      id="home"
-      className="w-full overflow-hidden bg-[#0B3C5D] text-white shadow-md"
-    >
-      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-8 py-12 sm:px-8 sm:py-12 md:px-12 lg:grid-cols-[1.15fr_0.85fr] lg:gap-12 lg:px-16 lg:py-12">
-        {/* Hero content */}
-        <div className="mx-auto mt-4 flex min-w-0 w-full flex-col items-center text-center lg:mx-0 lg:h-125.75 lg:w-153.25 lg:max-w-full lg:items-start lg:text-left">
-          <h2 className="mb-4 text-xs tracking-wider text-white/80 sm:text-xs">
-            NIGERIA • HEALTH AND EDUCATION DATA
-          </h2>
+  const textMotion = shouldReduceMotion
+    ? {}
+    : {
+        initial: { opacity: 0, y: 25 },
+        whileInView: { opacity: 1, y: 0 },
+        viewport: { once: true, amount: 0.2 },
+        transition: {
+          duration: 0.7,
+          ease: [0.22, 1, 0.36, 1],
+        },
+      };
 
+  const imageMotion = shouldReduceMotion
+    ? {}
+    : {
+        initial: { opacity: 0, scale: 0.92 },
+        whileInView: { opacity: 1, scale: 1 },
+        viewport: { once: true, amount: 0.2 },
+        transition: {
+          duration: 0.85,
+          delay: 0.12,
+          ease: [0.22, 1, 0.36, 1],
+        },
+      };
+
+  return (
+    <section id="home" className="bg-[#0B3C5D] text-white">
+      <div className="mx-auto grid max-w-6xl items-center gap-8 px-5 py-26 sm:px-8 md:min-h-92.5 md:grid-cols-2 md:gap-10 md:py-24 lg:px-12 lg:py-26 sm:text-center sm:py-8">
+        {/* Hero content */}
+        <motion.div
+          {...textMotion}
+          className="order-1 min-w-0 text-center md:order-1 md:text-left"
+        >
+          <p className="mb-4 text-xs  uppercase tracking-wide text-white">
+            Nigeria · Health and education data
+          </p>
+
+          {/* Existing heading and typewriter effect preserved */}
           <h1
             aria-label={fullHeading}
-            className="min-h-[3.6em] text-center text-4xl font-bold leading-tight sm:text-5xl lg:min-h-[2.4em] lg:text-left lg:text-6xl"
+            className="min-h-[3.6em] max-w-xl text-3xl font-bold leading-tight text-white sm:text-4xl lg:min-h-[2.4em] lg:text-5xl"
           >
             {animatedHeading.map((part, index) => (
               <span
@@ -93,39 +119,39 @@ function Hero() {
             </span>
           </h1>
 
-          <p className="mt-6 max-w-lg text-md text-white/80">
+          <p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-white md:mx-0">
             CivicIntel brings together sourced, dated, and verifiable
             indicators across all 36 states and the FCT, built for clarity,
             not headlines.
           </p>
 
           {/* Hero actions */}
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+          <div className="mt-6 flex flex-wrap justify-center gap-3 md:justify-start">
             <a
               href="/explore"
-              className="inline-flex items-center justify-center rounded-full bg-[#1F7A3F] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#176331] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+              className="inline-flex items-center justify-center rounded-full bg-[#1F7A3F] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#176331] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0B3C5D]"
             >
-              Explore Data
+              Explore Data 
             </a>
 
             <a
               href="#compare-states"
-              className="inline-flex items-center justify-center rounded-full border border-white/50 px-4 py-2 text-xs font-medium transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+              className="inline-flex items-center justify-center rounded-full border border-white/30 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#0B3C5D]/5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0B3C5D]"
             >
               Compare States
             </a>
           </div>
 
           {/* Trust indicators */}
-          <div className="mt-10 flex flex-wrap justify-center gap-3 lg:mt-14 lg:justify-start">
+          <div className="mt-10 flex flex-wrap justify-center gap-2 md:justify-start">
             {[
               "Dual Pass Auditor QA",
               "Quality Datasets",
               "100% Attributed Records",
             ].map((item) => (
-              <div
+              <span
                 key={item}
-                className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white px-2 py-1 text-xs text-[#1F7A3F]"
+                className="inline-flex items-center gap-1.5 rounded-full border border-[#B7C5CB] bg-white px-2.5 py-1.5 text-[10px] text-[#1F7A3F] sm:text-xs"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -133,7 +159,7 @@ function Hero() {
                   viewBox="0 0 24 24"
                   strokeWidth={1.5}
                   stroke="currentColor"
-                  className="size-4 shrink-0 text-[#1F7A3F]"
+                  className="size-3.5 shrink-0"
                   aria-hidden="true"
                 >
                   <path
@@ -142,21 +168,31 @@ function Hero() {
                     d="m9 12.75 2.25 2.25L15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"
                   />
                 </svg>
-
-                <span>{item}</span>
-              </div>
+                {item}
+              </span>
             ))}
           </div>
-        </div>
+        </motion.div>
 
-        {/* Hero image */}
-        <div className="flex min-w-0 items-center justify-center">
-          <img
-            src={civicIntel}
-            alt="CivicIntel health and education data illustration"
-            className="h-auto w-full max-w-md object-contain sm:max-w-lg lg:h-130.75 lg:w-122 lg:max-w-full"
-          />
-        </div>
+        {/* Image panel styled like Health.jsx */}
+        <motion.div
+          {...imageMotion}
+          className="order-1 flex min-w-0 justify-center md:order-2 md:justify-end"
+        >
+          <div className="relative h-64 w-full max-w-xs rounded-bl-[80px] rounded-tr-[80px] bg-[#0B3C5D] sm:h-80 sm:max-w-sm md:h-82.5 lg:h-120.25 lg:max-w-md">
+            <img
+              src={civicIntel}
+              alt="CivicIntel health and education data illustration"
+              className="h-full w-full rounded-bl-[80px] rounded-tr-[80px] object-cover opacity-80"
+            />
+
+            <img
+              src={civicIntelLogo}
+              alt="CivicIntel logo"
+              className="absolute -bottom-6 -right-3 z-10 h-auto w-20 object-contain sm:-bottom-8 sm:w-28 md:w-32"
+            />
+          </div>
+        </motion.div>
       </div>
     </section>
   );

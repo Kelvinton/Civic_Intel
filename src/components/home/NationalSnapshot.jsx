@@ -1,4 +1,11 @@
 
+import { motion } from "framer-motion";
+import {
+  revealVariants,
+  staggerContainer,
+  useMotionSettings,
+} from "../../animation.js";
+
 const snapshotCards = [
   {
     label: "STATES",
@@ -31,33 +38,66 @@ const snapshotCards = [
 ];
 
 function NationalSnapshot() {
+  const motionSettings = useMotionSettings();
+
   return (
     <section className="border-b border-gray-400 bg-[#dce3e6] px-5 py-8 text-black sm:px-8 lg:px-18">
       <div className="mx-auto max-w-6xl">
         {/* Section heading */}
         <div className="mb-5 flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#1F7A3F]" />
+          <motion.span
+            className="relative h-2.5 w-2.5 shrink-0 rounded-full bg-[#1F7A3F]"
+            animate={{
+              opacity: [1, 0.7, 1],
+              scale: [1, 1.15, 1],
+              boxShadow: [
+                "0 0 4px rgba(31, 122, 63, 0.4)",
+                "0 0 12px rgba(31, 122, 63, 0.9)",
+                "0 0 4px rgba(31, 122, 63, 0.4)",
+              ],
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
 
-          <h2 className="text-lg font-bold tracking-wide sm:text-3xl">
+          <motion.h2
+            {...motionSettings}
+            variants={revealVariants}
+            className="text-lg font-bold tracking-wide sm:text-3xl"
+          >
             NATIONAL SNAPSHOT
-          </h2>
+          </motion.h2>
         </div>
 
-        {/* Statistic cards */}
-        <div className="grid grid-cols-1 gap-3 px-8 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Scroll animation for the cards */}
+        <motion.div
+          {...motionSettings}
+          variants={staggerContainer}
+          className="grid grid-cols-1 gap-3 px-8 sm:grid-cols-2 lg:grid-cols-4"
+        >
           {snapshotCards.map((card) => (
-            <article
+            <motion.article
               key={card.label}
+              variants={revealVariants}
+              whileHover={{
+                y: -8,
+                transition: {
+                  duration: 0.25,
+                  ease: "easeOut",
+                },
+              }}
               className="
                 group flex min-w-0 flex-col
                 rounded-lg border-l-4 border-[#0B3C5D]
                 bg-white p-4 text-[#171717] shadow-sm
-                transition-all duration-300 ease-out
-                hover:-translate-y-2
+                transition-[border-color,box-shadow]
+                duration-300 ease-out
                 hover:border-[#1F7A3F]
                 hover:shadow-xl
                 motion-reduce:transform-none
-                motion-reduce:transition-none
               "
             >
               {/* Card label */}
@@ -101,9 +141,9 @@ function NationalSnapshot() {
                   <span>{card.verification}</span>
                 </p>
               </div>
-            </article>
+            </motion.article>
           ))}
-        </div>
+        </motion.div>
       </div>
     </section>
   );

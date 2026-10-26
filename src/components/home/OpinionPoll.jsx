@@ -1,4 +1,12 @@
+
 import { useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import {
+  revealVariants,
+  staggerContainer,
+  useMotionSettings,
+} from "../../animation.js";
+
 const pollOptions = [
   "Reducing inflation and food prices",
   "Strengthening the Naira",
@@ -9,7 +17,27 @@ const pollOptions = [
   "Others",
 ];
 
+// Dedicated animation for poll options.
+// This avoids the extra delay in the shared revealVariants.
+const pollOptionVariants = {
+  hidden: {
+    opacity: 0,
+    y: 16,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.45,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
+
 function OpinionPoll() {
+  const motionSettings = useMotionSettings();
+  const shouldReduceMotion = useReducedMotion();
+
   const [selectedOption, setSelectedOption] = useState("");
   const [otherOpinion, setOtherOpinion] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -18,13 +46,17 @@ function OpinionPoll() {
 
   function handleSubmit(event) {
     event.preventDefault();
+
     if (!selectedOption) return;
     if (isOtherSelected && !otherOpinion.trim()) return;
 
-    const response = isOtherSelected ? otherOpinion.trim() : selectedOption;
+    const response = isOtherSelected
+      ? otherOpinion.trim()
+      : selectedOption;
 
     // Demo only. Replace this with your backend/API later.
     console.log("Opinion poll response:", response);
+
     setSubmitted(true);
   }
 
@@ -36,11 +68,16 @@ function OpinionPoll() {
   return (
     <section
       id="opinion-poll"
-      className="overflow-hidden px-5 py-8 text-white sm:px-8 sm:py-10 lg:px-20 lg:py-11 bg-gray-300"
+      className="overflow-hidden bg-gray-300 px-5 py-8 text-white sm:px-8 sm:py-10 lg:px-20 lg:py-11"
     >
-      <div className="mx-auto max-w-6xl bg-[#061B27] p-8 rounded-4xl">
+      <div className="mx-auto max-w-6xl rounded-4xl bg-[#061B27] p-6 sm:p-8">
+
         {/* Header */}
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <motion.div
+          variants={revealVariants}
+          {...motionSettings}
+          className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between"
+        >
           <div className="flex items-center gap-3">
             {/* CivicIntel icon */}
             <svg
@@ -65,7 +102,7 @@ function OpinionPoll() {
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="1.5"
+              strokeWidth={1.5}
               className="h-6 w-6 shrink-0 text-white"
               aria-hidden="true"
             >
@@ -78,10 +115,14 @@ function OpinionPoll() {
 
             <span>Poll closes on 31st October, 2026</span>
           </div>
-        </div>
+        </motion.div>
 
         {/* Poll introduction */}
-        <div className="mt-7 max-w-180">
+        <motion.div
+          variants={revealVariants}
+          {...motionSettings}
+          className="mt-7 max-w-180"
+        >
           <h3 className="text-xl font-bold leading-snug tracking-[-0.02em] sm:text-2xl">
             What do you think the Federal Government should improve the most in
             the 2027 economy?
@@ -91,7 +132,7 @@ function OpinionPoll() {
             Help us understand what Nigerians think should receive the utmost
             attention.
           </p>
-        </div>
+        </motion.div>
 
         {/* Poll form */}
         <form onSubmit={handleSubmit} className="mt-6">
@@ -100,10 +141,21 @@ function OpinionPoll() {
               Select the area the Federal Government should prioritise
             </legend>
 
-            <div className="grid max-w-190 grid-cols-1 gap-x-10 gap-y-3 sm:grid-cols-2 sm:gap-x-12">
+            {/* Animated poll options */}
+            <motion.div
+              variants={staggerContainer}
+              initial={shouldReduceMotion ? false : "hidden"}
+              whileInView="visible"
+              viewport={motionSettings.viewport}
+              className="grid max-w-190 grid-cols-1 gap-x-10 gap-y-3 sm:grid-cols-2 sm:gap-x-12"
+            >
               {pollOptions.map((option) => (
-                <label
+                <motion.label
                   key={option}
+                  variants={pollOptionVariants}
+                  whileHover={
+                    shouldReduceMotion ? undefined : { x: 4 }
+                  }
                   className="flex min-h-6 cursor-pointer items-center gap-4 text-sm text-[#F3F5F6] transition-colors hover:text-white"
                 >
                   <input
@@ -116,17 +168,27 @@ function OpinionPoll() {
                   />
 
                   <span>{option}</span>
-                </label>
+                </motion.label>
               ))}
-            </div>
+            </motion.div>
           </fieldset>
 
-          
+          {/* Other opinion input */}
           {isOtherSelected && (
-            <div className="mt-6 w-full max-w-xl rounded-2xl bg-[#2D3139] px-5 py-4 focus-within:ring-2 focus-within:ring-[#24834F] transition-shadow">
+            <motion.div
+              initial={
+                shouldReduceMotion
+                  ? false
+                  : { opacity: 0, y: 10 }
+              }
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="mt-6 w-full max-w-xl rounded-2xl bg-[#2D3139] px-5 py-4 transition-shadow focus-within:ring-2 focus-within:ring-[#24834F]"
+            >
               <label htmlFor="other-opinion" className="sr-only">
                 What else do you think?
               </label>
+
               <input
                 type="text"
                 id="other-opinion"
@@ -137,18 +199,32 @@ function OpinionPoll() {
                 }}
                 placeholder="What else do you think?"
                 required
-                className="w-full bg-transparent text-sm text-[#A3A6AA] placeholder:text-[#A3A6AA]/60 outline-none border-none p-0 focus:text-white focus:placeholder-transparent"
+                className="w-full border-none bg-transparent p-0 text-sm text-[#A3A6AA] outline-none placeholder:text-[#A3A6AA]/60 focus:text-white focus:placeholder-transparent"
               />
-            </div>
+            </motion.div>
           )}
 
           {/* Submit button */}
-          <button
+          <motion.button
             type="submit"
             disabled={
-              !selectedOption || (isOtherSelected && !otherOpinion.trim())
+              !selectedOption ||
+              (isOtherSelected && !otherOpinion.trim())
             }
-            className="mt-6 inline-flex min-h-12 items-center justify-center gap-4 rounded-full bg-white px-4 py-3 text-sm font-medium text-[#1F7A3F] transition hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+            whileHover={
+              shouldReduceMotion || !selectedOption ||
+              (isOtherSelected && !otherOpinion.trim())
+                ? undefined
+                : { scale: 1.03 }
+            }
+            whileTap={
+              shouldReduceMotion || !selectedOption ||
+              (isOtherSelected && !otherOpinion.trim())
+                ? undefined
+                : { scale: 0.97 }
+            }
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="mt-6 inline-flex min-h-12 items-center justify-center gap-4 rounded-full bg-white px-4 py-3 text-sm font-medium text-[#1F7A3F] transition hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white "
           >
             <span>Submit Feedback</span>
 
@@ -156,36 +232,65 @@ function OpinionPoll() {
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="1.5"
+              strokeWidth={1.5}
               className="h-6 w-6"
               aria-hidden="true"
             >
               <path d="M4 12h16M13 5l7 7-7 7" />
             </svg>
-          </button>
+          </motion.button>
 
           {/* Submission confirmation */}
           {submitted && (
-            <p
+            <motion.p
+              initial={
+                shouldReduceMotion
+                  ? false
+                  : { opacity: 0, y: 8 }
+              }
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
               role="status"
               aria-live="polite"
               className="mt-4 text-sm leading-6 text-[#77D69A]"
             >
               Thank you for sharing your opinion. Your response has been
               received in this demo.
-            </p>
+            </motion.p>
           )}
         </form>
 
         {/* Privacy notice */}
-        <div className="mt-6 flex items-start gap-3 text-xs leading-5 text-[#B8C2C9] sm:mt-7 sm:items-center sm:text-sm">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hat-glasses preview-icon"><path d="M14 18a2 2 0 0 0-4 0"/><path d="m19 11-2.11-6.657a2 2 0 0 0-2.752-1.148l-1.276.61A2 2 0 0 1 12 4H8.5a2 2 0 0 0-1.925 1.456L5 11"/><path d="M2 11h20"/><circle cx="17" cy="18" r="3"/><circle cx="7" cy="18" r="3"/></svg>
+        <motion.div
+          variants={revealVariants}
+          {...motionSettings}
+          className="mt-6 flex items-start gap-3 text-xs leading-5 text-[#B8C2C9] sm:mt-7 sm:items-center sm:text-sm"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-6 w-6 shrink-0"
+            aria-hidden="true"
+          >
+            <path d="M14 18a2 2 0 0 0-4 0" />
+            <path d="m19 11-2.11-6.657a2 2 0 0 0-2.752-1.148l-1.276.61A2 2 0 0 1 12 4H8.5a2 2 0 0 0-1.925 1.456L5 11" />
+            <path d="M2 11h20" />
+            <circle cx="17" cy="18" r="3" />
+            <circle cx="7" cy="18" r="3" />
+          </svg>
 
           <p>
             Your response is anonymous. Results will be published when the poll
             closes.
           </p>
-        </div>
+        </motion.div>
       </div>
     </section>
   );

@@ -1,7 +1,15 @@
-
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+
+import {
+  revealVariants,
+  staggerContainer,
+  useMotionSettings,
+} from "../animation.js";
+
 import { useAuth } from "../context/AuthContext.jsx";
+import { getStates } from "../api/referenceData.js";
 
 import civicIntel from "../assets/civicintel.hero.logo.png";
 import civicIntelLogo from "../assets/civicintellogo1.png";
@@ -47,7 +55,7 @@ const overviewStats = [
   },
 ];
 
-// DEMO ONLY: Replace with verified health data when your API is ready.
+// These are demonstration chart values, not live backend health statistics.
 const demoStateData = [
   { state: "Imo", value: 86.8, zone: "SE" },
   { state: "Lagos", value: 82.5, zone: "SW" },
@@ -96,7 +104,10 @@ function Health() {
   const location = useLocation();
   const { isLoggedIn } = useAuth();
 
-  // Restore filters passed back from the login page.
+  // Reuse CivicIntel's shared animation settings.
+  const motionSettings = useMotionSettings();
+
+  // Restore filter choices when the user returns from login.
   const restoredFilters = location.state?.healthFilters;
 
   const [indicator, setIndicator] = useState(
@@ -111,7 +122,10 @@ function Health() {
     restoredFilters?.year ?? "2020-2024"
   );
 
-  // Restore the analysis only when the user is logged in.
+  const [states, setStates] = useState([]);
+  const [statesLoading, setStatesLoading] = useState(true);
+  const [statesError, setStatesError] = useState("");
+
   const [appliedFilters, setAppliedFilters] = useState(
     isLoggedIn && restoredFilters ? restoredFilters : null
   );
@@ -120,27 +134,57 @@ function Health() {
     Boolean(isLoggedIn && restoredFilters)
   );
 
-  // Stores the current animated width of each state bar.
   const [animatedValues, setAnimatedValues] = useState({});
 
-  // FIX: Reset bars to zero, allow the browser to render,
-  // then animate the bars to their target values.
-  useEffect(() => {
-    if (!isLoggedIn || !hasAppliedFilters || !appliedFilters) {
-      setAnimatedValues({});
-      return;
+  // Fetch the available states once when the Health page mounts.
+    useEffect(() => {
+    let isMounted = true;
+
+    async function loadStates() {
+      try {
+        setStatesError("");
+
+        const data = await getStates();
+
+        if (!Array.isArray(data)) {
+          throw new Error("The states response was not a list.");
+        }
+
+        if (isMounted) {
+          setStates(data);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setStatesError(
+            error instanceof Error
+              ? error.message
+              : "Could not load states. Please try again."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setStatesLoading(false);
+        }
+      }
     }
 
-    // First, reset every bar to 0%.
-    setAnimatedValues({});
+    loadStates();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Animate demonstration chart bars after the filters have been applied.
+    useEffect(() => {
+    if (!isLoggedIn || !hasAppliedFilters || !appliedFilters) {
+      return undefined;
+    }
 
     let firstFrame;
     let secondFrame;
 
-    // Wait for the browser to process the reset.
     firstFrame = requestAnimationFrame(() => {
-      // A second frame gives the browser a chance to paint
-      // the zero-width bars before applying target widths.
       secondFrame = requestAnimationFrame(() => {
         const filteredData = demoStateData.filter(
           (item) =>
@@ -148,20 +192,14 @@ function Health() {
             item.state === appliedFilters.state
         );
 
-        // Apply the final widths to trigger CSS transitions.
         setAnimatedValues(
           Object.fromEntries(
-            filteredData.map((item) => [
-              item.state,
-              item.value,
-            ])
+            filteredData.map((item) => [item.state, item.value])
           )
         );
       });
     });
 
-    // Clean up both frames if filters change or the
-    // component unmounts before the animation begins.
     return () => {
       if (firstFrame !== undefined) {
         cancelAnimationFrame(firstFrame);
@@ -174,9 +212,7 @@ function Health() {
   }, [
     isLoggedIn,
     hasAppliedFilters,
-    appliedFilters?.indicator,
-    appliedFilters?.state,
-    appliedFilters?.year,
+    appliedFilters,
   ]);
 
   const handleApplyFilters = (event) => {
@@ -243,7 +279,11 @@ function Health() {
   return (
     <main className="bg-[#E8EEF1] text-[#20272B]">
       {/* HERO */}
-      <section className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-10 sm:px-8 md:min-h-92.5 md:grid-cols-2 md:py-12 lg:px-12 lg:py-12">
+      <motion.section
+        {...motionSettings}
+        variants={revealVariants}
+        className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-24 sm:px-8 md:min-h-92.5 md:grid-cols-2 md:py-12 lg:px-12 lg:py-24 sm:py-8"
+      >
         <div className="order-2 md:order-1">
           <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-[#1F7A3F]">
             Nigeria · Health data
@@ -277,29 +317,28 @@ function Health() {
             />
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* NATIONAL OVERVIEW */}
       <section className="bg-[#0B3C5D] px-5 py-8 sm:px-8 lg:px-12">
-        <div className="mx-auto max-w-5xl">
+        <motion.div
+          {...motionSettings}
+          variants={staggerContainer}
+          className="mx-auto max-w-5xl"
+        >
           <SectionHeading dark>
             NATIONAL HEALTH OVERVIEW
           </SectionHeading>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <motion.div
+            variants={staggerContainer}
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
+          >
             {overviewStats.map((stat) => (
-              <article
+              <motion.article
                 key={stat.description}
-                tabIndex={0}
-                className="
-                  group min-h-32 cursor-pointer rounded-md border
-                  border-transparent border-l-4 bg-[#F0F1F0] p-4 shadow-sm
-                  transition-all duration-300 ease-out
-                  hover:-translate-y-1 hover:border-[#1F7A3F]
-                  hover:shadow-lg active:scale-[0.98]
-                  focus-visible:outline-2 focus-visible:outline-offset-2
-                  focus-visible:outline-[#1F7A3F]
-                "
+                variants={revealVariants}
+                className="group min-h-32 cursor-pointer rounded-md border border-transparent border-l-4 bg-[#F0F1F0] p-4 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:border-[#1F7A3F] hover:shadow-lg active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F7A3F]"
                 style={{ borderLeftColor: stat.color }}
               >
                 <span
@@ -309,13 +348,7 @@ function Health() {
                   {stat.label}
                 </span>
 
-                <p
-                  className="
-                    mt-2 text-xl font-bold text-[#20272B]
-                    transition-transform duration-300 ease-out
-                    group-hover:scale-105 group-active:scale-105
-                  "
-                >
+                <p className="mt-2 text-xl font-bold text-[#20272B] transition-transform duration-300 ease-out group-hover:scale-105 group-active:scale-105">
                   {stat.value}
                 </p>
 
@@ -328,31 +361,34 @@ function Health() {
                 <p className="text-[10px] text-gray-600">
                   {stat.source}
                 </p>
-              </article>
+              </motion.article>
             ))}
-          </div>
+          </motion.div>
 
           <p className="mt-4 text-xs text-white/60">
             Demonstration values only. Figures and source dates must be
             verified before publication.
           </p>
-        </div>
+        </motion.div>
       </section>
 
-      {/* INDICATOR FILTERS */}
+      {/* HEALTH FILTERS */}
       <section className="bg-[#EAF2EC] px-5 py-8 sm:px-8 lg:px-12">
-        <div className="mx-auto max-w-5xl">
+        <motion.div
+          {...motionSettings}
+          variants={revealVariants}
+          className="mx-auto max-w-5xl"
+        >
           <SectionHeading>HEALTH INDICATOR</SectionHeading>
 
           <form onSubmit={handleApplyFilters}>
             <div className="grid gap-4 md:grid-cols-3">
               <label className="flex flex-col gap-2 text-xs">
                 Indicator
+
                 <select
                   value={indicator}
-                  onChange={(event) =>
-                    setIndicator(event.target.value)
-                  }
+                  onChange={(event) => setIndicator(event.target.value)}
                   className="w-full rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
                 >
                   <option value="anc">
@@ -361,37 +397,77 @@ function Health() {
                   <option value="immunization">
                     Full Immunization Coverage
                   </option>
-                  <option value="maternal">
-                    Maternal Mortality
-                  </option>
+                  <option value="maternal">Maternal Mortality</option>
                 </select>
               </label>
 
               <label className="flex flex-col gap-2 text-xs">
                 State
+
                 <select
                   value={state}
-                  onChange={(event) =>
-                    setState(event.target.value)
-                  }
-                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
+                  onChange={(event) => setState(event.target.value)}
+                  disabled={statesLoading || states.length === 0}
+                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  <option value="all">All Geo-political zones</option>
-                  <option value="Lagos">Lagos</option>
-                  <option value="Kano">Kano</option>
-                  <option value="Rivers">Rivers</option>
-                  <option value="Oyo">Oyo</option>
-                  <option value="Imo">Imo</option>
+                  <option value="all">All states and FCT</option>
+
+                  {states.map((item) => (
+                    <option key={item.id} value={item.name}>
+                      {item.name}
+                    </option>
+                  ))}
                 </select>
+
+                {statesLoading && (
+                  <span className="text-xs text-gray-500" role="status">
+                    Loading states...
+                  </span>
+                )}
+
+                {statesError && (
+                  <span className="text-xs text-red-600" role="alert">
+                    {statesError}
+                  </span>
+                )}
+
+                {statesError && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatesError("");
+                      setStatesLoading(true);
+
+                      getStates()
+                        .then((data) => {
+                          if (!Array.isArray(data)) {
+                            throw new Error(
+                              "The states response was not a list."
+                            );
+                          }
+
+                          setStates(data);
+                        })
+                        .catch((error) => {
+                          setStatesError(
+                            error.message || "Could not load states."
+                          );
+                        })
+                        .finally(() => setStatesLoading(false));
+                    }}
+                    className="self-start text-xs font-semibold text-[#1F7A3F] underline"
+                  >
+                    Try again
+                  </button>
+                )}
               </label>
 
               <label className="flex flex-col gap-2 text-xs">
                 Year
+
                 <select
                   value={year}
-                  onChange={(event) =>
-                    setYear(event.target.value)
-                  }
+                  onChange={(event) => setYear(event.target.value)}
                   className="w-full rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
                 >
                   <option value="2020-2024">2020–2024</option>
@@ -410,12 +486,16 @@ function Health() {
               Apply <span aria-hidden="true">→</span>
             </button>
           </form>
-        </div>
+        </motion.div>
       </section>
 
-      {/* CHART + ANALYSIS */}
+      {/* CHART AND ANALYSIS */}
       <section className="bg-[#082C40] px-5 py-8 text-white sm:px-8 lg:px-12">
-        <div className="mx-auto max-w-5xl">
+        <motion.div
+          {...motionSettings}
+          variants={revealVariants}
+          className="mx-auto max-w-5xl"
+        >
           {!isLoggedIn ? (
             <div className="mx-auto max-w-2xl rounded-2xl border border-white/20 bg-white/10 p-8 text-center sm:p-10">
               <h2 className="text-xl font-bold sm:text-2xl">
@@ -448,9 +528,7 @@ function Health() {
             </div>
           ) : !hasAppliedFilters || !appliedFilters ? (
             <div className="rounded-2xl border border-white/20 bg-white/10 p-8 text-center">
-              <h2 className="text-xl font-bold">
-                Your Health Analysis
-              </h2>
+              <h2 className="text-xl font-bold">Your Health Analysis</h2>
 
               <p className="mt-3 text-sm leading-6 text-white/70">
                 Select your indicator, state, and year above, then click Apply
@@ -459,15 +537,7 @@ function Health() {
             </div>
           ) : (
             <div className="grid gap-7 lg:grid-cols-[1.8fr_0.8fr]">
-              {/* GRAPH */}
-              <div
-                className="
-                  rounded-sm bg-white p-4 text-[#20272B] shadow-sm
-                  transition-all duration-300 ease-out
-                  hover:shadow-lg active:scale-[0.995]
-                  sm:p-6
-                "
-              >
+              <div className="rounded-sm bg-white p-4 text-[#20272B] shadow-sm transition-all duration-300 ease-out hover:shadow-lg active:scale-[0.995] sm:p-6">
                 <div className="mb-5">
                   <p className="text-base font-bold text-[#0B3C5D]">
                     {indicatorLabel} by Selected States
@@ -478,7 +548,6 @@ function Health() {
                   </p>
                 </div>
 
-                {/* ANIMATED GRAPH BARS */}
                 <div className="space-y-5">
                   {demoStateData
                     .filter(
@@ -487,8 +556,7 @@ function Health() {
                         item.state === appliedFilters.state
                     )
                     .map((item, index) => {
-                      const animatedValue =
-                        animatedValues[item.state] ?? 0;
+                      const animatedValue = animatedValues[item.state] ?? 0;
 
                       return (
                         <div
@@ -499,23 +567,9 @@ function Health() {
                             {item.state}
                           </span>
 
-                          <div
-                            className="
-                              h-5 overflow-hidden rounded-sm bg-[#E5EAED]
-                              ring-1 ring-transparent transition-all duration-300
-                              focus-within:ring-[#1F7A3F]
-                            "
-                          >
+                          <div className="h-5 overflow-hidden rounded-sm bg-[#E5EAED] ring-1 ring-transparent transition-all duration-300 focus-within:ring-[#1F7A3F]">
                             <div
-                              className="
-                                flex h-full items-center justify-end
-                                rounded-sm bg-[#164C32] pr-2
-                                text-[10px] font-semibold text-white
-                                transition-[width] duration-1000 ease-out
-                                hover:brightness-110
-                                active:brightness-125
-                                motion-reduce:transition-none
-                              "
+                              className="flex h-full items-center justify-end rounded-sm bg-[#164C32] pr-2 text-[10px] font-semibold text-white transition-[width] duration-1000 ease-out hover:brightness-110 active:brightness-125 motion-reduce:transition-none"
                               style={{
                                 width: `${animatedValue}%`,
                                 transitionDelay: `${index * 100}ms`,
@@ -526,9 +580,7 @@ function Health() {
                               aria-valuemax={100}
                               aria-valuenow={animatedValue}
                             >
-                              {animatedValue > 0
-                                ? `${item.value}%`
-                                : ""}
+                              {animatedValue > 0 ? `${item.value}%` : ""}
                             </div>
                           </div>
 
@@ -538,6 +590,17 @@ function Health() {
                         </div>
                       );
                     })}
+
+                  {appliedFilters.state !== "all" &&
+                    !demoStateData.some(
+                      (item) => item.state === appliedFilters.state
+                    ) && (
+                      <p className="rounded-lg bg-[#E8EEF1] p-4 text-sm text-gray-600">
+                        No demonstration chart is available for{" "}
+                        {appliedFilters.state}. Real health statistics will
+                        appear here when the verified dataset is connected.
+                      </p>
+                    )}
                 </div>
 
                 <div className="mt-6 flex justify-between border-t border-gray-200 pt-3 text-[10px] text-gray-500">
@@ -561,7 +624,6 @@ function Health() {
                 </div>
               </div>
 
-              {/* ANALYSIS AND ACCOUNT ACTIONS */}
               <aside className="space-y-6">
                 <div>
                   <span className="bg-white px-2 py-1 text-[10px] text-[#0B3C5D]">
@@ -612,9 +674,7 @@ function Health() {
                 </div>
 
                 <div>
-                  <h3 className="text-base font-bold">
-                    Facility Spot Check
-                  </h3>
+                  <h3 className="text-base font-bold">Facility Spot Check</h3>
 
                   <p className="mt-2 text-sm leading-6 text-white/65">
                     A future map will show verified health facilities and
@@ -640,16 +700,14 @@ function Health() {
               </aside>
             </div>
           )}
-        </div>
+        </motion.div>
       </section>
 
-      {/* LATEST RELEASES */}
+      {/* LATEST HEALTH RELEASES */}
       <section className="px-5 py-10 sm:px-8 lg:px-12">
         <div className="mx-auto max-w-5xl">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <SectionHeading>
-              LATEST HEALTH RELEASE
-            </SectionHeading>
+            <SectionHeading>LATEST HEALTH RELEASE</SectionHeading>
 
             <a
               href="#health-releases"
@@ -659,50 +717,43 @@ function Health() {
             </a>
           </div>
 
-          <div
-            id="health-releases"
-            className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
-          >
-            {releases.map((release) => (
-              <article
-                key={release.title}
-                className="
-                  group overflow-hidden rounded-2xl border border-gray-200
-                  bg-white shadow-sm
-                  transition-all duration-300 ease-out
-                  hover:-translate-y-1 hover:border-gray-200
-                  hover:shadow-lg active:scale-[0.99]
-                  focus-within:border-[#1F7A3F]
-                "
-              >
-                <div className="overflow-hidden">
-                  <img
-                    src={release.image}
-                    alt=""
-                    loading="lazy"
-                    className="
-                      h-48 w-full object-cover
-                      transition-transform duration-500 ease-out
-                      group-hover:scale-105 group-active:scale-[1.02]
-                    "
-                  />
-                </div>
+          <div id="health-releases">
+            <motion.div
+              {...motionSettings}
+              variants={staggerContainer}
+              className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+            >
+              {releases.map((release) => (
+                <motion.article
+                  key={release.title}
+                  variants={revealVariants}
+                  className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:border-gray-200 hover:shadow-lg active:scale-[0.99] focus-within:border-[#1F7A3F]"
+                >
+                  <div className="overflow-hidden">
+                    <img
+                      src={release.image}
+                      alt=""
+                      loading="lazy"
+                      className="h-48 w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 group-active:scale-[1.02]"
+                    />
+                  </div>
 
-                <div className="p-4">
-                  <p className="text-[10px] text-gray-500">
-                    {release.category}
-                  </p>
+                  <div className="p-4">
+                    <p className="text-[10px] text-gray-500">
+                      {release.category}
+                    </p>
 
-                  <h3 className="mt-3 text-sm font-semibold leading-6">
-                    {release.title}
-                  </h3>
+                    <h3 className="mt-3 text-sm font-semibold leading-6">
+                      {release.title}
+                    </h3>
 
-                  <p className="mt-3 text-xs text-[#1F7A3F]">
-                    Demonstration release
-                  </p>
-                </div>
-              </article>
-            ))}
+                    <p className="mt-3 text-xs text-[#1F7A3F]">
+                      Demonstration release
+                    </p>
+                  </div>
+                </motion.article>
+              ))}
+            </motion.div>
           </div>
         </div>
       </section>
