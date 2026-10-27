@@ -1,6 +1,11 @@
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, useReducedMotion } from "framer-motion";
+import {
+  revealVariants,
+  useMotionSettings,
+} from "../../animation.js";
 import { useAuth } from "../../context/AuthContext.jsx";
 
 const indicators = [
@@ -30,6 +35,8 @@ const years = [
 function CompareStates() {
   const navigate = useNavigate();
   const { isLoggedIn, loading } = useAuth();
+  const shouldReduceMotion = useReducedMotion();
+  const motionSettings = useMotionSettings();
 
   const [indicator, setIndicator] = useState("");
   const [primaryState, setPrimaryState] = useState("");
@@ -44,7 +51,6 @@ function CompareStates() {
     event.preventDefault();
     setError("");
 
-    // 1. Validate the selections.
     if (!indicator || !primaryState || !comparisonState || !year) {
       setError(
         "Please select an indicator, both states, and a year."
@@ -52,13 +58,11 @@ function CompareStates() {
       return;
     }
 
-    // 2. Prevent comparing a state with itself.
     if (primaryState === comparisonState) {
       setError("Please choose two different states to compare.");
       return;
     }
 
-    // 3. Wait until the authentication status is known.
     if (loading) {
       setError(
         "Checking your sign-in status. Please try again shortly."
@@ -66,7 +70,6 @@ function CompareStates() {
       return;
     }
 
-    // 4. Package the comparison selections.
     const comparison = {
       indicator,
       primaryState,
@@ -74,8 +77,6 @@ function CompareStates() {
       year,
     };
 
-    // 5. Redirect logged-out users to login.
-    // Preserve the comparison so the user can continue after login.
     if (!isLoggedIn) {
       navigate("/login", {
         state: {
@@ -91,14 +92,10 @@ function CompareStates() {
       return;
     }
 
-    // 6. Logged-in users go directly to the comparison results.
     navigate("/compare-results", {
       state: {
         comparison: {
           ...comparison,
-
-          // Supply the fields expected by the Explore comparison page,
-          // if those fields are needed elsewhere later.
           selectedStates: [primaryState, comparisonState],
           fromYear: year,
           toYear: year,
@@ -113,8 +110,11 @@ function CompareStates() {
       className="bg-gray-200 px-5 py-10 sm:px-8 sm:py-14 lg:px-20"
     >
       <div className="mx-auto max-w-6xl">
-        <form
+        {/* Only the form animates */}
+        <motion.form
           onSubmit={handleCompare}
+          variants={revealVariants}
+          {...motionSettings}
           className="rounded-2xl bg-[#0B3C5D] px-5 py-7 text-white sm:px-8 sm:py-9 lg:px-10"
         >
           <h2 className="text-lg font-semibold sm:text-xl">
@@ -236,9 +236,19 @@ function CompareStates() {
             </p>
           )}
 
-          <button
+          <motion.button
             type="submit"
             disabled={loading}
+            whileHover={
+              shouldReduceMotion || loading
+                ? undefined
+                : { scale: 1.02 }
+            }
+            whileTap={
+              shouldReduceMotion || loading
+                ? undefined
+                : { scale: 0.98 }
+            }
             className="mt-5 flex h-12 w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 text-sm text-white transition-colors hover:bg-[#176331] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:cursor-wait disabled:opacity-70"
           >
             {loading ? "Checking sign-in..." : "Compare"}
@@ -258,14 +268,14 @@ function CompareStates() {
                 d="M4.5 12h15m0 0-6.75-6.75M19.5 12l-6.75 6.75"
               />
             </svg>
-          </button>
+          </motion.button>
 
           {!isLoggedIn && !loading && (
             <p className="mt-3 text-center text-xs text-white/75">
               Sign in is required to view your comparison results.
             </p>
           )}
-        </form>
+        </motion.form>
       </div>
     </section>
   );

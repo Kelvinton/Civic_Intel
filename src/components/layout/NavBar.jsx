@@ -1,6 +1,9 @@
 
 import { useState } from "react";
-import { NavLink, Link } from "react-router-dom";
+import { motion, useReducedMotion } from "framer-motion";
+import { NavLink, Link, useLocation } from "react-router-dom";
+
+
 import { useAuth } from "../../context/AuthContext.jsx";
 import civicIntelLogo from "../../assets/civicintellogo1.png";
 
@@ -28,6 +31,8 @@ const governanceLinks = [
 
 function Navbar() {
   const { isLoggedIn, logout, user } = useAuth();
+  const location = useLocation();
+  const shouldReduceMotion = useReducedMotion();        
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -41,7 +46,7 @@ function Navbar() {
       isActive
         ? "font-semibold text-[#1F7A3F]"
         : "text-white hover:text-[#1F7A3F]"
-    }`;
+  }`;
 
   function handleLogout() {
     logout();
@@ -55,7 +60,19 @@ function Navbar() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-[#0B3C5D] text-white shadow-md">
+    <motion.header
+      key={location.pathname}
+      initial={
+        shouldReduceMotion
+          ? false
+          : { y: -80, opacity: 0 }
+      }
+      animate={{ y: 0, opacity: 1 }}
+      transition={{
+        duration: shouldReduceMotion ? 0 : 0.6,
+        ease: [0.22, 1, 0.36, 1],
+      }}
+      className="fixed top-0 z-50 w-full bg-[#0B3C5D] text-white shadow-md">
       <div className="mx-auto flex min-h-19 max-w-360 items-center justify-between gap-4 px-5 py-3 sm:px-8 lg:px-14">
         {/* Logo */}
         <Link
@@ -66,7 +83,7 @@ function Navbar() {
           <img
             src={civicIntelLogo}
             alt="CivicIntel"
-            className="h-12 w-auto max-w-13.5 rounded-md bg-white/55 object-contain"
+            className="h-12 w-auto max-w-13.5 rounded-md bg-white object-contain"
           />
         </Link>
 
@@ -292,26 +309,30 @@ function Navbar() {
               className="inline-flex items-center rounded-full bg-[#1F7A3F] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#176331]"
             >
               Sign Up
-              <span
-                className="ml-4 flex size-5 items-center justify-center rounded-full bg-white text-[#1F7A3F]"
+              <motion.span
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{
+                  duration: 1.2,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+                className="flex size-7 shrink-0 items-center justify-center rounded-full bg-white p-1 text-[#0B3C5D] shadow-md shadow-black/20 ml-5"
                 aria-hidden="true"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#0B3C5D"
-                  strokeWidth="1.8"
-                  className="h-4 w-4"
+                  fill="currentColor"
+                  className="size-4"
                   aria-hidden="true"
                 >
                   <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M4.5 12h15m-7.5-7.5L19.5 12 12 19.5"
+                    fillRule="evenodd"
+                    d="M12.97 3.97a.75.75 0 0 1 1.06 0l7.5 7.5a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 1 1-1.06-1.06l6.22-6.22H3a.75.75 0 0 1 0-1.5h16.19l-6.22-6.22a.75.75 0 0 1 0-1.06Z"
+                    clipRule="evenodd"
                   />
                 </svg>
-              </span>
+              </motion.span>
             </Link>
 
             <Link
@@ -507,26 +528,30 @@ function Navbar() {
                     className="inline-flex items-center justify-center rounded-full bg-[#1F7A3F] px-4 py-3 text-sm font-semibold hover:bg-[#1F7A3F]/80"
                   >
                     Sign Up
-                    <span
-                      className="ml-4 flex size-5 items-center justify-center rounded-full bg-white text-[#1F7A3F]"
+                    <motion.span
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{
+                        duration: 1.2,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                      }}
+                      className="flex size-7 shrink-0 items-center justify-center rounded-full bg-white p-1 text-[#0B3C5D] shadow-md shadow-black/20 ml-5"
                       aria-hidden="true"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="#0B3C5D"
-                        strokeWidth="1.8"
-                        className="h-4 w-4"
+                        fill="currentColor"
+                        className="size-4"
                         aria-hidden="true"
                       >
                         <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M4.5 12h15m-7.5-7.5L19.5 12 12 19.5"
+                          fillRule="evenodd"
+                          d="M12.97 3.97a.75.75 0 0 1 1.06 0l7.5 7.5a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 1 1-1.06-1.06l6.22-6.22H3a.75.75 0 0 1 0-1.5h16.19l-6.22-6.22a.75.75 0 0 1 0-1.06Z"
+                          clipRule="evenodd"
                         />
                       </svg>
-                    </span>
+                    </motion.span>
                   </Link>
 
                   <Link
@@ -542,7 +567,7 @@ function Navbar() {
           </div>
         )}
       </div>
-    </header>
+    </motion.header>
   );
 }
 

@@ -93,8 +93,8 @@ function IndicatorSection({ title, items = [] }) {
   const metrics = items.length ? items : Array(5).fill(fallbackMetrics[0]);
 
   return (
-    <section className="mb-20">
-      <h2 className="mb-7 flex items-center gap-2 text-2xl font-bold text-[#171D20] sm:text-3xl">
+    <section className="mb-20 ">
+      <h2 className="mb-7 flex items-center gap-2 text-2xl font-bold text-[#171D20] sm:text-3xl pt-30 sm:pt-28">
         <span className="h-3 w-3 rounded-full bg-[#1F7A3F]" />
         {title}
       </h2>
@@ -139,7 +139,7 @@ function StateDetails() {
 
   if (!state) {
     return (
-      <main className="flex min-h-[60vh] flex-col items-center justify-center bg-[#E7EDF0] px-6 text-center">
+      <main className="flex min-h-[60vh] flex-col items-center justify-center bg-[#E7EDF0] px-6 text-center pt-24">
         <h1 className="text-3xl font-bold text-[#0B3C5D]">
           State profile not found
         </h1>
@@ -159,7 +159,7 @@ function StateDetails() {
   return (
     <main className="bg-[#E7EDF0] text-[#0B3C5D]">
       {/* State hero */}
-      <section className="mx-auto max-w-7xl px-5 pb-16  sm:px-10 lg:px-14 lg:pb-20 pt-24 lg:py-32">
+      <section className="mx-auto max-w-7xl px-5 pt-28 pb-16 sm:px-10 sm:pt-32 lg:px-14 lg:pt-36 lg:pb-20">
         <div className="grid items-center gap-10 md:grid-cols-2">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-[#1F7A3F]">
@@ -204,7 +204,7 @@ function StateDetails() {
             </a>
           </div>
 
-          <div className="h-64 overflow-hidden rounded-xl sm:h-72 lg:h-[295px]">
+          <div className="h-64 overflow-hidden rounded-xl sm:h-72 lg:h-73.75">
             <img
               src={state.image}
               alt={`Illustrative records image for ${state.name}`}

@@ -1,48 +1,14 @@
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { useAuth } from "../context/AuthContext.jsx";
+import { getStates } from "../api/referenceData.js";
 import ExploreHeroPic from "../assets/Explore.hero.png";
-
-const states = [
-  "Lagos",
-  "Ekiti",
-  "Oyo",
-  "Ogun",
-  "Kano",
-  "Kogi",
-  "Kebbi",
-  "Imo",
-  "Abia",
-  "Osun",
-  "Kwara",
-  "Delta",
-  "Anambra",
-  "Enugu",
-  "Rivers",
-  "Kaduna",
-  "Bauchi",
-  "Benue",
-  "Edo",
-  "Ondo",
-  "Plateau",
-  "Sokoto",
-  "Borno",
-  "Niger",
-  "Adamawa",
-  "Akwa Ibom",
-  "Bayelsa",
-  "Cross River",
-  "Ebonyi",
-  "Gombe",
-  "Jigawa",
-  "Katsina",
-  "Nasarawa",
-  "Taraba",
-  "Yobe",
-  "Zamfara",
-  "FCT",
-];
+import {
+  revealVariants,
+  useMotionSettings,
+} from "../animation.js";
 
 const indicatorsByDomain = {
   Health: [
@@ -100,10 +66,26 @@ function SectionDescription({ children }) {
 }
 
 function ExploreHero() {
+  const motionSettings = useMotionSettings();
+
+  const heroImageVariants = {
+    hidden: { opacity: 0, scale: 0.82, y: 35 },
+    visible: {
+      opacity: 1,
+      scale: 1,
+      y: 0,
+      transition: {
+        duration: 0.85,
+        delay: 0.15,
+        ease: [0.22, 1, 0.36, 1],
+      },
+    },
+  };
+
   return (
-    <section className="bg-[#062638] text-white">
-      <div className="mx-auto grid max-w-6xl items-center gap-8 px-5 py-12 sm:px-8 sm:py-14 lg:grid-cols-2 lg:gap-12 lg:px-10 lg:py-12  ">
-        <div>
+    <section className=" bg-[#062638] text-white pt-18 sm:pt-20">  
+      <div className="mx-auto max-w-6xl px-4 pb-16 pt-8 sm:px-8 md:pb-24 lg:px-12 lg:py-12 gap-10 grid grid-cols-1 sm:grid-cols-2">
+        <motion.div variants={revealVariants} {...motionSettings}>
           <p className="text-xs font-medium uppercase tracking-wide text-white/80">
             Civic Analytics Engine
           </p>
@@ -118,15 +100,19 @@ function ExploreHero() {
             Compare Health or Education indicators across states
             and years.
           </p>
-        </div>
+        </motion.div>
 
-        <div className="h-56 overflow-hidden rounded-xl bg-[#0B3C5D] sm:h-72 lg:h-80">
+        <motion.div
+          className="relative z-10 h-56 overflow-hidden rounded-xl bg-[#0B3C5D] shadow-2xl shadow-black/25 transition-transform duration-500 hover:-translate-y-1 sm:h-72 lg:h-80"
+          variants={heroImageVariants}
+          {...motionSettings}
+        >
           <img
             src={ExploreHeroPic}
             alt="Organised public records and documents"
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition-transform duration-700 hover:scale-105"
           />
-        </div>
+        </motion.div>
       </div>
     </section>
   );
@@ -231,7 +217,6 @@ function StepProgress({ activeStep, onStepClick }) {
 }
 
 
-
 function DomainOption({ domain, selected, onClick }) {
   const health = domain === "Health";
 
@@ -290,8 +275,49 @@ function Explore() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isLoggedIn, loading } = useAuth();
+  const motionSettings = useMotionSettings();
 
   const restoredDraft = location.state?.exploreDraft;
+
+  // State options are loaded from the CivicIntel backend.
+  const [states, setStates] = useState([]);
+  const [statesLoading, setStatesLoading] = useState(true);
+  const [statesError, setStatesError] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadStates() {
+      try {
+        setStatesLoading(true);
+        setStatesError("");
+
+        const data = await getStates();
+
+        if (!Array.isArray(data)) {
+          throw new Error("The states response was not a list.");
+        }
+
+        if (isMounted) {
+          setStates(data);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setStatesError(error.message || "Could not load states. Please try again.");
+        }
+      } finally {
+        if (isMounted) {
+          setStatesLoading(false);
+        }
+      }
+    }
+
+    loadStates();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const initialDomain =
     restoredDraft?.domain === "Education"
@@ -308,18 +334,13 @@ function Explore() {
       : indicatorsByDomain[initialDomain][0]
   );
 
-  const [selectedStates, setSelectedStates] = useState(() => {
+    // Restore the user's comparison selections after returning from login.
+  const [rawSelectedStates, setRawSelectedStates] = useState(() => {
     const restoredStates = restoredDraft?.selectedStates;
 
-    if (Array.isArray(restoredStates)) {
-      return [
-        ...new Set(
-          restoredStates.filter((state) => states.includes(state))
-        ),
-      ];
-    }
-
-    return ["Oyo", "Kano"];
+    return Array.isArray(restoredStates)
+      ? [...new Set(restoredStates)]
+      : [];
   });
 
   const [fromYear, setFromYear] = useState(() => {
@@ -341,6 +362,21 @@ function Explore() {
   const [activeStep, setActiveStep] = useState(0);
   const [comparisonMessage, setComparisonMessage] = useState("");
 
+  // Derive valid selections from backend data without updating state in an effect.
+  const selectedStates = useMemo(() => {
+    if (statesLoading || statesError) {
+      return rawSelectedStates;
+    }
+
+    const validStateNames = new Set(
+      states.map((state) => state.name)
+    );
+
+    return rawSelectedStates.filter((name) =>
+      validStateNames.has(name)
+    );
+  }, [rawSelectedStates, states, statesLoading, statesError]);
+  
   const availableIndicators = indicatorsByDomain[domain];
 
   const years = useMemo(
@@ -351,14 +387,21 @@ function Explore() {
     []
   );
 
-  const toggleState = (state) => {
+    const toggleState = (stateName) => {
     setComparisonMessage("");
 
-    setSelectedStates((previous) =>
-      previous.includes(state)
-        ? previous.filter((item) => item !== state)
-        : [...previous, state]
-    );
+    setRawSelectedStates((previous) => {
+      const validSelections =
+        statesLoading || statesError
+          ? previous
+          : previous.filter((name) =>
+              states.some((state) => state.name === name)
+            );
+
+      return validSelections.includes(stateName)
+        ? validSelections.filter((name) => name !== stateName)
+        : [...validSelections, stateName];
+    });
   };
 
   const changeDomain = (nextDomain) => {
@@ -453,12 +496,15 @@ function Explore() {
     <div className="min-h-screen bg-[#B4C6D0]">
       <ExploreHero />
 
-      <StepProgress
-        activeStep={activeStep}
-        onStepClick={handleStepClick}
-      />
+      <motion.div variants={revealVariants} {...motionSettings}>
+        <StepProgress
+          activeStep={activeStep}
+          onStepClick={handleStepClick}
+        />
+      </motion.div>
 
       <main className="mx-auto max-w-6xl px-4 pb-10 pt-7 sm:px-8 sm:pt-9">
+        <motion.div variants={revealVariants} {...motionSettings}>
         <SectionCard className="min-h-85 sm:min-h-97.5">
           {/* STEP 1: CHOOSE DOMAIN */}
           {activeStep === 0 && (
@@ -553,37 +599,72 @@ function Explore() {
                 additional states to compare a wider range of locations.
               </SectionDescription>
 
-              <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
-                {states.map((state) => {
-                  const selected = selectedStates.includes(state);
+              {statesLoading ? (
+                <p className="mt-5 text-sm text-slate-600" role="status">
+                  Loading states from CivicIntel...
+                </p>
+              ) : statesError ? (
+                <div className="mt-5 rounded-lg border border-red-200 bg-red-50 p-4">
+                  <p className="text-sm text-red-700" role="alert">{statesError}</p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        setStatesLoading(true);
+                        setStatesError("");
+                        const data = await getStates();
+                        if (!Array.isArray(data)) {
+                          throw new Error("The states response was not a list.");
+                        }
+                        setStates(data);
+                      } catch (error) {
+                        setStatesError(error.message || "Could not load states.");
+                      } finally {
+                        setStatesLoading(false);
+                      }
+                    }}
+                    className="mt-3 text-sm font-semibold text-[#1F7A3F] underline"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : states.length === 0 ? (
+                <p className="mt-5 text-sm text-slate-600">
+                  No states were returned by the backend.
+                </p>
+              ) : (
+                <>
+                  <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+                    {states.map((state) => {
+                      const selected = selectedStates.includes(state.name);
 
-                  return (
-                    <button
-                      type="button"
-                      key={state}
-                      onClick={() => toggleState(state)}
-                      aria-pressed={selected}
-                      className={`min-w-0 rounded-lg border px-2 py-3 text-xs transition sm:text-sm ${
-                        selected
-                          ? "border-[#1F7A3F] bg-[#1F7A3F] font-semibold text-white"
-                          : "border-slate-300 bg-white text-slate-600 hover:border-[#1F7A3F] hover:text-[#1F7A3F]"
-                      }`}
-                    >
-                      {state}
-                    </button>
-                  );
-                })}
-              </div>
+                      return (
+                        <button
+                          type="button"
+                          key={state.id}
+                          onClick={() => toggleState(state.name)}
+                          aria-pressed={selected}
+                          className={`min-w-0 rounded-lg border px-2 py-3 text-xs transition sm:text-sm ${
+                            selected
+                              ? "border-[#1F7A3F] bg-[#1F7A3F] font-semibold text-white"
+                              : "border-slate-300 bg-white text-slate-600 hover:border-[#1F7A3F] hover:text-[#1F7A3F]"
+                          }`}
+                        >
+                          {state.name}
+                        </button>
+                      );
+                    })}
+                  </div>
 
-              <p className="mt-4 text-xs text-slate-600">
-                <span className="font-semibold text-[#0B3C5D]">
-                  {selectedStates.length}
-                </span>{" "}
-                state{selectedStates.length === 1 ? "" : "s"} selected
-                {selectedStates.length < 2
-                  ? " — select at least two to continue."
-                  : "."}
-              </p>
+                  <p className="mt-4 text-xs text-slate-600">
+                    <span className="font-semibold text-[#0B3C5D]">{selectedStates.length}</span>{" "}
+                    state{selectedStates.length === 1 ? "" : "s"} selected
+                    {selectedStates.length < 2
+                      ? " — select at least two to continue."
+                      : "."}
+                  </p>
+                </>
+              )}
             </>
           )}
 
@@ -809,6 +890,7 @@ function Explore() {
             </p>
           )}
         </SectionCard>
+        </motion.div>
       </main>
     </div>
   );
