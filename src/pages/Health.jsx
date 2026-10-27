@@ -86,18 +86,39 @@ const releases = [
   },
 ];
 
+
 function SectionHeading({ children, dark = false }) {
+ 
+
   return (
     <h2
       className={`mb-6 flex items-center gap-2 text-xl font-bold sm:text-2xl ${
         dark ? "text-white" : "text-[#20272B]"
       }`}
     >
-      <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#1F7A3F]" />
+      <motion.span
+        aria-hidden="true"
+        className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#1F7A3F]"
+        animate={{
+          opacity: [1, 0.75, 1],
+          scale: [1, 1.2, 1],
+          boxShadow: [
+            "0 0 3px rgba(31, 122, 63, 0.4)",
+            "0 0 12px rgba(31, 122, 63, 1)",
+            "0 0 3px rgba(31, 122, 63, 0.4)",
+          ],
+        }}
+        transition={{
+          duration: 2,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      />
       {children}
     </h2>
   );
 }
+
 
 function Health() {
   const navigate = useNavigate();
@@ -278,13 +299,26 @@ function Health() {
 
   return (
     <main className="bg-[#E8EEF1] text-[#20272B]">
+    
       {/* HERO */}
+      
       <motion.section
         {...motionSettings}
         variants={revealVariants}
-        className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-24 sm:px-8 md:min-h-92.5 md:grid-cols-2 md:py-12 lg:px-12 lg:py-24 sm:py-8"
+        className="mx-auto grid max-w-6xl items-center gap-10 px-5 pt-26 pb-16 sm:px-8 sm:pt-36 sm:pb-12 md:min-h-0 md:grid-cols-2 md:gap-8 md:px-8 md:pt-30 md:pb-12 lg:min-h-92.5 lg:gap-10 lg:px-12 lg:py-24"
       >
-        <div className="order-2 md:order-1">
+
+        {/* Hero content animation */}
+        <motion.div
+          className="order-2 md:order-1"
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.2 }}
+          transition={{
+            duration: 0.7,
+            ease: [0.22, 1, 0.36, 1],
+          }}
+        >
           <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-[#1F7A3F]">
             Nigeria · Health data
           </p>
@@ -300,9 +334,20 @@ function Health() {
             national surveys and administrative sources, filterable by state
             and year.
           </p>
-        </div>
+        </motion.div>
 
-        <div className="order-1 flex justify-center md:order-2 md:justify-end">
+        {/* Hero image animation */}
+        <motion.div
+          className="order-1 flex justify-center md:order-2 md:justify-end"
+          initial={{ opacity: 0, scale: 0.92 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true, amount: 0.2 }}
+          transition={{
+            duration: 0.85,
+            delay: 0.12,
+            ease: [0.22, 1, 0.36, 1],
+          }}
+        >
           <div className="relative h-64 w-full max-w-xs rounded-bl-[80px] rounded-tr-[80px] bg-[#0B3C5D] sm:h-80 md:h-82.5 lg:h-120.25 lg:max-w-md">
             <img
               src={civicIntel}
@@ -316,8 +361,9 @@ function Health() {
               className="absolute -bottom-10 -right-4 z-10 h-auto w-24 object-contain sm:w-28 md:w-32"
             />
           </div>
-        </div>
+        </motion.div>
       </motion.section>
+
 
       {/* NATIONAL OVERVIEW */}
       <section className="bg-[#0B3C5D] px-5 py-8 sm:px-8 lg:px-12">
@@ -401,6 +447,7 @@ function Health() {
                 </select>
               </label>
 
+              
               <label className="flex flex-col gap-2 text-xs">
                 State
 
@@ -410,26 +457,28 @@ function Health() {
                   disabled={statesLoading || states.length === 0}
                   className="w-full rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  <option value="all">All states and FCT</option>
+                  <option value="all">Select State</option>
 
-                  {states.map((item) => (
-                    <option key={item.id} value={item.name}>
-                      {item.name}
+                  {statesLoading && (
+                    <option value="loading" disabled>
+                      Loading states...
                     </option>
-                  ))}
+                  )}
+
+                  {statesError && (
+                    <option value="error" disabled>
+                      {statesError}
+                    </option>
+                  )}
+
+                  {!statesLoading &&
+                    !statesError &&
+                    states.map((item) => (
+                      <option key={item.id} value={item.name}>
+                        {item.name}
+                      </option>
+                    ))}
                 </select>
-
-                {statesLoading && (
-                  <span className="text-xs text-gray-500" role="status">
-                    Loading states...
-                  </span>
-                )}
-
-                {statesError && (
-                  <span className="text-xs text-red-600" role="alert">
-                    {statesError}
-                  </span>
-                )}
 
                 {statesError && (
                   <button
@@ -441,9 +490,7 @@ function Health() {
                       getStates()
                         .then((data) => {
                           if (!Array.isArray(data)) {
-                            throw new Error(
-                              "The states response was not a list."
-                            );
+                            throw new Error("The states response was not a list.");
                           }
 
                           setStates(data);
@@ -461,6 +508,7 @@ function Health() {
                   </button>
                 )}
               </label>
+
 
               <label className="flex flex-col gap-2 text-xs">
                 Year

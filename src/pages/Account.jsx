@@ -1,6 +1,8 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { apiRequest } from "../api/api.js";
 
 const savedItems = [
   {
@@ -60,14 +62,48 @@ const exportItems = [
   },
 ];
 
+// Get the logged-in user's name from the available user fields.
+function getUserName(user) {
+  if (!user) return "";
+
+  const fullName = user.name?.trim();
+
+  if (fullName) return fullName;
+
+  const firstName = user.firstName || user.first_name || "";
+  const lastName = user.lastName || user.last_name || "";
+
+  return `${firstName} ${lastName}`.trim();
+}
+
+// Read the signup date from common backend field names.
+function getSignupDate(user) {
+  const date =
+    user?.createdAt ||
+    user?.created_at ||
+    user?.dateJoined ||
+    user?.date_joined;
+
+  if (!date) return null;
+
+  const parsedDate = new Date(date);
+
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+}
+
+
 function SectionHeading({ children }) {
   return (
     <h2 className="flex items-center gap-2 text-2xl font-bold text-[#17191b] sm:text-3xl">
-      <span className="h-3 w-3 shrink-0 rounded-full bg-[#218447]" />
+      <span
+        aria-hidden="true"
+        className="relative h-2.5 w-2.5 shrink-0 rounded-full bg-[#1F7A3F] shadow-[0_0_8px_rgba(31,122,63,0.9)] animate-pulse"
+      />
       {children}
     </h2>
   );
 }
+
 
 function Account() {
   const { user, logout, isLoggedIn } = useAuth();
@@ -76,44 +112,35 @@ function Account() {
   const [editing, setEditing] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+
   const [savedFilter, setSavedFilter] = useState("All");
   const [exportFilter, setExportFilter] = useState("All");
   const [showAllSaved, setShowAllSaved] = useState(false);
   const [showAllExports, setShowAllExports] = useState(false);
 
-  const [name, setName] = useState(
-    user?.name ||
-      [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
-      "Account holder"
-  );
-  const [email, setEmail] = useState(user?.email || "");
+  // Initialize the profile fields from the authenticated user.
+  const [name, setName] = useState(() => getUserName(user));
+  const [email, setEmail] = useState(() => user?.email || "");
+
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [notice, setNotice] = useState("");
 
-  if (!isLoggedIn) {
-    return (
-      <main className="flex min-h-[60vh] items-center justify-center bg-[#e7edf0] px-5 py-16">
-        <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
-          <h1 className="text-2xl font-bold text-[#0B3C5D]">
-            Sign in to your account
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-gray-600">
-            Please log in to view your account details and saved data.
-          </p>
-          <button
-            type="button"
-            onClick={() =>
-              navigate("/login", { state: { from: "/profile" } })
-            }
-            className="mt-6 rounded-full bg-[#1F7A3F] px-6 py-3 text-sm font-semibold text-white hover:bg-[#176331]"
-          >
-            Log In
-          </button>
-        </div>
-      </main>
-    );
+  const [notice, setNotice] = useState("");
+  const [noticeType, setNoticeType] = useState("info");
+
+  // Keep the displayed name and email synchronized with AuthContext.
+  useEffect(() => {
+    if (!user) return;
+
+    setName(getUserName(user));
+    setEmail(user.email || "");
+  }, [user]);
+
+  function showNotice(message, type = "info") {
+    setNotice(message);
+    setNoticeType(type);
   }
 
   function handleLogout() {
@@ -123,29 +150,74 @@ function Account() {
 
   function handleSaveProfile(event) {
     event.preventDefault();
+
     setEditing(false);
-    setNotice(
-      "Your changes are displayed for this session. Connect a backend or update your AuthContext to persist profile changes."
+
+    showNotice(
+      "Your changes are displayed for this session. Connect profile updates to the backend to save them permanently.",
+      "info"
     );
   }
 
-  function handlePasswordChange(event) {
+  async function handlePasswordChange(event) {
     event.preventDefault();
 
+    setNotice("");
+
+    if (changingPassword) return;
+
     if (newPassword.length < 8) {
-      setNotice("Your new password must contain at least 8 characters.");
+      showNotice(
+        "Your new password must contain at least 8 characters.",
+        "error"
+      );
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setNotice("Your new passwords do not match.");
+      showNotice("Your new passwords do not match.", "error");
       return;
     }
 
-    setNotice(
-      "The password form is ready, but password changes must be connected to your authentication provider."
-    );
+    if (currentPassword === newPassword) {
+      showNotice(
+        "Your new password must be different from your current password.",
+        "error"
+      );
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+
+      await apiRequest("/users/me/password", {
+        method: "POST",
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+          confirm_password: confirmPassword,
+        }),
+      });
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowPassword(false);
+      setShowPasswordForm(false);
+
+      showNotice("Your password has been changed successfully.", "success");
+    } catch (error) {
+      showNotice(
+        error?.message ||
+          "Unable to change your password. Check your current password and try again.",
+        "error"
+      );
+    } finally {
+      setChangingPassword(false);
+    }
   }
+
+  const signupDate = getSignupDate(user);
 
   const filteredSaved =
     savedFilter === "All"
@@ -165,13 +237,42 @@ function Account() {
     ? filteredExports
     : filteredExports.slice(0, 4);
 
+  if (!isLoggedIn) {
+    return (
+      <main className="flex min-h-[60vh] items-center justify-center bg-[#e7edf0] px-5 py-16">
+        <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
+          <h1 className="text-2xl font-bold text-[#0B3C5D]">
+            Sign in to your account
+          </h1>
+
+          <p className="mt-3 text-sm leading-6 text-gray-600">
+            Please log in to view your account details and saved data.
+          </p>
+
+          <button
+            type="button"
+            onClick={() =>
+              navigate("/login", {
+                state: { from: "/profile" },
+              })
+            }
+            className="mt-6 rounded-full bg-[#1F7A3F] px-6 py-3 text-sm font-semibold text-white hover:bg-[#176331]"
+          >
+            Log In
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <div className="bg-[#e7edf0] text-[#17191b]">
       {/* Account details */}
-      <section className="px-5 py-10 sm:px-8 sm:py-14 lg:px-14">
+      <section className="px-5 py-10 pt-16 sm:px-8 sm:py-14 sm:pt-28 lg:px-14">
         <div className="mx-auto max-w-5xl">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <SectionHeading>Account</SectionHeading>
+
             <button
               type="button"
               onClick={handleLogout}
@@ -181,13 +282,22 @@ function Account() {
             </button>
           </div>
 
+          {/* Feedback messages */}
           {notice && (
             <div
               role="status"
-              className="mt-5 rounded-lg border border-[#1F7A3F]/20 bg-white p-4 text-sm leading-6 text-gray-700"
+              aria-live="polite"
+              className={`mt-5 rounded-lg border bg-white p-4 text-sm leading-6 ${
+                noticeType === "success"
+                  ? "border-green-200 text-green-800"
+                  : noticeType === "error"
+                    ? "border-red-200 text-red-700"
+                    : "border-[#1F7A3F]/20 text-gray-700"
+              }`}
             >
               <div className="flex items-start justify-between gap-4">
                 <p>{notice}</p>
+
                 <button
                   type="button"
                   aria-label="Dismiss message"
@@ -200,12 +310,17 @@ function Account() {
             </div>
           )}
 
+          {/* Profile details */}
           <form onSubmit={handleSaveProfile} className="mt-7">
             <div className="divide-y divide-[#aeb7bc]">
               <div className="flex min-h-16.5 flex-col justify-center gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <label htmlFor="account-name" className="text-sm text-[#73797d]">
+                <label
+                  htmlFor="account-name"
+                  className="text-sm text-[#73797d]"
+                >
                   Name
                 </label>
+
                 {editing ? (
                   <input
                     id="account-name"
@@ -216,15 +331,19 @@ function Account() {
                   />
                 ) : (
                   <span className="wrap-break-word text-sm">
-                    {name || "Not provided"}
+                    {getUserName(user) || "Name unavailable"}
                   </span>
                 )}
               </div>
 
               <div className="flex min-h-16.5 flex-col justify-center gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <label htmlFor="account-email" className="text-sm text-[#73797d]">
+                <label
+                  htmlFor="account-email"
+                  className="text-sm text-[#73797d]"
+                >
                   Email Address
                 </label>
+
                 {editing ? (
                   <input
                     id="account-email"
@@ -236,30 +355,38 @@ function Account() {
                   />
                 ) : (
                   <span className="break-all text-sm">
-                    {email || "Not provided"}
+                    {user?.email || "Email unavailable"}
                   </span>
                 )}
               </div>
 
               <div className="flex min-h-16.5 flex-col justify-center gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-sm text-[#73797d]">Member since</span>
+                <span className="text-sm text-[#73797d]">
+                  Member since
+                </span>
+
                 <span className="text-sm">
-                  {user?.createdAt
-                    ? new Date(user.createdAt).toLocaleDateString("en-US", {
+                  {signupDate
+                    ? signupDate.toLocaleDateString("en-GB", {
+                        day: "numeric",
                         month: "long",
                         year: "numeric",
                       })
-                    : "Member"}
+                    : "Signup date unavailable"}
                 </span>
               </div>
 
               <div className="flex min-h-16.5 flex-col justify-center gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-sm text-[#73797d]">Change Password</span>
+                <span className="text-sm text-[#73797d]">
+                  Change Password
+                </span>
+
                 <button
                   type="button"
                   onClick={() => {
                     setShowPasswordForm((value) => !value);
                     setNotice("");
+                    setShowPassword(false);
                   }}
                   className="self-start text-sm font-medium hover:text-[#1F7A3F] sm:self-auto"
                 >
@@ -274,13 +401,7 @@ function Account() {
                   type="button"
                   onClick={() => {
                     setEditing(false);
-                    setName(
-                      user?.name ||
-                        [user?.firstName, user?.lastName]
-                          .filter(Boolean)
-                          .join(" ") ||
-                        "Account holder"
-                    );
+                    setName(getUserName(user));
                     setEmail(user?.email || "");
                     setNotice("");
                   }}
@@ -288,6 +409,7 @@ function Account() {
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
                   className="rounded-full bg-[#1F7A3F] px-5 py-2 text-sm font-semibold text-white hover:bg-[#176331]"
@@ -319,12 +441,14 @@ function Account() {
                       d="m14 5 5 5M4 20l4.5-1 10-10a2.12 2.12 0 0 0-3-3l-10 10L4 20Z"
                     />
                   </svg>
+
                   Edit
                 </button>
               </div>
             )}
           </form>
 
+          {/* Change password form */}
           {showPasswordForm && (
             <form
               onSubmit={handlePasswordChange}
@@ -333,20 +457,32 @@ function Account() {
               <h3 className="font-semibold text-[#0B3C5D]">
                 Change your password
               </h3>
+
+              <p className="mt-2 text-sm leading-6 text-gray-500">
+                Enter your current password and choose a new password with at
+                least 8 characters.
+              </p>
+
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <label className="text-sm text-gray-600">
                   Current password
+
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     value={currentPassword}
-                    onChange={(event) => setCurrentPassword(event.target.value)}
+                    onChange={(event) =>
+                      setCurrentPassword(event.target.value)
+                    }
                     required
                     autoComplete="current-password"
-                    className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900"
+                    disabled={changingPassword}
+                    className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 outline-none focus:border-[#1F7A3F] focus:ring-1 focus:ring-[#1F7A3F] disabled:bg-gray-100"
                   />
                 </label>
+
                 <label className="text-sm text-gray-600">
                   New password
+
                   <input
                     type={showPassword ? "text" : "password"}
                     value={newPassword}
@@ -354,36 +490,68 @@ function Account() {
                     required
                     minLength={8}
                     autoComplete="new-password"
-                    className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900"
+                    disabled={changingPassword}
+                    className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 outline-none focus:border-[#1F7A3F] focus:ring-1 focus:ring-[#1F7A3F] disabled:bg-gray-100"
                   />
                 </label>
+
                 <label className="text-sm text-gray-600 sm:col-span-2">
                   Confirm new password
+
                   <input
                     type={showPassword ? "text" : "password"}
                     value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    onChange={(event) =>
+                      setConfirmPassword(event.target.value)
+                    }
                     required
                     minLength={8}
                     autoComplete="new-password"
-                    className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900"
+                    disabled={changingPassword}
+                    className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 outline-none focus:border-[#1F7A3F] focus:ring-1 focus:ring-[#1F7A3F] disabled:bg-gray-100"
                   />
                 </label>
               </div>
+
               <label className="mt-4 flex items-center gap-2 text-sm text-gray-600">
                 <input
                   type="checkbox"
                   checked={showPassword}
                   onChange={(event) => setShowPassword(event.target.checked)}
+                  disabled={changingPassword}
+                  className="h-4 w-4 accent-[#1F7A3F]"
                 />
+
                 Show passwords
               </label>
-              <button
-                type="submit"
-                className="mt-5 rounded-full bg-[#1F7A3F] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#176331]"
-              >
-                Update Password
-              </button>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="submit"
+                  disabled={changingPassword}
+                  className="rounded-full bg-[#1F7A3F] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#176331] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {changingPassword
+                    ? "Updating Password..."
+                    : "Update Password"}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={changingPassword}
+                  onClick={() => {
+                    setShowPasswordForm(false);
+                    setCurrentPassword("");
+                    setNewPassword("");
+                    setConfirmPassword("");
+                    setShowPassword(false);
+                    setNotice("");
+                  }}
+                  className="rounded-full border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+              </div>
             </form>
           )}
         </div>
@@ -394,19 +562,23 @@ function Account() {
         <div className="mx-auto max-w-5xl">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <SectionHeading>Saved data</SectionHeading>
+
             <div className="flex items-center gap-4 text-sm">
               <label className="flex items-center gap-2">
                 <span className="sr-only">Filter saved data</span>
+
                 <select
                   value={savedFilter}
                   onChange={(event) => setSavedFilter(event.target.value)}
-                  className="max-w-24 rounded-md  px-2 py-1 outline-none"
+                  className="max-w-24 rounded-md px-2 py-1 outline-none"
                 >
                   <option value="All">Filter</option>
                   <option value="STATES">States</option>
                 </select>
+
                 <span aria-hidden="true">☰</span>
               </label>
+
               <button
                 type="button"
                 onClick={() => setShowAllSaved((value) => !value)}
@@ -426,9 +598,15 @@ function Account() {
                 <p className="text-[11px] font-medium text-[#1F7A3F]">
                   {item.category}
                 </p>
+
                 <h3 className="mt-1 text-base font-bold">{item.title}</h3>
-                <p className="mt-1 text-sm text-gray-700">{item.indicator}</p>
+
+                <p className="mt-1 text-sm text-gray-700">
+                  {item.indicator}
+                </p>
+
                 <p className="mt-1 text-xs text-gray-500">{item.years}</p>
+
                 <div className="mt-3 border-t border-gray-100 pt-3 text-[10px] text-[#1F7A3F]">
                   <span aria-hidden="true">✓ </span>
                   {item.date}
@@ -444,21 +622,25 @@ function Account() {
         <div className="mx-auto max-w-5xl">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <SectionHeading>Recent Exports</SectionHeading>
+
             <div className="flex items-center gap-4 text-sm">
               <label className="flex items-center gap-2">
                 <span className="sr-only">Filter recent exports</span>
+
                 <select
                   value={exportFilter}
                   onChange={(event) => setExportFilter(event.target.value)}
-                  className="max-w-24   px-2 py-1 outline-none"
+                  className="max-w-24 px-2 py-1 outline-none"
                 >
                   <option value="All">Filter</option>
                   <option value="PNG">PNG</option>
                   <option value="PDF">PDF</option>
                   <option value="CSV">CSV</option>
                 </select>
+
                 <span aria-hidden="true">☰</span>
               </label>
+
               <button
                 type="button"
                 onClick={() => setShowAllExports((value) => !value)}
@@ -478,10 +660,13 @@ function Account() {
                 <span className="w-fit rounded-full bg-[#e8f2ec] px-3 py-1 text-[10px] font-medium text-[#1F7A3F]">
                   {item.type}
                 </span>
+
                 <h3 className="mt-2 text-base font-bold">{item.title}</h3>
+
                 <p className="mt-2 text-xs leading-5 text-gray-500">
                   {item.description}
                 </p>
+
                 <div className="mt-auto border-t border-dashed border-gray-200 pt-4 text-[11px] text-gray-500">
                   {item.date}
                 </div>
@@ -490,8 +675,6 @@ function Account() {
           </div>
         </div>
       </section>
-
-      
     </div>
   );
 }

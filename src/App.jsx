@@ -8,6 +8,8 @@ import {
   useLocation,
 } from "react-router-dom";
 
+import ScrollToTop from "./components/ScrollToTop.jsx";
+
 import Layout from "./components/layout/Layout.jsx";
 import Home from "./pages/Home.jsx";
 import Health from "./pages/Health.jsx";
@@ -101,6 +103,7 @@ function AppContent() {
           />
         }
       >
+
         <Route path="/" element={<Home />} />
         <Route path="/profile" element={<Account />} />
         <Route path="/health" element={<Health />} />
@@ -111,6 +114,7 @@ function AppContent() {
           element={<StateDetails />}
         />
         <Route path="/explore" element={<Explore />} />
+        
         <Route
           path="/compare-results"
           element={<CompareResults />}
@@ -140,6 +144,7 @@ function AppContent() {
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <AppContent />
     </BrowserRouter>
   );

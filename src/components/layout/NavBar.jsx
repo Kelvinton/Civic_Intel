@@ -46,7 +46,7 @@ function Navbar() {
       isActive
         ? "font-semibold text-[#1F7A3F]"
         : "text-white hover:text-[#1F7A3F]"
-    }`;
+  }`;
 
   function handleLogout() {
     logout();
@@ -83,7 +83,7 @@ function Navbar() {
           <img
             src={civicIntelLogo}
             alt="CivicIntel"
-            className="h-12 w-auto max-w-13.5 rounded-md bg-white/55 object-contain"
+            className="h-12 w-auto max-w-13.5 rounded-md bg-white object-contain"
           />
         </Link>
 

@@ -1,5 +1,5 @@
-
 import { useEffect, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   BookOpen,
   FileSearch,
@@ -117,17 +117,42 @@ function SectionTitle({ children, light = false }) {
         light ? "text-white" : "text-[#101820]"
       }`}
     >
+      
       <span
-        className={`h-2 w-2 shrink-0 rounded-full ${
-          light ? "bg-white" : "bg-[#1F7A3F]"
-        }`}
+        className={`relative h-2.5 w-2.5 shrink-0 rounded-full ${
+          light
+            ? "bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)]"
+            : "bg-[#1F7A3F] shadow-[0_0_8px_rgba(31,122,63,0.9)]"
+        } animate-pulse`}
+        aria-hidden="true"
       />
+
       {children}
     </h2>
   );
 }
 
+const viewportSettings = {
+  once: true,
+  amount: 0.15,
+};
+
+const getRevealProps = (shouldReduceMotion, delay = 0) =>
+  shouldReduceMotion
+    ? {}
+    : {
+        initial: { opacity: 0, y: 24 },
+        whileInView: { opacity: 1, y: 0 },
+        viewport: viewportSettings,
+        transition: {
+          duration: 0.55,
+          delay,
+          ease: [0.22, 1, 0.36, 1],
+        },
+      };
+
 function SourcesAndMethods() {
+  const shouldReduceMotion = useReducedMotion();
   const [revisions, setRevisions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -161,11 +186,14 @@ function SourcesAndMethods() {
   }, []);
 
   return (
-    <main className="min-h-screen  text-[#E7EDF0]"> 
+    <main className="min-h-screen  text-[#E7EDF0] pt-12 sm:pt-28"> 
       
       
-        {/* Hero */}
-        <section className="  pl-4  sm:pl-8  w-full ">
+      {/* Hero */}
+        <motion.section
+          {...getRevealProps(shouldReduceMotion)}
+          className="pl-4 sm:pl-8 w-full"
+        >
           <div className="flex flex-col items-center  md:flex-row  w-full gap-8">
             {/* Hero text */}
             <div className="w-full md:w-1/2  h-55 sm:h-75 lg:h-87.5 pl-5 sm:pl-16 py-18">
@@ -190,7 +218,7 @@ function SourcesAndMethods() {
             />
             </div>
           </div>
-        </section>
+        </motion.section>
 
 
       {/* Compact pill navigation */}
@@ -210,8 +238,9 @@ function SourcesAndMethods() {
       </nav>
 
       {/* Source hierarchy */}
-      <section
+      <motion.section
         id="source-hierarchy"
+        {...getRevealProps(shouldReduceMotion)}
         className="scroll-mt-6 bg-[#E7ECF0] px-5 py-8 sm:px-8 sm:py-10 lg:px-12"
       >
         <div className="mx-auto max-w-7xl">
@@ -248,9 +277,9 @@ function SourcesAndMethods() {
             </div>
           </div>
         </div>
-      </section>
+      </motion.section>
 
-      {/* Methodology: dark band with four columns */}
+      {/* Methodology: desktop grid, mobile green timeline */}      
       <section
         id="methodology"
         className="scroll-mt-3 bg-[#061B28] px-5 py-8 text-white sm:px-8 sm:py-10 lg:px-12"
@@ -258,7 +287,8 @@ function SourcesAndMethods() {
         <div className="mx-auto max-w-7xl">
           <SectionTitle light>Methodology</SectionTitle>
 
-          <div className="grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+          {/* Desktop: preserve the original four-column design */}
+          <div className="hidden grid-cols-2 gap-7 md:grid lg:grid-cols-4 lg:gap-6">
             {methods.map((method) => {
               const Icon = method.icon;
 
@@ -282,12 +312,112 @@ function SourcesAndMethods() {
               );
             })}
           </div>
+
+          {/* Mobile and small devices: green vertical timeline */}
+          <div className="relative md:hidden">
+            {/* Vertical green line */}
+            <div
+              className="
+                absolute bottom-6 left-2.75 top-3
+                w-px bg-[#1F7A3F]/80
+              "
+              aria-hidden="true"
+            />
+
+            <div className="space-y-6">
+              {methods.map((method, index) => {
+                const Icon = method.icon;
+
+                return (
+                  <motion.article
+                    key={method.title}
+                    initial={
+                      shouldReduceMotion
+                        ? false
+                        : { opacity: 0, x: 40 }
+                    }
+                    whileInView={
+                      shouldReduceMotion
+                        ? undefined
+                        : { opacity: 1, x: 0 }
+                    }
+                    viewport={{
+                      once: true,
+                      amount: 0.2,
+                    }}
+                    transition={{
+                      duration: 0.55,
+                      delay: shouldReduceMotion ? 0 : index * 0.1,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    className="relative pl-9"
+                  >
+                    {/* Green circular marker */}
+                    <span
+                      className="
+                        absolute left-0 top-1
+                        h-6 w-6 rounded-full
+                        border-[5px] border-[#1F7A3F]
+                        bg-white
+                        shadow-[0_0_0_4px_rgba(31,122,63,0.12)]
+                      "
+                      aria-hidden="true"
+                    />
+
+                    {/* Timeline card */}
+                    <div
+                      className="
+                        rounded-2xl border border-white/15
+                        bg-white/4 p-4
+                        transition-colors duration-300
+                        hover:border-[#1F7A3F]/60
+                        hover:bg-white/[0.07]
+                      "
+                    >
+                      <div className="flex items-start gap-3">
+                        {/* Number */}
+                        <span
+                          className="
+                            shrink-0 text-3xl font-bold
+                            leading-none text-[#B7CAD5]/60
+                          "
+                          aria-hidden="true"
+                        >
+                          {index + 1}
+                        </span>
+
+                        <div className="min-w-0 flex-1">
+                          {/* Icon and title */}
+                          <div className="flex items-center gap-2">
+                            <Icon
+                              className="h-5 w-5 shrink-0 text-[#1F7A3F]"
+                              aria-hidden="true"
+                            />
+
+                            <h3 className="text-sm font-bold">
+                              {method.title}
+                            </h3>
+                          </div>
+
+                          {/* Description */}
+                          <p className="mt-3 text-xs leading-6 text-slate-300">
+                            {method.description}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.article>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </section>
-
+     
       {/* Revision history: compact three-column cards */}
-      <section
+      <motion.section
         id="revision-history"
+        {...getRevealProps(shouldReduceMotion)}
         className="scroll-mt-6 bg-[#E7ECF0] px-5 py-8 sm:px-8 sm:py-10 lg:px-12"
       >
         <div className="mx-auto max-w-7xl">
@@ -349,9 +479,10 @@ function SourcesAndMethods() {
             </div>
           )}
         </div>
-      </section>
+      </motion.section>
 
-      {/* Interpretation: five narrow cards */}
+      
+      {/* Interpretation: desktop grid, mobile green timeline */}
       <section
         id="interpret-data"
         className="scroll-mt-6 bg-[#E7ECF0] px-5 pb-12 pt-5 sm:px-8 sm:pb-14 lg:px-12"
@@ -359,7 +490,8 @@ function SourcesAndMethods() {
         <div className="mx-auto max-w-7xl">
           <SectionTitle>How to interpret CivicIntel data</SectionTitle>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5 lg:gap-5">
+          {/* Desktop: preserve the original five-card layout */}
+          <div className="hidden grid-cols-2 gap-4 md:grid lg:grid-cols-5 lg:gap-5">
             {interpretations.map((item, index) => (
               <article
                 key={item.title}
@@ -379,8 +511,95 @@ function SourcesAndMethods() {
               </article>
             ))}
           </div>
+
+          {/* Mobile: green vertical timeline */}
+          <div className="relative md:hidden">
+            {/* Vertical green line */}
+            <div
+              className="
+                absolute bottom-6 left-2.75 top-3
+                w-px bg-[#1F7A3F]/80
+              "
+              aria-hidden="true"
+            />
+
+            <div className="space-y-6">
+              {interpretations.map((item, index) => (
+                <motion.article
+                  key={item.title}
+                  initial={
+                    shouldReduceMotion
+                      ? false
+                      : { opacity: 0, x: 40 }
+                  }
+                  whileInView={
+                    shouldReduceMotion
+                      ? undefined
+                      : { opacity: 1, x: 0 }
+                  }
+                  viewport={{
+                    once: true,
+                    amount: 0.2,
+                  }}
+                  transition={{
+                    duration: 0.55,
+                    delay: shouldReduceMotion ? 0 : index * 0.1,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                  className="relative pl-9"
+                >
+                  {/* Green circular marker */}
+                  <span
+                    className="
+                      absolute left-0 top-1
+                      h-6 w-6 rounded-full
+                      border-[5px] border-[#1F7A3F]
+                      bg-white
+                      shadow-[0_0_0_4px_rgba(31,122,63,0.12)]
+                    "
+                    aria-hidden="true"
+                  />
+
+                  {/* Interpretation card */}
+                  <div
+                    className="
+                      rounded-2xl border border-white
+                      bg-white/50 p-4
+                      transition-colors duration-300
+                      hover:border-[#1F7A3F]/50
+                      hover:bg-white/80
+                    "
+                  >
+                    {/* Number and title */}
+                    <div className="flex items-start gap-3">
+                      <span
+                        className="
+                          shrink-0 text-3xl font-bold
+                          leading-none text-[#0B3C5D]/25
+                        "
+                        aria-hidden="true"
+                      >
+                        {index + 1}
+                      </span>
+
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-sm font-bold text-[#101820]">
+                          {item.title}
+                        </h3>
+
+                        <p className="mt-2 text-xs leading-6 text-[#68747D]">
+                          {item.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </motion.article>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
+
     </main>
   );
 }

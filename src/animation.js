@@ -1,4 +1,3 @@
-
 import { useReducedMotion } from "framer-motion";
 
 export const revealVariants = {
@@ -12,7 +11,6 @@ export const revealVariants = {
     transition: {
       duration: 0.65,
       ease: [0.22, 1, 0.36, 1],
-      
     },
   },
 };
@@ -33,7 +31,7 @@ export function useMotionSettings() {
     initial: shouldReduceMotion ? false : "hidden",
     whileInView: "visible",
     viewport: {
-      once: false,
+      once: true,
       amount: 0.15,
     },
   };

@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState } from "react";
-import civicIntelLogo from "../../assets/civicintel.footer.logo.png";
+import civicIntelLogo from "../../assets/signup.logo.png";
 
 const footerSections = [
   {
