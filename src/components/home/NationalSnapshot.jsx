@@ -1,44 +1,137 @@
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   revealVariants,
   staggerContainer,
   useMotionSettings,
 } from "../../animation.js";
+import { apiRequest } from "../../api/api.js";
 
-const snapshotCards = [
+const initialCards = [
   {
     label: "STATES",
-    value: "36",
+    value: null,
     title: "States",
     description: "Plus 1 Federal Capital Territory",
     verification: "Aligned with Nigerian Constitution schedule",
   },
   {
     label: "HEALTH INDICATORS",
-    value: "14",
+    value: null,
     title: "Audited Metrics Map",
     description: "Primary care density & bed capacity",
     verification: "Provenance check complete",
   },
   {
     label: "EDUCATION INDICATORS",
-    value: "12",
+    value: null,
     title: "State-wide metrics tracker",
     description: "Literacy, UBE enrolment, teacher ratios",
     verification: "Schedule alignment verified",
   },
   {
     label: "PUBLIC PROVENANCE",
-    value: "100%",
+    value: null,
     title: "Verified Citations",
     description: "No synthesized rankings or black-box metrics",
     verification: "Open-source and public-domain data only",
   },
 ];
 
+function getArray(response) {
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response?.items)) return response.items;
+  if (Array.isArray(response?.data)) return response.data;
+  if (Array.isArray(response?.results)) return response.results;
+  if (Array.isArray(response?.data?.items)) return response.data.items;
+  if (Array.isArray(response?.data?.results)) return response.data.results;
+
+  return [];
+}
+
 function NationalSnapshot() {
   const motionSettings = useMotionSettings();
+
+  const [snapshot, setSnapshot] = useState(initialCards);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadSnapshot() {
+      try {
+        setLoading(true);
+        setError(false);
+
+        // Fetch live data from the CivicIntel backend.
+        const [statesResponse, indicatorsResponse] =
+          await Promise.all([
+            apiRequest("/states"),
+            apiRequest("/indicators"),
+          ]);
+
+        const states = getArray(statesResponse);
+        const indicators = getArray(indicatorsResponse);
+
+        // Count indicators by their backend sector.
+        const healthCount = indicators.filter(
+          (indicator) =>
+            String(indicator?.sector ?? "").toLowerCase() === "health"
+        ).length;
+
+        const educationCount = indicators.filter(
+          (indicator) =>
+            String(indicator?.sector ?? "").toLowerCase() === "education"
+        ).length;
+
+        // Keep the original card content.
+        // Public Provenance remains blank until a real metric exists.
+        const updatedCards = [
+          {
+            ...initialCards[0],
+            value: states.length,
+          },
+          {
+            ...initialCards[1],
+            value: healthCount,
+          },
+          {
+            ...initialCards[2],
+            value: educationCount,
+          },
+          {
+            ...initialCards[3],
+            value: null,
+          },
+        ];
+
+        if (isMounted) {
+          setSnapshot(updatedCards);
+        }
+      } catch (err) {
+        console.error(
+          "Failed to load CivicIntel National Snapshot:",
+          err
+        );
+
+        if (isMounted) {
+          setError(true);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadSnapshot();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <section className="border-b border-gray-400 bg-[#dce3e6] px-5 py-8 text-black sm:px-8 lg:px-18">
@@ -72,13 +165,13 @@ function NationalSnapshot() {
           </motion.h2>
         </div>
 
-        {/* Scroll animation for the cards */}
+        {/* Animated statistic cards */}
         <motion.div
           {...motionSettings}
           variants={staggerContainer}
           className="grid grid-cols-1 gap-3 px-8 sm:grid-cols-2 lg:grid-cols-4"
         >
-          {snapshotCards.map((card) => (
+          {snapshot.map((card) => (
             <motion.article
               key={card.label}
               variants={revealVariants}
@@ -105,8 +198,9 @@ function NationalSnapshot() {
                 {card.label}
               </p>
 
-              {/* Statistic value */}
+              {/* Live figure */}
               <p
+                aria-live="polite"
                 className="
                   mt-2 text-2xl font-bold leading-none
                   transition-colors duration-300
@@ -114,20 +208,28 @@ function NationalSnapshot() {
                   motion-reduce:transition-none
                 "
               >
-                {card.value}
+                {loading
+                  ? "..."
+                  : error
+                    ? "—"
+                    : card.value === null
+                      ? "—"
+                      : card.value.toLocaleString("en-NG")}
               </p>
 
-              {/* Card title */}
+              {/* Original card title */}
               <h3 className="mt-2 text-xs font-medium">
                 {card.title}
               </h3>
 
-              {/* Description */}
+              {/* Original description */}
               <p className="mt-1 min-h-8 text-[11px] leading-4 text-gray-500">
-                {card.description}
+                {error
+                  ? "Unable to retrieve data from the backend"
+                  : card.description}
               </p>
 
-              {/* Verification */}
+              {/* Original status text */}
               <div className="mt-3 border-t border-gray-200 pt-2">
                 <p
                   className="
@@ -137,8 +239,25 @@ function NationalSnapshot() {
                     motion-reduce:transition-none
                   "
                 >
-                  <span aria-hidden="true">✓</span>
-                  <span>{card.verification}</span>
+                  <span aria-hidden="true">
+                    {error
+                      ? "!"
+                      : loading
+                        ? "•"
+                        : card.value === null
+                          ? "—"
+                          : "✓"}
+                  </span>
+
+                  <span>
+                    {error
+                      ? "Data unavailable"
+                      : loading
+                        ? "Loading live data..."
+                        : card.value === null
+                          ? "Verification metric unavailable"
+                          : card.verification}
+                  </span>
                 </p>
               </div>
             </motion.article>

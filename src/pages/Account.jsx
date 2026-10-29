@@ -268,7 +268,7 @@ function Account() {
   return (
     <div className="bg-[#e7edf0] text-[#17191b]">
       {/* Account details */}
-      <section className="px-5 py-10 pt-16 sm:px-8 sm:py-14 sm:pt-28 lg:px-14">
+      <section className="px-5 py-10 pt-24 sm:px-8 sm:py-14 sm:pt-28 lg:px-14">
         <div className="mx-auto max-w-5xl">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <SectionHeading>Account</SectionHeading>
