@@ -1,9 +1,11 @@
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getStates } from "../api/referenceData.js";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { motion, useReducedMotion } from "framer-motion";
 import { exportData } from "../utility/exportData.js";
+import { getPublishedRecords } from "../api/publishedData.js";
 
 import EducationHero from "../assets/Education.hero.png";
 import civicIntelLogo from "../assets/civicintellogo1.png";
@@ -11,41 +13,42 @@ import Education1 from "../assets/education1.png";
 import Education2 from "../assets/education2.png";
 import Education3 from "../assets/education3.png";
 
+// NATIONAL OVERVIEW INDICATORS
 const overviewStats = [
   {
     label: "ENROLMENT",
-    value: "68.2%",
-    description: "Net Primary enrolment rate",
-    source: "NBS/UBEC • 2022",
+    indicator: "primary_net_enrolment_pct",
+    description: "Primary net enrolment rate",
     color: "#1F7A3F",
+    format: "percent",
   },
   {
     label: "COMPLETION",
-    value: "512",
+    indicator: "primary_completion_pct",
     description: "Primary completion rate",
-    source: "NBS/UBEC • 2022",
     color: "#8B2922",
+    format: "percent",
   },
   {
     label: "OUTCOMES",
-    value: "41%",
-    description: "Learning proficiency, grade 4 literacy",
-    source: "NLEA • 2023",
+    indicator: "adult_literacy_pct",
+    description: "Adult literacy rate",
     color: "#145C3B",
+    format: "percent",
   },
   {
     label: "TEACHERS",
-    value: "1:38",
-    description: "Teacher-pupil ratio, primary",
-    source: "FME • 2022",
+    indicator: "primary_pupil_teacher_ratio",
+    description: "Primary pupil-teacher ratio",
     color: "#0B3C5D",
+    format: "ratio",
   },
   {
     label: "FINANCING",
-    value: "7.9%",
+    indicator: "education_allocation_pct",
     description: "Education share of state budget",
-    source: "BudgIT • 2025",
     color: "#D6A400",
+    format: "percent",
   },
 ];
 
@@ -72,69 +75,6 @@ const examSummaries = {
   ],
 };
 
-const cohortRecords = [
-  {
-    state: "Lagos State",
-    zone: "SW",
-    region: "South West Region",
-    candidates: 142390,
-    passRate: 81.4,
-    malePass: 80.2,
-    femalePass: 82.6,
-    source: "WAEC Official 2023",
-  },
-  {
-    state: "Edo State",
-    zone: "SS",
-    region: "South South Region",
-    candidates: 58120,
-    passRate: 77.2,
-    malePass: 76.8,
-    femalePass: 77.6,
-    source: "WAEC Official 2023",
-  },
-  {
-    state: "Anambra State",
-    zone: "SE",
-    region: "South East Region",
-    candidates: 62800,
-    passRate: 74.8,
-    malePass: 73.1,
-    femalePass: 76.5,
-    source: "WAEC Official 2023",
-  },
-  {
-    state: "Kaduna State",
-    zone: "NW",
-    region: "North West Region",
-    candidates: 89450,
-    passRate: 52.1,
-    malePass: 54.2,
-    femalePass: 50.0,
-    source: "WAEC Bulletin 2023",
-  },
-  {
-    state: "Kano State",
-    zone: "NW",
-    region: "North West Region",
-    candidates: 112500,
-    passRate: 46.5,
-    malePass: 49.8,
-    femalePass: 43.2,
-    source: "WAEC Official 2023",
-  },
-  {
-    state: "Borno State",
-    zone: "NE",
-    region: "North East Region",
-    candidates: 31400,
-    passRate: 38.9,
-    malePass: 41.0,
-    femalePass: 36.8,
-    source: "NBS / WAEC 2023",
-  },
-];
-
 const releases = [
   {
     category: "Education • National",
@@ -156,14 +96,56 @@ const releases = [
 const formatNumber = (number) =>
   new Intl.NumberFormat("en-NG").format(number);
 
-const indicatorLabels = {
-  cohort: "Sub-National Records",
-  enrolment: "School Enrolment",
-  completion: "Completion Rate",
-  exam: "Examination Pass Rate",
-  teachers: "Teacher-Pupil Ratio",
+const formatOverviewValue = (record, format) => {
+  if (
+    !record ||
+    record.value === null ||
+    record.value === undefined
+  ) {
+    return "—";
+  }
+
+  const value = Number(record.value);
+
+  if (!Number.isFinite(value)) {
+    return "—";
+  }
+
+  const formattedValue = new Intl.NumberFormat("en-NG", {
+    maximumFractionDigits: 2,
+  }).format(value);
+
+  if (format === "percent") {
+    return `${formattedValue}%`;
+  }
+
+  if (format === "ratio") {
+    return `1:${formattedValue}`;
+  }
+
+  if (record.unit === "NGN") {
+    return `₦${formattedValue}`;
+  }
+
+  return formattedValue;
 };
 
+const indicatorLabels = {
+  all: "All Education Indicators",
+  adult_literacy_pct: "Adult Literacy Rate",
+  education_allocation: "Education Allocation",
+  education_allocation_pct: "Education Allocation (% of Budget)",
+  gender_parity_index_primary: "Gender Parity Index (Primary)",
+  out_of_school_children_pct: "Out-of-School Children",
+  primary_completion_pct: "Primary Completion Rate",
+  primary_net_enrolment_pct: "Primary Net Enrolment Rate",
+  primary_pupil_teacher_ratio: "Primary Pupil-Teacher Ratio",
+  public_primary_schools: "Public Primary Schools",
+  public_secondary_schools: "Public Secondary Schools",
+  secondary_completion_pct: "Secondary Completion Rate",
+  secondary_net_enrolment_pct: "Secondary Net Enrolment Rate",
+  ssce_5_credits_pct: "SSCE 5+ Credits",
+};
 
 function SectionHeading({ children, dark = false }) {
   const shouldReduceMotion = useReducedMotion();
@@ -204,19 +186,45 @@ function SectionHeading({ children, dark = false }) {
               }
         }
       />
-
       {children}
     </h2>
   );
 }
 
-
 function Education() {
   const { isLoggedIn } = useAuth();
   const navigate = useNavigate();
-
-  // Animation support
   const shouldReduceMotion = useReducedMotion();
+
+  const [states, setStates] = useState([]);
+  const [statesLoading, setStatesLoading] = useState(true);
+  const [statesError, setStatesError] = useState("");
+
+  // National overview data
+  const [nationalEducationRecords, setNationalEducationRecords] =
+    useState([]);
+  const [nationalOverviewLoading, setNationalOverviewLoading] =
+    useState(true);
+  const [nationalOverviewError, setNationalOverviewError] =
+    useState("");
+
+  const [exam, setExam] = useState("WAEC");
+  const [indicator, setIndicator] = useState("all");
+  const [state, setState] = useState("all");
+  const [year, setYear] = useState("all");
+  const [search, setSearch] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [showExportOptions, setShowExportOptions] = useState(false);
+  const [appliedFilters, setAppliedFilters] = useState(null);
+
+  const [educationRecords, setEducationRecords] = useState([]);
+  const [recordsLoading, setRecordsLoading] = useState(false);
+  const [recordsError, setRecordsError] = useState("");
+
+  const [currentPage, setCurrentPage] = useState(0);
+  const [retryCount, setRetryCount] = useState(0);
+
+  const RECORDS_PER_PAGE = 25;
 
   const motionSettings = {
     initial: shouldReduceMotion ? false : "hidden",
@@ -242,14 +250,137 @@ function Education() {
     },
   };
 
-  const [exam, setExam] = useState("WAEC");
-  const [indicator, setIndicator] = useState("cohort");
-  const [state, setState] = useState("all");
-  const [year, setYear] = useState("2023");
-  const [search, setSearch] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
-  const [showExportOptions, setShowExportOptions] = useState(false);
-  const [appliedFilters, setAppliedFilters] = useState(null);
+  // LOAD STATES
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadStates() {
+      try {
+        const data = await getStates();
+
+        if (isMounted) {
+          setStates(data);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setStatesError(
+            error.message || "Unable to load states."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setStatesLoading(false);
+        }
+      }
+    }
+
+    loadStates();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // LOAD NATIONAL EDUCATION RECORDS
+  // This request is public and does not require login.
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadNationalEducationData() {
+      try {
+        const batchSize = 100;
+
+        const firstResponse = await getPublishedRecords({
+          sector: "education",
+          limit: batchSize,
+          offset: 0,
+        });
+
+        const total = Number(firstResponse?.total) || 0;
+
+        let allRecords = Array.isArray(firstResponse?.items)
+          ? [...firstResponse.items]
+          : [];
+
+        for (
+          let offset = batchSize;
+          offset < total;
+          offset += batchSize
+        ) {
+          const response = await getPublishedRecords({
+            sector: "education",
+            limit: batchSize,
+            offset,
+          });
+
+          const items = Array.isArray(response?.items)
+            ? response.items
+            : [];
+
+          allRecords.push(...items);
+        }
+
+        if (!isMounted) return;
+
+        const nationalRecords = allRecords.filter((record) => {
+          const recordState = String(record.state ?? "")
+            .trim()
+            .toLowerCase();
+
+          return (
+            record.sector === "education" &&
+            ["national", "nigeria"].includes(recordState)
+          );
+        });
+
+        setNationalEducationRecords(nationalRecords);
+      } catch (error) {
+        if (isMounted) {
+          setNationalOverviewError(
+            error.message ||
+              "Unable to load national education data."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setNationalOverviewLoading(false);
+        }
+      }
+    }
+
+    loadNationalEducationData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // SELECT THE LATEST NATIONAL RECORD FOR EACH INDICATOR
+  const nationalOverviewStats = useMemo(() => {
+    return overviewStats.map((stat) => {
+      const matchingRecords = nationalEducationRecords
+        .filter(
+          (record) =>
+            record.indicator_key === stat.indicator
+        )
+        .sort(
+          (a, b) => Number(b.year) - Number(a.year)
+        );
+
+      const latestRecord = matchingRecords[0] ?? null;
+
+      return {
+        ...stat,
+        value: formatOverviewValue(
+          latestRecord,
+          stat.format
+        ),
+        source: latestRecord
+          ? `Published data • ${latestRecord.year}`
+          : "No national record available",
+      };
+    });
+  }, [nationalEducationRecords]);
 
   const requireLogin = (action) => {
     if (isLoggedIn) return true;
@@ -277,50 +408,137 @@ function Education() {
   };
 
   const selectedIndicatorLabel =
-    indicatorLabels[appliedFilters?.indicator] ?? "Education Records";
+    indicatorLabels[appliedFilters?.indicator] ??
+    "Education Records";
 
+  // LOAD FILTERED EDUCATION RECORDS AFTER LOGIN AND APPLY
+  useEffect(() => {
+    if (!isLoggedIn || !appliedFilters) return;
+
+    let isMounted = true;
+
+    async function loadEducationRecords() {
+      try {
+        const batchSize = 100;
+
+        const firstResponse = await getPublishedRecords({
+          sector: "education",
+          state: appliedFilters.state,
+          indicator: appliedFilters.indicator,
+          year: appliedFilters.year,
+          limit: batchSize,
+          offset: 0,
+        });
+
+        const total = Number(firstResponse?.total) || 0;
+
+        let allRecords = Array.isArray(firstResponse?.items)
+          ? [...firstResponse.items]
+          : [];
+
+        for (
+          let offset = batchSize;
+          offset < total;
+          offset += batchSize
+        ) {
+          const response = await getPublishedRecords({
+            sector: "education",
+            state: appliedFilters.state,
+            indicator: appliedFilters.indicator,
+            year: appliedFilters.year,
+            limit: batchSize,
+            offset,
+          });
+
+          const items = Array.isArray(response?.items)
+            ? response.items
+            : [];
+
+          allRecords.push(...items);
+        }
+
+        if (!isMounted) return;
+
+        const educationOnly = allRecords.filter(
+          (item) => item.sector === "education"
+        );
+
+        setEducationRecords(educationOnly);
+        setCurrentPage(0);
+        setRecordsError("");
+      } catch (error) {
+        if (isMounted) {
+          setRecordsError(
+            error.message ||
+              "Unable to load education records."
+          );
+
+          setEducationRecords([]);
+        }
+      } finally {
+        if (isMounted) {
+          setRecordsLoading(false);
+        }
+      }
+    }
+
+    loadEducationRecords();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isLoggedIn, appliedFilters, retryCount]);
+
+  // SEARCH FETCHED EDUCATION RECORDS
   const filteredRecords = useMemo(() => {
-    if (!isLoggedIn || !appliedFilters) {
-      return [];
+    const query = search.trim().toLowerCase();
+
+    if (!query) {
+      return educationRecords;
     }
 
-    if (
-      appliedFilters.indicator !== "cohort" ||
-      appliedFilters.year !== "2023"
-    ) {
-      return [];
-    }
+    return educationRecords.filter((record) =>
+      Object.values(record).some((value) =>
+        String(value ?? "")
+          .toLowerCase()
+          .includes(query)
+      )
+    );
+  }, [educationRecords, search]);
 
-    return cohortRecords.filter((record) => {
-      const matchesState =
-        appliedFilters.state === "all" ||
-        record.state === appliedFilters.state;
+  const totalPages = Math.ceil(
+    filteredRecords.length / RECORDS_PER_PAGE
+  );
 
-      const matchesSearch = record.state
-        .toLowerCase()
-        .includes(search.trim().toLowerCase());
+  const paginatedRecords = useMemo(() => {
+    const startIndex = currentPage * RECORDS_PER_PAGE;
 
-      return matchesState && matchesSearch;
-    });
-  }, [isLoggedIn, appliedFilters, search]);
+    return filteredRecords.slice(
+      startIndex,
+      startIndex + RECORDS_PER_PAGE
+    );
+  }, [filteredRecords, currentPage]);
 
   const handleApplyFilters = (event) => {
     event.preventDefault();
 
     if (!requireLogin("apply education indicators")) return;
 
+    setSearch("");
+    setCurrentPage(0);
+    setEducationRecords([]);
+    setRecordsError("");
+    setRecordsLoading(true);
+    setShowExportOptions(false);
+
     setAppliedFilters({
       indicator,
       state,
       year,
     });
-
-    setSearch("");
-    setShowExportOptions(false);
   };
 
-  
-  const handleExport = (format) => {
+  const handleExport = async (format) => {
     if (!requireLogin("export education data")) return;
 
     if (!appliedFilters) {
@@ -328,44 +546,77 @@ function Education() {
       return;
     }
 
-    if (
-      appliedFilters.indicator !== "cohort" ||
-      appliedFilters.year !== "2023"
-    ) {
-      alert(
-        "There is no dataset available to export for this selection."
-      );
-      return;
-    }
-
-    if (filteredRecords.length === 0) {
-      alert("There are no matching records to export.");
-      return;
-    }
-
-    const headers = [
-      "State",
-      "Geopolitical Zone",
-      "Region",
-      "Registered Candidates",
-      "Pass Rate (%)",
-      "Male Pass (%)",
-      "Female Pass (%)",
-      "Source",
-    ];
-
-    const rows = filteredRecords.map((record) => ({
-      State: record.state,
-      "Geopolitical Zone": record.zone,
-      Region: record.region,
-      "Registered Candidates": record.candidates,
-      "Pass Rate (%)": record.passRate,
-      "Male Pass (%)": record.malePass,
-      "Female Pass (%)": record.femalePass,
-      Source: record.source,
-    }));
-
     try {
+      const firstResponse = await getPublishedRecords({
+        sector: "education",
+        state: appliedFilters.state,
+        indicator: appliedFilters.indicator,
+        year: appliedFilters.year,
+        limit: 100,
+        offset: 0,
+      });
+
+      const allRecords = Array.isArray(firstResponse?.items)
+        ? firstResponse.items.filter(
+            (item) => item.sector === "education"
+          )
+        : [];
+
+      const total =
+        Number(firstResponse?.total) || allRecords.length;
+
+      for (let offset = 100; offset < total; offset += 100) {
+        const response = await getPublishedRecords({
+          sector: "education",
+          state: appliedFilters.state,
+          indicator: appliedFilters.indicator,
+          year: appliedFilters.year,
+          limit: 100,
+          offset,
+        });
+
+        const items = Array.isArray(response?.items)
+          ? response.items.filter(
+              (item) => item.sector === "education"
+            )
+          : [];
+
+        allRecords.push(...items);
+      }
+
+      const query = search.trim().toLowerCase();
+
+      const matchingRecords = allRecords.filter((record) =>
+        String(record.state ?? "")
+          .toLowerCase()
+          .includes(query)
+      );
+
+      if (matchingRecords.length === 0) {
+        alert("There are no matching records to export.");
+        return;
+      }
+
+      const headers = [
+        "State",
+        "Indicator",
+        "Indicator Key",
+        "Value",
+        "Unit",
+        "Year",
+        "Dataset ID",
+      ];
+
+      const rows = matchingRecords.map((record) => ({
+        State: record.state,
+        Indicator: record.indicator,
+        "Indicator Key": record.indicator_key,
+        Value: record.value,
+        Unit: record.unit,
+        Year: record.year,
+        "Dataset ID": record.dataset_id,
+      }));
+
       exportData({
         format,
         headers,
@@ -379,656 +630,788 @@ function Education() {
             appliedFilters.state === "all"
               ? "All states"
               : appliedFilters.state,
-          "Data status": "Demonstration data - unverified",
+          "Data status": "Published backend records",
         },
         landscape: true,
       });
     } catch (error) {
-      alert(error.message || "Unable to export education data.");
+      alert(
+        error.message || "Unable to export education data."
+      );
     }
   };
- 
+
   return (
-      <main className="bg-[#E7EDF0] text-[#20272B]">
-        {/* HERO: animated text and pop-out image */}
-        <motion.section
-                {...motionSettings}
-                variants={revealVariants}
-                className="mx-auto grid max-w-6xl items-center gap-10 px-5 pt-26 pb-16 sm:px-8 sm:pt-36 sm:pb-12 md:min-h-0 md:grid-cols-2 md:gap-8 md:px-8 md:pt-30 md:pb-12 lg:min-h-92.5 lg:gap-10 lg:px-12 lg:py-24"
+    <main className="bg-[#E7EDF0] text-[#20272B]">
+      {/* HERO */}
+      <motion.section
+        {...motionSettings}
+        variants={revealVariants}
+        className="mx-auto grid max-w-6xl items-center gap-10 px-5 pt-26 pb-16 sm:px-8 sm:pt-36 sm:pb-12 md:min-h-0 md:grid-cols-2 md:gap-8 md:px-8 md:pt-30 md:pb-12 lg:min-h-92.5 lg:gap-10 lg:px-12 lg:py-24"
+      >
+        <motion.div
+          className="order-2 md:order-1"
+          initial={
+            shouldReduceMotion
+              ? false
+              : { opacity: 0, y: 30 }
+          }
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.2 }}
+          transition={{
+            duration: shouldReduceMotion ? 0 : 0.7,
+            ease: [0.22, 1, 0.36, 1],
+          }}
         >
-          <motion.div
-            className="order-2 md:order-1"
-            initial={
-              shouldReduceMotion
-                ? false
-                : { opacity: 0, y: 30 }
-            }
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{
-              duration: shouldReduceMotion ? 0 : 0.7,
-              ease: [0.22, 1, 0.36, 1],
-            }}
-          >
-            <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-[#1F7A3F]">
-              Nigeria · Education data
-            </p>
+          <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-[#1F7A3F]">
+            Nigeria · Education data
+          </p>
 
-            <h1 className="max-w-xl text-3xl font-bold leading-tight text-[#0B3C5D] sm:text-4xl lg:text-5xl">
-              Nigeria&apos;s{" "}
-              <span className="text-[#1F7A3F]">Education</span> indicators, by
-              state and over time
-            </h1>
+          <h1 className="max-w-xl text-3xl font-bold leading-tight text-[#0B3C5D] sm:text-4xl lg:text-5xl">
+            Nigeria&apos;s{" "}
+            <span className="text-[#1F7A3F]">Education</span>{" "}
+            indicators, by state and over time
+          </h1>
 
-            <p className="mt-4 max-w-lg text-sm leading-6 text-[#38464D]">
-              Explore enrolment, completion, learning outcomes, teachers,
-              examinations, infrastructure, and financing — with figures
-              traceable to their sources.
-            </p>
-          </motion.div>
+          <p className="mt-4 max-w-lg text-sm leading-6 text-[#38464D]">
+            Explore enrolment, completion, learning outcomes,
+            teachers, examinations, infrastructure, and financing
+            — with figures traceable to their sources.
+          </p>
+        </motion.div>
 
-          <motion.div
-            className="order-1 flex justify-center md:order-2 md:justify-end"
-            initial={
-              shouldReduceMotion
-                ? false
-                : { opacity: 0, scale: 0.92 }
-            }
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{
-              duration: shouldReduceMotion ? 0 : 0.85,
-              delay: shouldReduceMotion ? 0 : 0.12,
-              ease: [0.22, 1, 0.36, 1],
-            }}
-          >
-            <div className="relative h-64 w-full max-w-xs rounded-bl-[80px] rounded-tr-[80px] bg-[#0B3C5D] sm:h-80 md:h-82.5 lg:h-120.25 lg:max-w-md">
-              <img
-                src={EducationHero}
-                alt="Digital technology and data visualisation"
-                className="h-full w-full rounded-bl-[80px] rounded-tr-[80px] object-cover opacity-80"
-              />
-
-              <img
-                src={civicIntelLogo}
-                alt="CivicIntel logo"
-                className="absolute -bottom-10 -right-4 z-10 h-auto w-24 object-contain sm:w-28 md:w-32"
-              />
-            </div>
-          </motion.div>
-        </motion.section>
-
-        {/* NATIONAL EDUCATION OVERVIEW */}
-        <motion.section
-          {...motionSettings}
-          variants={revealVariants}
-          className="bg-[#B5C7D1] px-5 py-8 sm:px-8 lg:px-12"
+        <motion.div
+          className="order-1 flex justify-center md:order-2 md:justify-end"
+          initial={
+            shouldReduceMotion
+              ? false
+              : { opacity: 0, scale: 0.92 }
+          }
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true, amount: 0.2 }}
+          transition={{
+            duration: shouldReduceMotion ? 0 : 0.85,
+            delay: shouldReduceMotion ? 0 : 0.12,
+            ease: [0.22, 1, 0.36, 1],
+          }}
         >
-          <div className="mx-auto max-w-5xl">
-            
-            <SectionHeading >
-              NATIONAL EDUCATION OVERVIEW
-            </SectionHeading>
+          <div className="relative h-64 w-full max-w-xs rounded-bl-[80px] rounded-tr-[80px] bg-[#0B3C5D] sm:h-80 md:h-82.5 lg:h-120.25 lg:max-w-md">
+            <img
+              src={EducationHero}
+              alt="Digital technology and data visualisation"
+              className="h-full w-full rounded-bl-[80px] rounded-tr-[80px] object-cover opacity-80"
+            />
 
+            <img
+              src={civicIntelLogo}
+              alt="CivicIntel logo"
+              className="absolute -bottom-10 -right-4 z-10 h-auto w-24 object-contain sm:w-28 md:w-32"
+            />
+          </div>
+        </motion.div>
+      </motion.section>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              {overviewStats.map((stat, index) => (
-                <article
-                  key={`${stat.label}-${stat.description}`}
-                  tabIndex={0}
-                  className="group relative min-h-28 cursor-pointer overflow-hidden rounded-md border border-transparent border-l-4 bg-[#F0F1F0] p-3.5 shadow-sm transform-gpu transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.02] hover:border-[#1F7A3F] hover:shadow-xl active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F7A3F] motion-reduce:transform-none motion-reduce:transition-none"
-                  style={{
-                    borderLeftColor: stat.color,
-                    transitionDelay: `${index * 40}ms`,
-                  }}
+      {/* NATIONAL EDUCATION OVERVIEW - LIVE BACKEND DATA */}
+      <motion.section
+        {...motionSettings}
+        variants={revealVariants}
+        className="bg-[#B5C7D1] px-5 py-8 sm:px-8 lg:px-12"
+      >
+        <div className="mx-auto max-w-5xl">
+          <SectionHeading>
+            NATIONAL EDUCATION OVERVIEW
+          </SectionHeading>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {nationalOverviewStats.map((stat, index) => (
+              <article
+                key={`${stat.label}-${stat.indicator}`}
+                tabIndex={0}
+                className="group relative min-h-28 cursor-pointer overflow-hidden rounded-md border border-transparent border-l-4 bg-[#F0F1F0] p-3.5 shadow-sm transform-gpu transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.02] hover:border-[#1F7A3F] hover:shadow-xl active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F7A3F] motion-reduce:transform-none motion-reduce:transition-none"
+                style={{
+                  borderLeftColor: stat.color,
+                  transitionDelay: `${index * 40}ms`,
+                }}
+              >
+                <span
+                  className="inline-block rounded-full px-3 py-1 text-[9px] font-medium text-white transition-transform duration-300 group-hover:scale-105"
+                  style={{ backgroundColor: stat.color }}
                 >
-                  <span
-                    className="inline-block rounded-full px-3 py-1 text-[9px] font-medium text-white transition-transform duration-300 group-hover:scale-105"
-                    style={{ backgroundColor: stat.color }}
-                  >
-                    {stat.label}
-                  </span>
+                  {stat.label}
+                </span>
 
-                  <p className="mt-2 text-lg font-bold text-[#20272B] transition-transform duration-300 ease-out group-hover:translate-x-0.5">
-                    {stat.value}
-                  </p>
-
-                  <p className="mt-1 text-xs leading-5">
-                    {stat.description}
-                  </p>
-
-                  <div className="my-2 border-t border-dashed border-gray-400" />
-
-                  <p className="text-[10px] text-gray-600">{stat.source}</p>
-                </article>
-              ))}
-            </div>
-
-            <p className="mt-4 text-xs text-gray-700">
-              Figures shown are demonstration content and should be verified
-              against their original sources before publication.
-            </p>
-          </div>
-        </motion.section>
-
-        {/* PUBLIC EXAM SUMMARIES */}
-        <motion.section
-          {...motionSettings}
-          variants={revealVariants}
-          className="px-5 py-8 sm:px-8 lg:px-12"
-        >
-          <div className="mx-auto max-w-5xl">
-            <SectionHeading>EXAMINATION PERFORMANCE OVERVIEW</SectionHeading>
-
-            <div className="grid gap-5 lg:grid-cols-[2.2fr_0.8fr]">
-              <div className="rounded-lg bg-white p-4 shadow-sm sm:p-5">
-                <div className="flex flex-wrap gap-5 border-b border-gray-200">
-                  {Object.keys(examSummaries).map((examName) => (
-                    <button
-                      key={examName}
-                      type="button"
-                      onClick={() => setExam(examName)}
-                      aria-pressed={exam === examName}
-                      className={`pb-3 text-xs transition ${
-                        exam === examName
-                          ? "border-b-2 border-[#1F7A3F] font-semibold text-[#1F7A3F]"
-                          : "text-gray-500 hover:text-[#0B3C5D]"
-                      }`}
-                    >
-                      {examName} Summary
-                    </button>
-                  ))}
-                </div>
-
-                <div className="mt-5 space-y-5">
-                  {examSummaries[exam].map((item) => (
-                    <div
-                      key={item.state}
-                      className="grid grid-cols-[90px_1fr_42px] items-center gap-3"
-                    >
-                      <span className="text-[10px] font-semibold">
-                        {item.state}
-                      </span>
-
-                      <div className="h-2 overflow-hidden rounded-full bg-gray-200">
-                        <div
-                          className="h-full rounded-full bg-[#1F7A3F] transition-all duration-500"
-                          style={{ width: `${item.value}%` }}
-                        />
-                      </div>
-
-                      <span className="text-right text-[10px] font-semibold text-[#1F7A3F]">
-                        {item.value}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                <p className="mt-5 text-[10px] text-gray-500">
-                  {exam} · Demonstration summary · Not verified examination
-                  statistics
-                </p>
-              </div>
-
-              <aside className="rounded-lg bg-white p-5 shadow-sm">
-                <p className="text-sm font-bold text-[#0B3C5D]">
-                  Trend Metadata &amp; Audit
+                <p className="mt-2 text-lg font-bold text-[#20272B] transition-transform duration-300 ease-out group-hover:translate-x-0.5">
+                  {nationalOverviewLoading ? (
+                    <span className="inline-block h-5 w-16 animate-pulse rounded bg-gray-300" />
+                  ) : (
+                    stat.value
+                  )}
                 </p>
 
-                <div className="mt-4 space-y-4 text-xs">
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="text-gray-500">Reporting standard</span>
-                    <span className="text-right font-semibold">
-                      UBE National Blueprint
-                    </span>
-                  </div>
+                <p className="mt-1 text-xs leading-5">
+                  {stat.description}
+                </p>
 
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="text-gray-500">Audited classrooms</span>
-                    <span className="text-right font-semibold">
-                      3,241 (Kaduna)
-                    </span>
-                  </div>
+                <div className="my-2 border-t border-dashed border-gray-400" />
 
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="text-gray-500">Teacher census match</span>
-                    <span className="text-right font-semibold text-[#1F7A3F]">
-                      94.1% consistent
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-5 border-t border-gray-200 pt-4 text-[10px] leading-5 text-gray-500">
-                  Source: Federal Ministry of Education
-                  <br />
-                  Vintage: 2023–2024
-                  <br />
-                  Last verified: Demo record
-                </div>
-              </aside>
-            </div>
+                <p className="text-[10px] text-gray-600">
+                  {nationalOverviewLoading
+                    ? "Loading published data..."
+                    : stat.source}
+                </p>
+              </article>
+            ))}
           </div>
-        </motion.section>
 
-        {/* EDUCATION INDICATOR FILTERS */}
-        <motion.section
-          {...motionSettings}
-          variants={revealVariants}
-          className="px-5 py-8 sm:px-8 lg:px-12"
-        >
-          <div className="mx-auto max-w-5xl">
-            <SectionHeading>EDUCATION INDICATOR</SectionHeading>
-
-            <form onSubmit={handleApplyFilters}>
-              <div className="grid gap-4 md:grid-cols-3">
-                <label className="flex flex-col gap-2 text-xs">
-                  Indicator
-
-                  <select
-                    value={indicator}
-                    onChange={(event) => setIndicator(event.target.value)}
-                    className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
-                  >
-                    <option value="cohort">Sub-National Records</option>
-                    <option value="enrolment">School Enrolment</option>
-                    <option value="completion">Completion Rate</option>
-                    <option value="exam">Examination Pass Rate</option>
-                    <option value="teachers">Teacher-Pupil Ratio</option>
-                  </select>
-                </label>
-
-                <label className="flex flex-col gap-2 text-xs">
-                  State
-
-                  <select
-                    value={state}
-                    onChange={(event) => setState(event.target.value)}
-                    className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
-                  >
-                    <option value="all">All states</option>
-
-                    {cohortRecords.map((record) => (
-                      <option key={record.state} value={record.state}>
-                        {record.state}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="flex flex-col gap-2 text-xs">
-                  Year
-
-                  <select
-                    value={year}
-                    onChange={(event) => setYear(event.target.value)}
-                    className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
-                  >
-                    <option value="2023">2023</option>
-                    <option value="2023-2024">2023–2024</option>
-                    <option value="2025">2025</option>
-                    <option value="2022">2022</option>
-                    <option value="2021">2021</option>
-                  </select>
-                </label>
-              </div>
+          {nationalOverviewError ? (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md bg-red-50 p-3 text-xs text-red-700">
+              <p>
+                Unable to load national education figures:{" "}
+                {nationalOverviewError}
+              </p>
 
               <button
-                type="submit"
-                className="mx-auto mt-5 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B3C5D] md:w-1/2"
+                type="button"
+                onClick={() => window.location.reload()}
+                className="font-semibold underline"
               >
-                Apply <span aria-hidden="true">→</span>
+                Reload page
               </button>
-            </form>
-          </div>
-        </motion.section>
+            </div>
+          ) : (
+            <p className="mt-4 text-xs text-gray-700">
+              Figures are drawn from the latest available published
+              national education records. A dash (—) means no
+              matching national record was returned by the backend.
+            </p>
+          )}
+        </div>
+      </motion.section>
 
-        {/* PROTECTED SUB-NATIONAL COHORT DASHBOARD */}
-        <motion.section
-          {...motionSettings}
-          variants={revealVariants}
-          className="scroll-mt-24 rounded-md bg-[#061D2A] px-4 py-8 text-white sm:px-6 lg:px-12"
-        >
-          <div className="mx-auto max-w-5xl">
-            {!isLoggedIn ? (
-              <div className="mx-auto max-w-2xl rounded-2xl border border-white/20 bg-white/10 p-8 text-center sm:p-10">
-                <h2 className="mt-4 text-xl font-bold sm:text-2xl">
-                  Unlock Education Data Analysis
-                </h2>
+      {/* PUBLIC EXAM SUMMARIES */}
+      <motion.section
+        {...motionSettings}
+        variants={revealVariants}
+        className="px-5 py-8 sm:px-8 lg:px-12"
+      >
+        <div className="mx-auto max-w-5xl">
+          <SectionHeading>
+            EXAMINATION PERFORMANCE OVERVIEW
+          </SectionHeading>
 
-                <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-white/70">
-                  Log in to apply education indicators, view state-level cohort
-                  records, search the dataset, and export your results.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    requireLogin("view education data analysis")
-                  }
-                  className="mt-6 rounded-full bg-[#1F7A3F] px-7 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98]"
-                >
-                  Log in to view data →
-                </button>
-
-                <p className="mt-4 text-xs text-white/50">
-                  New to CivicIntel?{" "}
+          <div className="grid gap-5 lg:grid-cols-[2.2fr_0.8fr]">
+            <div className="rounded-lg bg-white p-4 shadow-sm sm:p-5">
+              <div className="flex flex-wrap gap-5 border-b border-gray-200">
+                {Object.keys(examSummaries).map((examName) => (
                   <button
+                    key={examName}
                     type="button"
-                    onClick={handleSignup}
-                    className="underline hover:text-white"
+                    onClick={() => setExam(examName)}
+                    aria-pressed={exam === examName}
+                    className={`pb-3 text-xs transition ${
+                      exam === examName
+                        ? "border-b-2 border-[#1F7A3F] font-semibold text-[#1F7A3F]"
+                        : "text-gray-500 hover:text-[#0B3C5D]"
+                    }`}
                   >
-                    Create an account
+                    {examName} Summary
                   </button>
-                </p>
+                ))}
               </div>
-            ) : !appliedFilters ? (
-              <div className="rounded-2xl border border-white/20 bg-white/10 p-8 text-center">
-                <h2 className="text-xl font-bold">Your Education Analysis</h2>
 
-                <p className="mt-3 text-sm leading-6 text-white/70">
-                  Choose an indicator, state, and year above, then click Apply
-                  to view your filtered education records.
-                </p>
-              </div>
-            ) : (
-              <div>
-                <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-lg font-bold sm:text-2xl">
-                      {selectedIndicatorLabel}
-                    </h2>
+              <div className="mt-5 space-y-5">
+                {examSummaries[exam].map((item) => (
+                  <div
+                    key={item.state}
+                    className="grid grid-cols-[90px_1fr_42px] items-center gap-3"
+                  >
+                    <span className="text-[10px] font-semibold">
+                      {item.state}
+                    </span>
 
-                    <p className="mt-2 text-xs text-white/70">
-                      Selected state:{" "}
-                      {appliedFilters.state === "all"
-                        ? "All states"
-                        : appliedFilters.state}
-                      {" · "}
-                      Selected year: {appliedFilters.year}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowFilters((previous) => !previous)}
-                      aria-expanded={showFilters}
-                      className="rounded-full bg-white px-6 py-2 text-xs font-semibold text-[#1F7A3F] transition hover:bg-gray-100 active:scale-[0.98]"
-                    >
-                      {showFilters ? "Hide search" : "Search records"} ☰
-                    </button>
-
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!requireLogin("export education data")) return;
-
-                          setShowExportOptions((previous) => !previous);
-                        }}
-                        aria-expanded={showExportOptions}
-                        aria-haspopup="true"
-                        className="inline-flex items-center gap-3 rounded-full bg-[#1F7A3F] px-6 py-2 text-xs font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98]"
-                      >
-                        Export
-
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          className={`h-4 w-4 transition-transform ${
-                            showExportOptions ? "rotate-180" : ""
-                          }`}
-                          aria-hidden="true"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="m6 9 6 6 6-6"
-                          />
-                        </svg>
-                      </button>
-
-                      {showExportOptions && (
-                        <div
-                          role="menu"
-                          className="absolute right-0 z-20 mt-2 w-44 overflow-hidden rounded-xl border border-gray-200 bg-white py-2 text-[#20272B] shadow-xl"
-                        >
-                          {[
-                            { label: "Export as CSV", format: "csv" },
-                            { label: "Export as PDF", format: "pdf" },
-                            { label: "Export as XML", format: "xml" },
-                          ].map((option) => (
-                            <button
-                              key={option.format}
-                              type="button"
-                              role="menuitem"
-                              onClick={() => {
-                                handleExport(option.format);
-                                setShowExportOptions(false);
-                              }}
-                              className="block w-full px-4 py-3 text-left text-sm transition hover:bg-[#E7EDF0] hover:text-[#1F7A3F]"
-                            >
-                              {option.label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                    <div className="h-2 overflow-hidden rounded-full bg-gray-200">
+                      <div
+                        className="h-full rounded-full bg-[#1F7A3F] transition-all duration-500"
+                        style={{ width: `${item.value}%` }}
+                      />
                     </div>
+
+                    <span className="text-right text-[10px] font-semibold text-[#1F7A3F]">
+                      {item.value}%
+                    </span>
                   </div>
+                ))}
+              </div>
+
+              <p className="mt-5 text-[10px] text-gray-500">
+                {exam} · Demonstration summary · Not verified
+                examination statistics
+              </p>
+            </div>
+
+            <aside className="rounded-lg bg-white p-5 shadow-sm">
+              <p className="text-sm font-bold text-[#0B3C5D]">
+                Trend Metadata &amp; Audit
+              </p>
+
+              <div className="mt-4 space-y-4 text-xs">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-gray-500">
+                    Reporting standard
+                  </span>
+                  <span className="text-right font-semibold">
+                    UBE National Blueprint
+                  </span>
                 </div>
 
-                {showFilters && (
-                  <div className="mb-4 rounded-lg border border-white/15 bg-white/5 p-4">
-                    <label className="block text-xs text-white/70">
-                      Search state
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-gray-500">
+                    Audited classrooms
+                  </span>
+                  <span className="text-right font-semibold">
+                    3,241 (Kaduna)
+                  </span>
+                </div>
 
-                      <input
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
-                        placeholder="Type a state name..."
-                        className="mt-2 w-full rounded-lg border border-white/20 bg-white px-3 py-2 text-sm text-[#20272B] outline-none focus:border-[#1F7A3F] sm:max-w-sm"
-                      />
-                    </label>
-                  </div>
-                )}
-
-                {appliedFilters.indicator !== "cohort" ||
-                appliedFilters.year !== "2023" ? (
-                  <div className="rounded-xl border border-amber-300/30 bg-amber-300/10 p-5">
-                    <h3 className="font-semibold text-amber-200">
-                      Dataset not available for this selection
-                    </h3>
-
-                    <p className="mt-2 text-sm leading-6 text-white/75">
-                      The current demonstration dataset only supports
-                      Sub-National Records for 2023. Choose that indicator and
-                      year to view the available sample records. Other
-                      indicators and years need their own datasets before they
-                      can display accurate results.
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="mb-4 flex flex-wrap items-center gap-3">
-                      <span className="rounded-sm bg-gray-200 px-2 py-1 text-[10px] text-gray-700">
-                        Showing {filteredRecords.length} of{" "}
-                        {cohortRecords.length} demo records
-                      </span>
-
-                      <span className="text-[10px] text-amber-300">
-                        Illustrative data only — not for policy decisions.
-                      </span>
-                    </div>
-
-                    <div className="overflow-x-auto rounded-sm">
-                      <table className="w-full min-w-212.5 border-collapse bg-[#FFFBEF] text-left text-[#20272B]">
-                        <thead className="bg-[#E5EBEE] text-[10px] uppercase">
-                          <tr>
-                            <th className="px-4 py-4">State / entity</th>
-                            <th className="px-4 py-4 text-right">
-                              Registered candidates
-                            </th>
-                            <th className="px-4 py-4 text-right">
-                              Pass rate (5+ credits)
-                            </th>
-                            <th className="px-4 py-4 text-right">
-                              Male pass %
-                            </th>
-                            <th className="px-4 py-4 text-right">
-                              Female pass %
-                            </th>
-                            <th className="px-4 py-4">
-                              Source / integrity status
-                            </th>
-                          </tr>
-                        </thead>
-
-                        <tbody>
-                          {filteredRecords.map((record) => (
-                            <tr
-                              key={record.state}
-                              className="border-b border-[#B7C7CF] text-xs transition-colors hover:bg-[#F4F0E3]"
-                            >
-                              <td className="px-4 py-4">
-                                <div className="flex items-center gap-2">
-                                  <span className="rounded-sm bg-[#416B84] px-1.5 py-1 text-[9px] font-bold text-white">
-                                    {record.zone}
-                                  </span>
-
-                                  <div>
-                                    <p className="font-semibold">
-                                      {record.state}
-                                    </p>
-
-                                    <p className="mt-1 text-[9px] text-gray-500">
-                                      {record.region}
-                                    </p>
-                                  </div>
-                                </div>
-                              </td>
-
-                              <td className="px-4 py-4 text-right tabular-nums">
-                                {formatNumber(record.candidates)}
-                              </td>
-
-                              <td className="px-4 py-4 text-right">
-                                <span className="font-semibold">
-                                  {record.passRate}%
-                                </span>
-                              </td>
-
-                              <td className="px-4 py-4 text-right">
-                                {record.malePass}%
-                              </td>
-
-                              <td className="px-4 py-4 text-right text-[#1F7A3F]">
-                                {record.femalePass}%
-                              </td>
-
-                              <td className="px-4 py-4">
-                                <span className="font-semibold text-[#1F7A3F]">
-                                  ● {record.source}
-                                </span>
-
-                                <p className="mt-1 text-[9px] text-gray-500">
-                                  Demo — unverified
-                                </p>
-                              </td>
-                            </tr>
-                          ))}
-
-                          {filteredRecords.length === 0 && (
-                            <tr>
-                              <td
-                                colSpan={6}
-                                className="px-4 py-8 text-center text-sm text-gray-500"
-                              >
-                                No matching records. Try another state or search
-                                term.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div className="mt-5 bg-[#E5EBEE] p-4 text-[#0B3C5D]">
-                      <p className="text-xs font-bold">
-                        Dataset Provenance &amp; Rigour Declaration
-                      </p>
-
-                      <p className="mt-2 text-[10px] leading-5">
-                        Source: education examination and administrative data
-                        <br />
-                        Vintage: demonstration dataset
-                        <br />
-                        Verification: pending connection to official, validated
-                        sources
-                      </p>
-                    </div>
-                  </>
-                )}
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-gray-500">
+                    Teacher census match
+                  </span>
+                  <span className="text-right font-semibold text-[#1F7A3F]">
+                    94.1% consistent
+                  </span>
+                </div>
               </div>
-            )}
+
+              <div className="mt-5 border-t border-gray-200 pt-4 text-[10px] leading-5 text-gray-500">
+                Source: Federal Ministry of Education
+                <br />
+                Vintage: 2023–2024
+                <br />
+                Last verified: Demo record
+              </div>
+            </aside>
           </div>
-        </motion.section>
+        </div>
+      </motion.section>
 
-        {/* LATEST EDUCATION RELEASES */}
-        <motion.section
-          {...motionSettings}
-          variants={revealVariants}
-          className="px-5 py-10 sm:px-8 lg:px-12"
-        >
-          <div className="mx-auto max-w-5xl">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <SectionHeading>LATEST EDUCATION RELEASE</SectionHeading>
+      {/* EDUCATION INDICATOR FILTERS */}
+      <motion.section
+        {...motionSettings}
+        variants={revealVariants}
+        className="px-5 py-8 sm:px-8 lg:px-12"
+      >
+        <div className="mx-auto max-w-5xl">
+          <SectionHeading>EDUCATION INDICATOR</SectionHeading>
 
-              <a
-                href="#education-releases"
-                className="mb-6 text-xs font-semibold text-[#1F7A3F] hover:underline"
-              >
-                View all Releases →
-              </a>
+          <form onSubmit={handleApplyFilters}>
+            <div className="grid gap-4 md:grid-cols-3">
+              <label className="flex flex-col gap-2 text-xs">
+                Indicator
+
+                <select
+                  value={indicator}
+                  onChange={(event) =>
+                    setIndicator(event.target.value)
+                  }
+                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
+                >
+                  <option value="all">
+                    All Education Indicators
+                  </option>
+                  <option value="adult_literacy_pct">
+                    Adult Literacy Rate
+                  </option>
+                  <option value="education_allocation">
+                    Education Allocation
+                  </option>
+                  <option value="education_allocation_pct">
+                    Education Allocation (% of Budget)
+                  </option>
+                  <option value="gender_parity_index_primary">
+                    Gender Parity Index (Primary)
+                  </option>
+                  <option value="out_of_school_children_pct">
+                    Out-of-School Children
+                  </option>
+                  <option value="primary_completion_pct">
+                    Primary Completion Rate
+                  </option>
+                  <option value="primary_net_enrolment_pct">
+                    Primary Net Enrolment Rate
+                  </option>
+                  <option value="primary_pupil_teacher_ratio">
+                    Primary Pupil-Teacher Ratio
+                  </option>
+                  <option value="public_primary_schools">
+                    Public Primary Schools
+                  </option>
+                  <option value="public_secondary_schools">
+                    Public Secondary Schools
+                  </option>
+                  <option value="secondary_completion_pct">
+                    Secondary Completion Rate
+                  </option>
+                  <option value="secondary_net_enrolment_pct">
+                    Secondary Net Enrolment Rate
+                  </option>
+                  <option value="ssce_5_credits_pct">
+                    SSCE 5+ Credits
+                  </option>
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-2 text-xs">
+                State
+
+                <select
+                  value={state}
+                  onChange={(event) =>
+                    setState(event.target.value)
+                  }
+                  disabled={statesLoading}
+                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-wait disabled:opacity-60"
+                >
+                  <option value="all">All states</option>
+
+                  {statesLoading && (
+                    <option value="" disabled>
+                      Loading states...
+                    </option>
+                  )}
+
+                  {!statesLoading &&
+                    states.map((item) => (
+                      <option key={item.id} value={item.name}>
+                        {item.name}
+                      </option>
+                    ))}
+                </select>
+
+                {statesError && (
+                  <p className="mt-1 text-xs text-red-600">
+                    Unable to load states: {statesError}
+                  </p>
+                )}
+              </label>
+
+              <label className="flex flex-col gap-2 text-xs">
+                Year
+
+                <select
+                  value={year}
+                  onChange={(event) =>
+                    setYear(event.target.value)
+                  }
+                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
+                >
+                  <option value="all">All available years</option>
+                  <option value="2026">2026</option>
+                  <option value="2025">2025</option>
+                </select>
+              </label>
             </div>
 
-            <div
-              id="education-releases"
-              className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+            <button
+              type="submit"
+              className="mx-auto mt-5 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B3C5D] md:w-1/2"
             >
-              {releases.map((release) => (
-                <article
-                  key={release.title}
-                  className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-md"
-                >
-                  <img
-                    src={release.image}
-                    alt=""
-                    loading="lazy"
-                    className="h-48 w-full object-cover"
-                  />
+              Apply <span aria-hidden="true">→</span>
+            </button>
+          </form>
+        </div>
+      </motion.section>
 
-                  <div className="p-4">
-                    <p className="text-[10px] text-gray-500">
-                      {release.category}
+      {/* PROTECTED EDUCATION DASHBOARD */}
+      <motion.section
+        {...motionSettings}
+        variants={revealVariants}
+        className="scroll-mt-24 rounded-md bg-[#061D2A] px-4 py-8 text-white sm:px-6 lg:px-12"
+      >
+        <div className="mx-auto max-w-5xl">
+          {!isLoggedIn ? (
+            <div className="mx-auto max-w-2xl rounded-2xl border border-white/20 bg-white/10 p-8 text-center sm:p-10">
+              <h2 className="mt-4 text-xl font-bold sm:text-2xl">
+                Unlock Education Data Analysis
+              </h2>
+
+              <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-white/70">
+                Log in to apply education indicators, view state-level
+                cohort records, search the dataset, and export your
+                results.
+              </p>
+
+              <button
+                type="button"
+                onClick={() =>
+                  requireLogin("view education data analysis")
+                }
+                className="mt-6 rounded-full bg-[#1F7A3F] px-7 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98]"
+              >
+                Log in to view data →
+              </button>
+
+              <p className="mt-4 text-xs text-white/50">
+                New to CivicIntel?{" "}
+                <button
+                  type="button"
+                  onClick={handleSignup}
+                  className="underline hover:text-white"
+                >
+                  Create an account
+                </button>
+              </p>
+            </div>
+          ) : !appliedFilters ? (
+            <div className="rounded-2xl border border-white/20 bg-white/10 p-8 text-center">
+              <h2 className="text-xl font-bold">
+                Your Education Analysis
+              </h2>
+
+              <p className="mt-3 text-sm leading-6 text-white/70">
+                Choose an indicator, state, and year above, then click
+                Apply to view your filtered education records.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-bold sm:text-2xl">
+                    {selectedIndicatorLabel}
+                  </h2>
+
+                  <p className="mt-2 text-xs text-white/70">
+                    Selected state:{" "}
+                    {appliedFilters.state === "all"
+                      ? "All states"
+                      : appliedFilters.state}
+                    {" · "}
+                    Selected year: {appliedFilters.year}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowFilters((previous) => !previous)
+                    }
+                    aria-expanded={showFilters}
+                    className="rounded-full bg-white px-6 py-2 text-xs font-semibold text-[#1F7A3F] transition hover:bg-gray-100 active:scale-[0.98]"
+                  >
+                    {showFilters ? "Hide search" : "Search records"} ☰
+                  </button>
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          !requireLogin("export education data")
+                        ) {
+                          return;
+                        }
+
+                        setShowExportOptions((previous) => !previous);
+                      }}
+                      aria-expanded={showExportOptions}
+                      aria-haspopup="true"
+                      className="inline-flex items-center gap-3 rounded-full bg-[#1F7A3F] px-6 py-2 text-xs font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98]"
+                    >
+                      Export
+
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        className={`h-4 w-4 transition-transform ${
+                          showExportOptions ? "rotate-180" : ""
+                        }`}
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="m6 9 6 6 6-6"
+                        />
+                      </svg>
+                    </button>
+
+                    {showExportOptions && (
+                      <div
+                        role="menu"
+                        className="absolute right-0 z-20 mt-2 w-44 overflow-hidden rounded-xl border border-gray-200 bg-white py-2 text-[#20272B] shadow-xl"
+                      >
+                        {[
+                          { label: "Export as CSV", format: "csv" },
+                          { label: "Export as PDF", format: "pdf" },
+                          { label: "Export as XML", format: "xml" },
+                        ].map((option) => (
+                          <button
+                            key={option.format}
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              handleExport(option.format);
+                              setShowExportOptions(false);
+                            }}
+                            className="block w-full px-4 py-3 text-left text-sm transition hover:bg-[#E7EDF0] hover:text-[#1F7A3F]"
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {showFilters && (
+                <div className="mb-4 rounded-lg border border-white/15 bg-white/5 p-4">
+                  <label className="block text-xs text-white/70">
+                    Search state
+
+                    <input
+                      value={search}
+                      onChange={(event) => {
+                        setSearch(event.target.value);
+                        setCurrentPage(0);
+                      }}
+                      placeholder="Search state, indicator, value, year..."
+                      className="mt-2 w-full rounded-lg border border-white/20 bg-white px-3 py-2 text-sm text-[#20272B] outline-none focus:border-[#1F7A3F] sm:max-w-sm"
+                    />
+                  </label>
+                </div>
+              )}
+
+              {recordsLoading ? (
+                <div className="rounded-xl border border-white/15 bg-white/5 p-8 text-center">
+                  <p className="text-sm text-white/80">
+                    Loading education records...
+                  </p>
+                </div>
+              ) : recordsError ? (
+                <div className="rounded-xl border border-red-300/30 bg-red-300/10 p-5">
+                  <h3 className="font-semibold text-red-200">
+                    Unable to load education records
+                  </h3>
+
+                  <p className="mt-2 text-sm text-white/75">
+                    {recordsError}
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRecordsError("");
+                      setRecordsLoading(true);
+                      setRetryCount((count) => count + 1);
+                    }}
+                    className="mt-4 rounded-full bg-white px-5 py-2 text-xs font-semibold text-[#0B3C5D]"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4 flex flex-wrap items-center gap-3">
+                    <span className="rounded-sm bg-gray-200 px-2 py-1 text-[10px] text-gray-700">
+                      Showing {paginatedRecords.length} of{" "}
+                      {filteredRecords.length} matching records
+                    </span>
+
+                    <span className="text-[10px] text-green-300">
+                      Published education records
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto rounded-sm">
+                    <table className="w-full min-w-[850px] border-collapse bg-[#FFFBEF] text-left text-[#20272B]">
+                      <thead className="bg-[#E5EBEE] text-[10px] uppercase">
+                        <tr>
+                          <th className="px-4 py-4">State</th>
+                          <th className="px-4 py-4">Indicator</th>
+                          <th className="px-4 py-4 text-right">
+                            Value
+                          </th>
+                          <th className="px-4 py-4">Unit</th>
+                          <th className="px-4 py-4 text-right">
+                            Year
+                          </th>
+                          <th className="px-4 py-4">Dataset ID</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {paginatedRecords.map((record, index) => (
+                          <tr
+                            key={`${record.state}-${record.indicator_key}-${record.year}-${index}`}
+                            className="border-b border-[#B7C7CF] text-xs transition-colors hover:bg-[#F4F0E3]"
+                          >
+                            <td className="px-4 py-4 font-semibold">
+                              {record.state}
+                            </td>
+
+                            <td className="px-4 py-4">
+                              {record.indicator}
+                            </td>
+
+                            <td className="px-4 py-4 text-right font-semibold tabular-nums">
+                              {record.unit === "NGN"
+                                ? `₦${formatNumber(record.value)}`
+                                : formatNumber(record.value)}
+                            </td>
+
+                            <td className="px-4 py-4">
+                              {record.unit}
+                            </td>
+
+                            <td className="px-4 py-4 text-right">
+                              {record.year}
+                            </td>
+
+                            <td className="px-4 py-4 text-[10px] text-gray-500">
+                              {record.dataset_id}
+                            </td>
+                          </tr>
+                        ))}
+
+                        {filteredRecords.length === 0 && (
+                          <tr>
+                            <td
+                              colSpan={6}
+                              className="px-4 py-8 text-center text-sm text-gray-500"
+                            >
+                              No matching records found. Try another
+                              filter or search term.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* PAGINATION */}
+                  <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
+                    <p className="text-xs text-white/70">
+                      Page {totalPages === 0 ? 0 : currentPage + 1}{" "}
+                      of {totalPages}
                     </p>
 
-                    <h3 className="mt-3 text-sm font-semibold leading-6">
-                      {release.title}
-                    </h3>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={
+                          currentPage === 0 || recordsLoading
+                        }
+                        onClick={() =>
+                          setCurrentPage((page) =>
+                            Math.max(0, page - 1)
+                          )
+                        }
+                        className="rounded-full border border-white/30 px-5 py-2 text-xs font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Previous
+                      </button>
 
-                    <p className="mt-3 text-xs text-[#1F7A3F]">
-                      Demonstration release
+                      <button
+                        type="button"
+                        disabled={
+                          currentPage >= totalPages - 1 ||
+                          recordsLoading ||
+                          totalPages === 0
+                        }
+                        onClick={() =>
+                          setCurrentPage((page) => page + 1)
+                        }
+                        className="rounded-full bg-[#1F7A3F] px-5 py-2 text-xs font-semibold text-white transition hover:bg-[#176331] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 bg-[#E5EBEE] p-4 text-[#0B3C5D]">
+                    <p className="text-xs font-bold">
+                      Dataset Provenance &amp; Rigour Declaration
+                    </p>
+
+                    <p className="mt-2 text-[10px] leading-5">
+                      Source: Published CivicIntel education datasets
+                      <br />
+                      Dataset IDs: Provided by the backend
+                      <br />
+                      Reporting year: Based on the selected records
+                      <br />
+                      Verification: Refer to the associated dataset
+                      methodology
                     </p>
                   </div>
-                </article>
-              ))}
+                </>
+              )}
             </div>
+          )}
+        </div>
+      </motion.section>
+
+      {/* LATEST EDUCATION RELEASES */}
+      <motion.section
+        {...motionSettings}
+        variants={revealVariants}
+        className="px-5 py-10 sm:px-8 lg:px-12"
+      >
+        <div className="mx-auto max-w-5xl">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <SectionHeading>
+              LATEST EDUCATION RELEASE
+            </SectionHeading>
+
+            <a
+              href="#education-releases"
+              className="mb-6 text-xs font-semibold text-[#1F7A3F] hover:underline"
+            >
+              View all Releases →
+            </a>
           </div>
-        </motion.section>
-      </main>
+
+          <div
+            id="education-releases"
+            className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            {releases.map((release) => (
+              <article
+                key={release.title}
+                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-md"
+              >
+                <img
+                  src={release.image}
+                  alt=""
+                  loading="lazy"
+                  className="h-48 w-full object-cover"
+                />
+
+                <div className="p-4">
+                  <p className="text-[10px] text-gray-500">
+                    {release.category}
+                  </p>
+
+                  <h3 className="mt-3 text-sm font-semibold leading-6">
+                    {release.title}
+                  </h3>
+
+                  <p className="mt-3 text-xs text-[#1F7A3F]">
+                    Demonstration release
+                  </p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </motion.section>
+    </main>
   );
 }
 

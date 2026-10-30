@@ -133,7 +133,7 @@ function formatExcel({
   ]);
 
   // Make column widths readable.
-  dataSheet["!cols"] = headers.map((header, index) => {
+  dataSheet["!cols"] = headers.map((header) => {
     const longestValue = Math.max(
       String(header).length,
       ...rows.map((row) =>
