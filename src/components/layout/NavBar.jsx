@@ -157,12 +157,7 @@ function Navbar() {
                       >
                         <span className="block text-sm font-semibold">
                           {item.label}
-                          <span
-                            className="ml-2 text-xs"
-                            aria-hidden="true"
-                          >
-                            ↗
-                          </span>
+                        
                         </span>
 
                         <span className="mt-1 block text-xs text-gray-500">
@@ -337,7 +332,7 @@ function Navbar() {
 
             <Link
               to="/login"
-              className="rounded-full border border-white/50 px-5 py-2.5 text-sm transition hover:bg-white/10"
+              className="rounded-full border border-white/50 px-8 py-3 text-sm transition hover:bg-white/10"
             >
               Log In
             </Link>

@@ -4,6 +4,33 @@ const API_BASE_URL = (
   "https://backend-production-91cb.up.railway.app/api/v1"
 ).replace(/\/+$/, "");
 
+const ACCESS_TOKEN_KEY = "civicintel_access_token";
+
+// Retrieve the token from either browser storage location.
+export function getAccessToken() {
+  return (
+    localStorage.getItem(ACCESS_TOKEN_KEY) ||
+    sessionStorage.getItem(ACCESS_TOKEN_KEY)
+  );
+}
+
+// Remove the token from both locations.
+export function clearAccessToken() {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+}
+
+// Save the token according to the Remember Me choice.
+export function saveAccessToken(token, remember = false) {
+  clearAccessToken();
+
+  if (remember) {
+    localStorage.setItem(ACCESS_TOKEN_KEY, token);
+  } else {
+    sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
+  }
+}
+
 export async function apiRequest(path, options = {}) {
   const normalizedPath = path.startsWith("/")
     ? path
@@ -13,7 +40,7 @@ export async function apiRequest(path, options = {}) {
     typeof FormData !== "undefined" &&
     options.body instanceof FormData;
 
-  const token = localStorage.getItem("civicintel_access_token");
+  const token = getAccessToken();
 
   const headers = {
     Accept: "application/json",
@@ -67,13 +94,14 @@ export async function apiRequest(path, options = {}) {
           .join(" ")
       : null;
 
-    throw new Error(
+    const errorMessage =
       validationErrors ||
-        data?.message ||
-        data?.error ||
-        data?.detail ||
-        `Request failed (${response.status}). Please try again.`
-    );
+      data?.message ||
+      data?.error ||
+      (typeof data?.detail === "string" ? data.detail : null) ||
+      `Request failed (${response.status}). Please try again.`;
+
+    throw new Error(errorMessage);
   }
 
   return data;

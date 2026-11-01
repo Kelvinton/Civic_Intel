@@ -52,28 +52,7 @@ const overviewStats = [
   },
 ];
 
-// DEMONSTRATION DATA ONLY.
-// Verify every figure and source before publication.
-const examSummaries = {
-  WAEC: [
-    { state: "Lagos State", value: 84.2 },
-    { state: "Ekiti State", value: 78.5 },
-    { state: "Kaduna State", value: 62.1 },
-    { state: "Kano State", value: 54.8 },
-  ],
-  NECO: [
-    { state: "Lagos State", value: 79.4 },
-    { state: "Ekiti State", value: 75.2 },
-    { state: "Kaduna State", value: 65.1 },
-    { state: "Kano State", value: 57.3 },
-  ],
-  JAMB: [
-    { state: "Lagos State", value: 72.8 },
-    { state: "Ekiti State", value: 68.4 },
-    { state: "Kaduna State", value: 59.7 },
-    { state: "Kano State", value: 51.6 },
-  ],
-};
+
 
 const releases = [
   {
@@ -201,14 +180,16 @@ function Education() {
   const [statesError, setStatesError] = useState("");
 
   // National overview data
-  const [nationalEducationRecords, setNationalEducationRecords] =
+  // All published education records, including state-level records
+  const [publishedEducationRecords, setPublishedEducationRecords] =
     useState([]);
+
   const [nationalOverviewLoading, setNationalOverviewLoading] =
     useState(true);
+
   const [nationalOverviewError, setNationalOverviewError] =
     useState("");
-
-  const [exam, setExam] = useState("WAEC");
+    
   const [indicator, setIndicator] = useState("all");
   const [state, setState] = useState("all");
   const [year, setYear] = useState("all");
@@ -281,8 +262,8 @@ function Education() {
     };
   }, []);
 
-  // LOAD NATIONAL EDUCATION RECORDS
-  // This request is public and does not require login.
+  // LOAD ALL PUBLISHED EDUCATION RECORDS
+  // Public request: no login is required to view these summaries.
   useEffect(() => {
     let isMounted = true;
 
@@ -322,23 +303,18 @@ function Education() {
 
         if (!isMounted) return;
 
-        const nationalRecords = allRecords.filter((record) => {
-          const recordState = String(record.state ?? "")
-            .trim()
-            .toLowerCase();
+        // Keep all education records so both the national overview
+        // and the state-level SSCE chart can use the same API response.
+        const educationOnly = allRecords.filter(
+          (record) => record.sector === "education"
+        );
 
-          return (
-            record.sector === "education" &&
-            ["national", "nigeria"].includes(recordState)
-          );
-        });
-
-        setNationalEducationRecords(nationalRecords);
+        setPublishedEducationRecords(educationOnly);
       } catch (error) {
         if (isMounted) {
           setNationalOverviewError(
             error.message ||
-              "Unable to load national education data."
+              "Unable to load published education data."
           );
         }
       } finally {
@@ -357,6 +333,16 @@ function Education() {
 
   // SELECT THE LATEST NATIONAL RECORD FOR EACH INDICATOR
   const nationalOverviewStats = useMemo(() => {
+    const nationalEducationRecords = publishedEducationRecords.filter(
+      (record) => {
+        const recordState = String(record.state ?? "")
+          .trim()
+          .toLowerCase();
+
+        return ["national", "nigeria"].includes(recordState);
+      }
+    );
+
     return overviewStats.map((stat) => {
       const matchingRecords = nationalEducationRecords
         .filter(
@@ -380,7 +366,80 @@ function Education() {
           : "No national record available",
       };
     });
-  }, [nationalEducationRecords]);
+  }, [publishedEducationRecords]);
+
+  // SSCE PERFORMANCE OVERVIEW
+  // Uses the latest available SSCE record for each state.
+  
+  const ssceStateRecords = useMemo(() => {
+    const latestByState = new Map();
+
+    publishedEducationRecords.forEach((record) => {
+      if (
+        record.indicator_key !== "ssce_5_credits_pct" ||
+        record.unit !== "%"
+      ) {
+        return;
+      }
+
+      const stateName = String(record.state ?? "").trim();
+      const normalizedState = stateName.toLowerCase();
+      const value = Number(record.value);
+      const recordYear = Number(record.year) || 0;
+
+      // Exclude national-level records.
+      if (
+        !stateName ||
+        ["national", "nigeria"].includes(normalizedState)
+      ) {
+        return;
+      }
+
+      // Ignore invalid percentage values.
+      if (
+        !Number.isFinite(value) ||
+        value < 0 ||
+        value > 100
+      ) {
+        return;
+      }
+
+      const existingRecord = latestByState.get(normalizedState);
+
+      if (
+        !existingRecord ||
+        recordYear > (Number(existingRecord.year) || 0)
+      ) {
+        latestByState.set(normalizedState, record);
+      }
+    });
+
+    return [...latestByState.values()]
+      .map((record) => ({
+        state: record.state,
+        value: Number(record.value),
+        year: record.year,
+        unit: record.unit,
+        dataset_id: record.dataset_id,
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [publishedEducationRecords]);
+
+  const ssceLatestYear = useMemo(() => {
+    if (ssceStateRecords.length === 0) return null;
+
+    return Math.max(
+      ...ssceStateRecords.map((record) => Number(record.year) || 0)
+    );
+  }, [ssceStateRecords]);
+
+  const ssceDatasetCount = useMemo(() => {
+    return new Set(
+      ssceStateRecords
+        .map((record) => record.dataset_id)
+        .filter(Boolean)
+    ).size;
+  }, [ssceStateRecords]);
 
   const requireLogin = (action) => {
     if (isLoggedIn) return true;
@@ -782,13 +841,13 @@ function Education() {
             <p className="mt-4 text-xs text-gray-700">
               Figures are drawn from the latest available published
               national education records. A dash (—) means no
-              matching national record was returned by the backend.
+              matching national record.
             </p>
           )}
         </div>
       </motion.section>
 
-      {/* PUBLIC EXAM SUMMARIES */}
+      {/* LIVE SSCE PERFORMANCE OVERVIEW */}
       <motion.section
         {...motionSettings}
         variants={revealVariants}
@@ -800,95 +859,178 @@ function Education() {
           </SectionHeading>
 
           <div className="grid gap-5 lg:grid-cols-[2.2fr_0.8fr]">
+            {/* SSCE STATE PERFORMANCE */}
             <div className="rounded-lg bg-white p-4 shadow-sm sm:p-5">
-              <div className="flex flex-wrap gap-5 border-b border-gray-200">
-                {Object.keys(examSummaries).map((examName) => (
-                  <button
-                    key={examName}
-                    type="button"
-                    onClick={() => setExam(examName)}
-                    aria-pressed={exam === examName}
-                    className={`pb-3 text-xs transition ${
-                      exam === examName
-                        ? "border-b-2 border-[#1F7A3F] font-semibold text-[#1F7A3F]"
-                        : "text-gray-500 hover:text-[#0B3C5D]"
-                    }`}
-                  >
-                    {examName} Summary
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 pb-4">
+                <div>
+                  <h3 className="text-sm font-bold text-[#0B3C5D]">
+                    SSCE Performance by State
+                  </h3>
+
+                  <p className="mt-1 text-xs leading-5 text-gray-500">
+                    Candidates with five or more credits, including
+                    English and Mathematics.
+                  </p>
+                </div>
+
+                <span className="rounded-full bg-[#E8F2EB] px-3 py-1 text-[10px] font-semibold text-[#1F7A3F]">
+                  Live published data
+                </span>
               </div>
 
-              <div className="mt-5 space-y-5">
-                {examSummaries[exam].map((item) => (
-                  <div
-                    key={item.state}
-                    className="grid grid-cols-[90px_1fr_42px] items-center gap-3"
-                  >
-                    <span className="text-[10px] font-semibold">
-                      {item.state}
-                    </span>
-
-                    <div className="h-2 overflow-hidden rounded-full bg-gray-200">
-                      <div
-                        className="h-full rounded-full bg-[#1F7A3F] transition-all duration-500"
-                        style={{ width: `${item.value}%` }}
-                      />
+              {nationalOverviewLoading ? (
+                <div className="space-y-5 py-6">
+                  {[1, 2, 3, 4, 5].map((item) => (
+                    <div
+                      key={item}
+                      className="grid grid-cols-[90px_1fr_42px] items-center gap-3"
+                    >
+                      <div className="h-3 animate-pulse rounded bg-gray-200" />
+                      <div className="h-2 animate-pulse rounded-full bg-gray-200" />
+                      <div className="h-3 animate-pulse rounded bg-gray-200" />
                     </div>
+                  ))}
+                </div>
+              ) : ssceStateRecords.length > 0 ? (
+                <>
+                  <div className="mt-5 space-y-5">
+                    {ssceStateRecords.map((item, index) => (
+                      <div
+                        key={`${item.state}-${item.year}`}
+                        className="grid grid-cols-[90px_1fr_48px] items-center gap-3"
+                      >
+                        <div className="min-w-0">
+                          <span
+                            className="block truncate text-[10px] font-semibold text-[#20272B]"
+                            title={item.state}
+                          >
+                            {item.state}
+                          </span>
 
-                    <span className="text-right text-[10px] font-semibold text-[#1F7A3F]">
-                      {item.value}%
-                    </span>
+                          <span className="text-[9px] text-gray-400">
+                            {item.year}
+                          </span>
+                        </div>
+
+                        <div
+                          className="h-2 overflow-hidden rounded-full bg-gray-200"
+                          role="progressbar"
+                          aria-label={`${item.state} SSCE performance`}
+                          aria-valuenow={item.value}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                        >
+                          <div
+                            className={`h-full rounded-full transition-all duration-700 ${
+                              index === 0
+                                ? "bg-[#0B3C5D]"
+                                : "bg-[#1F7A3F]"
+                            }`}
+                            style={{
+                              width: `${item.value}%`,
+                            }}
+                          />
+                        </div>
+
+                        <span className="text-right text-[10px] font-bold tabular-nums text-[#1F7A3F]">
+                          {item.value.toFixed(1)}%
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
 
-              <p className="mt-5 text-[10px] text-gray-500">
-                {exam} · Demonstration summary · Not verified
-                examination statistics
-              </p>
+                  <p className="mt-5 border-t border-gray-200 pt-3 text-[10px] leading-5 text-gray-500">
+                    States are ranked from highest to lowest using
+                    their latest available published SSCE record.
+                    The reporting year is displayed beside each state.
+                  </p>
+                </>
+              ) : (
+                <div className="py-10 text-center">
+                  <p className="text-sm font-semibold text-[#0B3C5D]">
+                    No SSCE records available
+                  </p>
+
+                  <p className="mt-2 text-xs leading-5 text-gray-500">
+                    There is no return published records
+                    matching the SSCE 5+ credits indicator.
+                  </p>
+                </div>
+              )}
             </div>
 
+            {/* SSCE DATA METADATA */}
             <aside className="rounded-lg bg-white p-5 shadow-sm">
               <p className="text-sm font-bold text-[#0B3C5D]">
-                Trend Metadata &amp; Audit
+                Dataset Metadata &amp; Audit
               </p>
 
-              <div className="mt-4 space-y-4 text-xs">
+              <div className="mt-5 space-y-5 text-xs">
                 <div className="flex items-start justify-between gap-3">
                   <span className="text-gray-500">
-                    Reporting standard
+                    Indicator
                   </span>
-                  <span className="text-right font-semibold">
-                    UBE National Blueprint
+
+                  <span className="max-w-[55%] text-right font-semibold">
+                    SSCE 5+ credits
                   </span>
                 </div>
 
                 <div className="flex items-start justify-between gap-3">
                   <span className="text-gray-500">
-                    Audited classrooms
+                    Reporting year
                   </span>
+
                   <span className="text-right font-semibold">
-                    3,241 (Kaduna)
+                    {nationalOverviewLoading
+                      ? "Loading..."
+                      : ssceLatestYear ?? "Not available"}
                   </span>
                 </div>
 
                 <div className="flex items-start justify-between gap-3">
                   <span className="text-gray-500">
-                    Teacher census match
+                    States with records
                   </span>
-                  <span className="text-right font-semibold text-[#1F7A3F]">
-                    94.1% consistent
+
+                  <span className="text-right font-semibold">
+                    {nationalOverviewLoading
+                      ? "..."
+                      : ssceStateRecords.length}
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-gray-500">
+                    Dataset IDs
+                  </span>
+
+                  <span className="text-right font-semibold">
+                    {nationalOverviewLoading
+                      ? "..."
+                      : ssceDatasetCount}
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-gray-500">
+                    Data source
+                  </span>
+
+                  <span className="max-w-[55%] text-right font-semibold">
+                    Published CivicIntel records
                   </span>
                 </div>
               </div>
 
-              <div className="mt-5 border-t border-gray-200 pt-4 text-[10px] leading-5 text-gray-500">
-                Source: Federal Ministry of Education
-                <br />
-                Vintage: 2023–2024
-                <br />
-                Last verified: Demo record
+              <div className="mt-5 border-t border-gray-200 pt-4">
+                <p className="text-[10px] leading-5 text-gray-500">
+                  Indicator definition: percentage of candidates
+                  achieving at least five SSCE credits, including
+                  English and Mathematics.
+                </p>
+
+                
               </div>
             </aside>
           </div>
@@ -1229,7 +1371,7 @@ function Education() {
                   </div>
 
                   <div className="overflow-x-auto rounded-sm">
-                    <table className="w-full min-w-[850px] border-collapse bg-[#FFFBEF] text-left text-[#20272B]">
+                    <table className="w-full min-w-212.5 border-collapse bg-[#FFFBEF] text-left text-[#20272B]">
                       <thead className="bg-[#E5EBEE] text-[10px] uppercase">
                         <tr>
                           <th className="px-4 py-4">State</th>

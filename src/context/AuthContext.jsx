@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 
 import {
   createContext,
@@ -7,54 +8,95 @@ import {
   useState,
 } from "react";
 
-import { apiRequest } from "../api/api.js";
+import {
+  apiRequest,
+  getAccessToken,
+  saveAccessToken,
+  clearAccessToken,
+} from "../api/api.js";
 
 const AuthContext = createContext(null);
 
+// Normalize email addresses before sending them to the backend.
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
 
+// Handle different possible user response structures.
 function getUserFromResponse(data) {
-  return data?.user ?? data?.data?.user ?? null;
+  return (
+    data?.user ??
+    data?.data?.user ??
+    data?.data ??
+    (data?.id || data?.email ? data : null)
+  );
 }
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Get the currently authenticated user.
   const refreshUser = useCallback(async () => {
+    if (!getAccessToken()) {
+      setUser(null);
+      return null;
+    }
+
     try {
-      const data = await apiRequest("/users/me");;
-      const currentUser =
-        getUserFromResponse(data) ??
-        data?.data ??
-        (data?.id || data?.email ? data : null);
+      const data = await apiRequest("/users/me");
+
+      const currentUser = getUserFromResponse(data);
+
+      if (!currentUser) {
+        throw new Error(
+          "Unable to retrieve your account details."
+        );
+      }
 
       setUser(currentUser);
+
       return currentUser;
     } catch {
+      clearAccessToken();
       setUser(null);
+
       return null;
     }
   }, []);
 
+  // Restore the login session when the application loads.
   useEffect(() => {
     let active = true;
 
     async function initializeAuth() {
       try {
-        const data = await apiRequest("/users/me");;
+        // No token means there is no saved login session.
+        if (!getAccessToken()) {
+          if (active) {
+            setUser(null);
+          }
 
-        const currentUser =
-          getUserFromResponse(data) ??
-          data?.data ??
-          (data?.id || data?.email ? data : null);
+          return;
+        }
+
+        // Retrieve the authenticated user's profile.
+        const data = await apiRequest("/users/me");
+
+        const currentUser = getUserFromResponse(data);
+
+        if (!currentUser) {
+          throw new Error(
+            "Unable to retrieve your account details."
+          );
+        }
 
         if (active) {
           setUser(currentUser);
         }
       } catch {
+        clearAccessToken();
+
         if (active) {
           setUser(null);
         }
@@ -72,7 +114,7 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  
+  // LOGIN
   const login = useCallback(async (credentials) => {
     const data = await apiRequest("/auth/login", {
       method: "POST",
@@ -82,6 +124,7 @@ export function AuthProvider({ children }) {
       }),
     });
 
+    // Retrieve the access token from the backend response.
     const token =
       data?.access_token ??
       data?.data?.access_token;
@@ -92,17 +135,19 @@ export function AuthProvider({ children }) {
       );
     }
 
-    // Save the token before requesting the current user.
-    localStorage.setItem("civicintel_access_token", token);
+    // Save the token according to the Remember Me checkbox.
+    // Checked   = localStorage
+    // Unchecked = sessionStorage
+    saveAccessToken(
+      token,
+      credentials.remember === true
+    );
 
     try {
+      // Retrieve the logged-in user's profile.
       const me = await apiRequest("/users/me");
 
-      const currentUser =
-        getUserFromResponse(me) ??
-        me?.data?.user ??
-        me?.data ??
-        (me?.id || me?.email ? me : null);
+      const currentUser = getUserFromResponse(me);
 
       if (!currentUser) {
         throw new Error(
@@ -112,70 +157,95 @@ export function AuthProvider({ children }) {
 
       setUser(currentUser);
 
-      return { ...data, user: currentUser };
+      return {
+        ...data,
+        user: currentUser,
+      };
     } catch (error) {
-      localStorage.removeItem("civicintel_access_token");
+      clearAccessToken();
       setUser(null);
+
       throw error;
     }
   }, []);
 
-
-  
+  // SIGNUP
   const signup = useCallback(async (formData) => {
-  const payload = {
-    first_name: String(formData.firstName || "").trim(),
-    last_name: String(formData.lastName || "").trim(),
-    phone_number: String(formData.phone || "").trim(),
-    email: normalizeEmail(formData.email),
-    address: String(formData.address || "").trim(),
-    state: String(formData.state || "").trim(),
-    password: formData.password,
-    confirm_password: formData.confirmPassword,
-    terms_accepted: formData.termsAccepted === true,
-  };
+    const payload = {
+      first_name: String(
+        formData.firstName || ""
+      ).trim(),
 
-  const data = await apiRequest("/auth/signup", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+      last_name: String(
+        formData.lastName || ""
+      ).trim(),
 
-  let currentUser = getUserFromResponse(data);
+      phone_number: String(
+        formData.phone || ""
+      ).trim(),
 
-  if (!currentUser) {
-    try {
-      const me = await apiRequest("/users/me");;
+      email: normalizeEmail(formData.email),
 
-      currentUser =
-        getUserFromResponse(me) ??
-        me?.data ??
-        (me?.id || me?.email ? me : null);
-    } catch {
-      currentUser = null;
+      address: String(
+        formData.address || ""
+      ).trim(),
+
+      state: String(
+        formData.state || ""
+      ).trim(),
+
+      password: formData.password,
+
+      confirm_password: formData.confirmPassword,
+
+      terms_accepted:
+        formData.termsAccepted === true ||
+        formData.agreeToTerms === true,
+    };
+
+    const data = await apiRequest("/auth/signup", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    let currentUser = getUserFromResponse(data);
+
+    // Only attempt to retrieve the profile if a token exists.
+    if (!currentUser && getAccessToken()) {
+      try {
+        const me = await apiRequest("/users/me");
+
+        currentUser = getUserFromResponse(me);
+      } catch {
+        currentUser = null;
+      }
     }
-  }
 
-  if (currentUser) {
-    setUser(currentUser);
-  }
+    if (currentUser) {
+      setUser(currentUser);
+    }
 
-  return { ...data, user: currentUser };
-}, []);
+    return {
+      ...data,
+      user: currentUser,
+    };
+  }, []);
 
-
-  
+  // LOGOUT
   const logout = useCallback(async () => {
     try {
       await apiRequest("/auth/logout", {
         method: "POST",
       });
     } finally {
-      localStorage.removeItem("civicintel_access_token");
+      // Remove the token from both storage locations.
+      clearAccessToken();
+
       setUser(null);
     }
   }, []);
 
-
+  // Values and functions available throughout the application.
   const value = {
     user,
     isLoggedIn: Boolean(user),
@@ -193,6 +263,7 @@ export function AuthProvider({ children }) {
   );
 }
 
+// Custom hook for accessing authentication.
 export function useAuth() {
   const context = useContext(AuthContext);
 

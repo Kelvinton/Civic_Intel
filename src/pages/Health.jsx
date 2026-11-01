@@ -1,3 +1,4 @@
+import { apiRequest } from "../api/api.js";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -77,46 +78,6 @@ const releases = [
   },
 ];
 
-// Nigerian geopolitical-zone labels used beside state names in the chart.
-const geopoliticalZones = {
-  Abia: "SE",
-  Adamawa: "NE",
-  "Akwa Ibom": "SS",
-  Anambra: "SE",
-  Bauchi: "NE",
-  Bayelsa: "SS",
-  Benue: "NC",
-  Borno: "NE",
-  "Cross River": "SS",
-  Delta: "SS",
-  Ebonyi: "SE",
-  Edo: "SS",
-  Ekiti: "SW",
-  Enugu: "SE",
-  FCT: "NC",
-  Gombe: "NE",
-  Imo: "SE",
-  Jigawa: "NW",
-  Kaduna: "NW",
-  Kano: "NW",
-  Katsina: "NW",
-  Kebbi: "NW",
-  Kogi: "NC",
-  Kwara: "NC",
-  Lagos: "SW",
-  Nasarawa: "NC",
-  Niger: "NC",
-  Ogun: "SW",
-  Ondo: "SW",
-  Osun: "SW",
-  Oyo: "SW",
-  Plateau: "NC",
-  Rivers: "SS",
-  Sokoto: "NW",
-  Taraba: "NE",
-  Yobe: "NE",
-  Zamfara: "NW",
-};
 
 // Safely formats API values.
 // Empty or missing values are not converted to zero.
@@ -623,7 +584,7 @@ function Health() {
         return {
           ...item,
           barWidth,
-          zone: geopoliticalZones[item.state] ?? "—",
+          
         };
       });
   }, [
@@ -756,8 +717,89 @@ function Health() {
     appliedFilters?.indicator ?? "data"
   }-${appliedFilters?.year ?? "all"}`;
 
-  // CSV EXPORT
-  const handleExportCSV = () => {
+    // --------------------------------------------------
+  // RECORD EXPORT IN BACKEND
+  // --------------------------------------------------
+
+  
+const recordHealthExport = async (format) => {
+  if (!isLoggedIn || exportRows.length === 0 || !appliedFilters) {
+    return false;
+  }
+
+  const exportedStates = [
+    ...new Set(
+      exportRows.map((row) => row.State).filter(Boolean)
+    ),
+  ];
+
+  const exportedYears = exportRows
+    .map((row) => Number(row.Year))
+    .filter(Number.isFinite);
+
+  const uniqueDatasetIds = [
+    ...new Set(
+      exportRows
+        .map((row) => row.DatasetID)
+        .filter(Boolean)
+    ),
+  ];
+
+  const yearFrom = exportedYears.length
+    ? Math.min(...exportedYears)
+    : null;
+
+  const yearTo = exportedYears.length
+    ? Math.max(...exportedYears)
+    : null;
+
+  const subtitle = [
+    exportedStates.length === 1
+      ? exportedStates[0]
+      : exportedStates.length === 0
+        ? "No state specified"
+        : "All selected states",
+    yearFrom === null
+      ? "Year unavailable"
+      : yearFrom === yearTo
+        ? String(yearFrom)
+        : `${yearFrom}–${yearTo}`,
+  ].join(" · ");
+
+  const payload = {
+    format,
+    title: `Health — ${indicatorLabel}`,
+    subtitle,
+    indicator: appliedFilters.indicator,
+    states: exportedStates,
+    ...(yearFrom !== null && { year_from: yearFrom }),
+    ...(yearTo !== null && { year_to: yearTo }),
+    ...(uniqueDatasetIds.length === 1 && {
+      dataset_id: uniqueDatasetIds[0],
+    }),
+  };
+
+  try {
+    await apiRequest("/exports", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Could not record Health export:", error);
+
+    window.alert(
+      "Your file was exported, but CivicIntel could not save it to Recent Exports."
+    );
+
+    return false;
+  }
+};
+
+
+    // CSV EXPORT
+  const handleExportCSV = async () => {
     if (exportRows.length === 0) {
       window.alert("There are no records to export.");
       return;
@@ -784,10 +826,12 @@ function Health() {
     );
 
     setExportOpen(false);
+
+    await recordHealthExport("csv");
   };
 
-  // XML EXPORT
-  const handleExportXML = () => {
+    // XML EXPORT
+  const handleExportXML = async () => {
     if (exportRows.length === 0) {
       window.alert("There are no records to export.");
       return;
@@ -816,10 +860,12 @@ ${Object.entries(row)
     );
 
     setExportOpen(false);
+
+    await recordHealthExport("xml");
   };
 
   // PDF / PRINT EXPORT
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     if (exportRows.length === 0) {
       window.alert("There are no records to export.");
       return;
@@ -951,8 +997,10 @@ ${Object.entries(row)
       </html>
     `);
 
-    printWindow.document.close();
+        printWindow.document.close();
     setExportOpen(false);
+
+    await recordHealthExport("pdf");
   };
 
   // --------------------------------------------------
@@ -1369,7 +1417,7 @@ ${Object.entries(row)
 
                     {nationalBenchmark && (
                       <span className="flex items-center gap-1.5">
-                        <span className="h-[2px] w-3 bg-red-600" />
+                        <span className="h-0.5 w-3 bg-red-600" />
                         National benchmark
                       </span>
                     )}
