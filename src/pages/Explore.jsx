@@ -4,7 +4,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 
 import { useAuth } from "../context/AuthContext.jsx";
-import { getCompareOptions } from "../api/referenceData.js";
+import {
+  getIndicators,
+  getStates,
+} from "../api/referenceData.js";
 
 import ExploreHeroPic from "../assets/Explore.hero.png";
 
@@ -40,15 +43,43 @@ function unwrapResponse(response) {
   );
 }
 
-// Get a usable year value from the backend.
-// Supports both simple years and objects containing year/value.
-function getYearValue(item) {
-  if (typeof item === "object" && item !== null) {
-    return item.year ?? item.value ?? "";
+function unwrapList(response, key) {
+  const data = unwrapResponse(response);
+
+  if (Array.isArray(data)) {
+    return data;
   }
 
-  return item;
+  if (Array.isArray(data?.[key])) {
+    return data[key];
+  }
+
+  return null;
 }
+
+function isValidYearRange(fromYear, toYear) {
+  if (!fromYear && !toYear) {
+    return true;
+  }
+
+  if (!fromYear || !toYear) {
+    return false;
+  }
+
+  const from = Number(fromYear);
+  const to = Number(toYear);
+
+  return (
+    Number.isInteger(from) &&
+    Number.isInteger(to) &&
+    from >= 1900 &&
+    from <= 2100 &&
+    to >= 1900 &&
+    to <= 2100 &&
+    from <= to
+  );
+}
+
 
 // --------------------------------------------------
 // REUSABLE UI COMPONENTS
@@ -327,27 +358,31 @@ function Explore() {
 
     async function loadCompareOptions() {
       try {
-       
+        const [indicatorsResponse, statesResponse] =
+          await Promise.all([
+            getIndicators(),
+            getStates(),
+          ]);
 
-        const response = await getCompareOptions();
-        const data = unwrapResponse(response);
+        const indicatorsData = unwrapList(
+          indicatorsResponse,
+          "indicators"
+        );
 
+        const statesData = unwrapList(
+          statesResponse,
+          "states"
+        );
 
-        if (!Array.isArray(data?.states)) {
+        if (!indicatorsData || !statesData) {
           throw new Error(
-            "The backend did not return a valid states list."
-          );
-        }
-
-        if (!Array.isArray(data?.indicators)) {
-          throw new Error(
-            "The backend did not return a valid indicators list."
+            "The backend did not return valid indicators or states."
           );
         }
 
         if (isMounted) {
-          setStates(data.states);
-          setIndicators(data.indicators);
+          setIndicators(indicatorsData);
+          setStates(statesData);
         }
       } catch (error) {
         if (isMounted) {
@@ -370,33 +405,44 @@ function Explore() {
     };
   }, []);
 
-  // Retry loading backend comparison options.
   const retryLoadOptions = async () => {
-    try {
-      setStatesLoading(true);
-      setStatesError("");
+  try {
+    setStatesLoading(true);
+    setStatesError("");
 
-      const response = await getCompareOptions();
-      const data = unwrapResponse(response);
+    const [indicatorsResponse, statesResponse] =
+      await Promise.all([
+        getIndicators(),
+        getStates(),
+      ]);
 
-      if (!Array.isArray(data?.states)) {
-        throw new Error("The backend did not return a valid states list.");
-      }
+    const indicatorsData = unwrapList(
+      indicatorsResponse,
+      "indicators"
+    );
 
-      if (!Array.isArray(data?.indicators)) {
-        throw new Error("The backend did not return a valid indicators list.");
-      }
+    const statesData = unwrapList(
+      statesResponse,
+      "states"
+    );
 
-      setStates(data.states);
-      setIndicators(data.indicators);
-    } catch (error) {
-      setStatesError(
-        error.message || "Could not load comparison options."
+    if (!indicatorsData || !statesData) {
+      throw new Error(
+        "The backend did not return valid indicators or states."
       );
-    } finally {
-      setStatesLoading(false);
     }
-  };
+
+    setIndicators(indicatorsData);
+    setStates(statesData);
+  } catch (error) {
+    setStatesError(
+      error.message ||
+        "Could not load comparison options."
+    );
+  } finally {
+    setStatesLoading(false);
+  }
+};
 
   // ------------------------------------------------
   // USER SELECTIONS
@@ -458,40 +504,8 @@ const selectedIndicator =
     (item) => item.key === indicator
   ) || availableIndicators[0] || null;
 
-  // ------------------------------------------------
-  // AVAILABLE YEARS
-  // ------------------------------------------------
-
-  const years = useMemo(() => {
-    const indicatorYears = selectedIndicator?.years;
-
-    if (!Array.isArray(indicatorYears)) {
-      return [];
-    }
-
-    return [
-      ...new Set(
-        indicatorYears
-          .map(getYearValue)
-          .filter(
-            (year) =>
-              year !== undefined &&
-              year !== null &&
-              String(year).trim() !== ""
-          )
-          .map(String)
-      ),
-    ].sort((a, b) => Number(a) - Number(b));
-  }, [selectedIndicator]);
-
-  // Derive valid year selections without updating state in an effect.
-  const effectiveFromYear = years.includes(fromYear)
-    ? fromYear
-    : years[0] || "";
-
-  const effectiveToYear = years.includes(toYear)
-    ? toYear
-    : years[years.length - 1] || "";
+  const effectiveFromYear = fromYear;
+  const effectiveToYear = toYear;
 
   
 
@@ -580,12 +594,10 @@ const selectedIndicator =
     // Validate year range.
     if (
       activeStep === 3 &&
-      effectiveFromYear &&
-      effectiveToYear &&
-      Number(effectiveFromYear) > Number(effectiveToYear)
+      !isValidYearRange(effectiveFromYear, effectiveToYear)
     ) {
       setComparisonMessage(
-        "The starting year must not be later than the ending year."
+        "Enter valid years between 1900 and 2100. The starting year must not be later than the ending year. You can leave both fields empty."
       );
       return;
     }
@@ -639,15 +651,12 @@ const selectedIndicator =
     }
 
     if (
-      effectiveFromYear &&
-      effectiveToYear &&
-      Number(effectiveFromYear) > Number(effectiveToYear)
+      activeStep === 3 &&
+      !isValidYearRange(effectiveFromYear, effectiveToYear)
     ) {
       setComparisonMessage(
-        "The starting year must not be later than the ending year."
+        "Enter valid years between 1900 and 2100. The starting year must not be later than the ending year. You can leave both fields empty."
       );
-
-      setActiveStep(3);
       return;
     }
 
@@ -814,7 +823,7 @@ const selectedIndicator =
 
                     <select
                       id="indicator"
-                      value={indicator}
+                      value={indicator || selectedIndicator?.key || ""}
                       onChange={(event) => {
                         setIndicator(event.target.value);
                         setComparisonMessage("");
@@ -956,84 +965,71 @@ const selectedIndicator =
                   comparison.
                 </SectionDescription>
 
-                {years.length > 0 ? (
-                  <>
-                    <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div>
-                        <label
-                          htmlFor="fromYear"
-                          className="block text-sm font-medium text-[#0B3C5D]"
-                        >
-                          Starting year
-                        </label>
+                <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="fromYear"
+                      className="block text-sm font-medium text-[#0B3C5D]"
+                    >
+                      Starting year
+                    </label>
 
-                        <select
-                          id="fromYear"
-                          value={effectiveFromYear}
-                          onChange={(event) => {
-                            setFromYear(event.target.value);
-                            setComparisonMessage("");
-                          }}
-                          className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-700 outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10"
-                        >
-                          {years.map((year) => (
-                            <option key={year} value={year}>
-                              {year}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label
-                          htmlFor="toYear"
-                          className="block text-sm font-medium text-[#0B3C5D]"
-                        >
-                          Ending year
-                        </label>
-
-                        <select
-                          id="toYear"
-                          value={effectiveToYear}
-                          onChange={(event) => {
-                            setToYear(event.target.value);
-                            setComparisonMessage("");
-                          }}
-                          className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-700 outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10"
-                        >
-                          {years.map((year) => (
-                            <option key={year} value={year}>
-                              {year}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="mt-5 rounded-lg bg-white p-4">
-                      <p className="text-xs text-slate-500">
-                        Selected period
-                      </p>
-
-                      <p className="mt-1 text-lg font-bold text-[#0B3C5D]">
-                        {effectiveFromYear && effectiveToYear
-                        ? `${effectiveFromYear} – ${effectiveToYear}`
-                        : "All available years"}
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
-                    <p className="text-sm font-medium text-amber-900">
-                      No year records are currently available.
-                    </p>
-
-                    <p className="mt-2 text-xs leading-relaxed text-amber-800">
-                      You can continue without a year filter. The backend
-                      will determine which available records to return.
-                    </p>
+                    <input
+                      id="fromYear"
+                      type="number"
+                      min="1900"
+                      max="2100"
+                      step="1"
+                      value={fromYear}
+                      onChange={(event) => {
+                        setFromYear(event.target.value);
+                        setComparisonMessage("");
+                      }}
+                      placeholder="e.g. 2020"
+                      className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-700 outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10"
+                    />
                   </div>
-                )}
+
+                  <div>
+                    <label
+                      htmlFor="toYear"
+                      className="block text-sm font-medium text-[#0B3C5D]"
+                    >
+                      Ending year
+                    </label>
+
+                    <input
+                      id="toYear"
+                      type="number"
+                      min="1900"
+                      max="2100"
+                      step="1"
+                      value={toYear}
+                      onChange={(event) => {
+                        setToYear(event.target.value);
+                        setComparisonMessage("");
+                      }}
+                      placeholder="e.g. 2025"
+                      className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-700 outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-5 rounded-lg bg-white p-4">
+                  <p className="text-xs text-slate-500">
+                    Selected period
+                  </p>
+
+                  <p className="mt-1 text-lg font-bold text-[#0B3C5D]">
+                    {fromYear && toYear
+                      ? `${fromYear} – ${toYear}`
+                      : "All available years"}
+                  </p>
+
+                  <p className="mt-2 text-xs text-slate-500">
+                    Leave both fields empty to request all available years.
+                  </p>
+                </div>
               </>
             )}
 

@@ -131,7 +131,7 @@ export function AuthProvider({ children }) {
 
     if (!token) {
       throw new Error(
-        "Login succeeded, but the backend did not return an access token."
+        "Login succeeded, but the server did not return an access token."
       );
     }
 

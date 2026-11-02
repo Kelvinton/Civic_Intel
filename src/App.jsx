@@ -54,15 +54,7 @@ function RequireAuth() {
 }
 
 function AppContent() {
-  const { isLoggedIn, loading, login, signup, logout } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-[#0B3C5D]">
-        Checking your session...
-      </div>
-    );
-  }
+  const { isLoggedIn, login, signup, logout } = useAuth();
 
   return (
     <Routes>

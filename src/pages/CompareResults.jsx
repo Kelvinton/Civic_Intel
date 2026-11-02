@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Download } from "lucide-react";
 
+import { apiRequest } from "../api/api.js";
 import { exportData } from "../utility/exportData.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getComparison } from "../api/referenceData.js";
@@ -743,7 +744,7 @@ function CompareResults() {
   // Export actual comparison records
   // --------------------------------------------------
 
-  const handleExport = (format) => {
+  const handleExport = async (format) => {
     setShowExportMenu(false);
     setNotice("");
 
@@ -754,6 +755,9 @@ function CompareResults() {
       return;
     }
 
+    let hasRecords;
+
+    // STEP 1: Generate and download the file.
     try {
       const records = (result?.series || []).flatMap((period) =>
         (period.rows || []).map((row) => ({
@@ -765,7 +769,7 @@ function CompareResults() {
         }))
       );
 
-      const hasRecords = exportComparison(
+      hasRecords = exportComparison(
         comparison,
         format,
         records,
@@ -782,19 +786,46 @@ function CompareResults() {
             : "",
         }
       );
-
-      setNotice(
-        hasRecords
-          ? `${format} export generated successfully with comparison records.`
-          : `${format} file generated. It contains your comparison settings only because no state records were returned.`
-      );
     } catch (error) {
       console.error("Comparison export failed:", error);
 
       setNotice(
-        error instanceof Error
-          ? error.message
-          : `The ${format} export could not be generated.`
+        error.message ||
+          `The ${format} export could not be generated.`
+      );
+
+      return;
+    }
+
+    // STEP 2: Record the export in the authenticated user's history.
+    try {
+      await apiRequest("/exports", {
+        method: "POST",
+        body: JSON.stringify({
+          format: format.toLowerCase(),
+          title: "CivicIntel - Comparison Report",
+          subtitle: `${comparison.indicatorName} | ${comparison.selectedStates.join(" vs ")}`,
+          indicator: comparison.indicator,
+          states: comparison.selectedStates,
+          ...(comparison.fromYear && {
+            year_from: Number(comparison.fromYear),
+          }),
+          ...(comparison.toYear && {
+            year_to: Number(comparison.toYear),
+          }),
+        }),
+      });
+
+      setNotice(
+        hasRecords
+          ? `${format.toUpperCase()} export downloaded and recorded in your account history.`
+          : `${format.toUpperCase()} export downloaded and recorded. It contains your comparison settings only because no state records were returned.`
+      );
+    } catch (error) {
+      console.error("Export history recording failed:", error);
+
+      setNotice(
+        `${format.toUpperCase()} file was downloaded, but CivicIntel could not record it in your account history: ${error.message}`
       );
     }
   };
@@ -897,7 +928,7 @@ function CompareResults() {
                     id="comparison-export-menu"
                     className="absolute left-0 right-0 z-10 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
                   >
-                    {["CSV", "Excel", "PDF"].map((format) => (
+                    {["CSV", "PDF", "XML"].map((format) => (
                       <button
                         key={format}
                         type="button"
