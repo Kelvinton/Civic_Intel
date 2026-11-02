@@ -66,7 +66,7 @@ export async function apiRequest(path, options = {}) {
     );
   } catch {
     throw new Error(
-      "Unable to connect to CivicIntel's backend. Check your internet connection or try again later."
+      "Unable to connect to Server. Check your internet connection or try again later."
     );
   }
 
