@@ -9,7 +9,10 @@ import {
 } from "../../animation.js";
 
 import { useAuth } from "../../context/AuthContext.jsx";
-import { getCompareOptions } from "../../api/referenceData.js";
+import {
+  getIndicators,
+  getStates,
+} from "../../api/referenceData.js";
 
 // Handles both direct API responses and responses wrapped in data.
 function unwrapOptions(payload) {
@@ -37,49 +40,60 @@ function CompareStates() {
 
   // Fetch comparison options from the backend.
   useEffect(() => {
-    let isMounted = true;
+  let isMounted = true;
 
-    async function loadCompareOptions() {
-      setOptionsLoading(true);
-      setOptionsError("");
+  async function loadCompareOptions() {
+    setOptionsLoading(true);
+    setOptionsError("");
 
-      try {
-        const response = await getCompareOptions();
-        const data = unwrapOptions(response);
+    try {
+      const [indicatorsResponse, statesResponse] =
+        await Promise.all([
+          getIndicators(),
+          getStates(),
+        ]);
 
-        if (!isMounted) return;
+      const indicatorsData = unwrapOptions(indicatorsResponse);
+      const statesData = unwrapOptions(statesResponse);
 
-        setIndicators(
-          Array.isArray(data?.indicators) ? data.indicators : []
-        );
+      if (!isMounted) return;
 
-        // setDomains(
-        //   Array.isArray(data?.domains) ? data.domains : []
-        // );
-        
-        
-        setStates(
-          Array.isArray(data?.states) ? data.states : []
-        );
-      } catch (err) {
-        if (!isMounted) return;
+      setIndicators(
+        Array.isArray(indicatorsData)
+          ? indicatorsData
+          : Array.isArray(indicatorsData?.indicators)
+            ? indicatorsData.indicators
+            : []
+      );
 
-        setOptionsError(
-          err.message || "Unable to load comparison options."
-        );
-      } finally {
-        if (isMounted) {
-          setOptionsLoading(false);
-        }
+      setStates(
+        Array.isArray(statesData)
+          ? statesData
+          : Array.isArray(statesData?.states)
+            ? statesData.states
+            : []
+      );
+
+    } catch (err) {
+      if (!isMounted) return;
+
+      setOptionsError(
+        err.message || "Unable to load comparison options."
+      );
+
+    } finally {
+      if (isMounted) {
+        setOptionsLoading(false);
       }
     }
+  }
 
-    loadCompareOptions();
+  loadCompareOptions();
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  return () => {
+    isMounted = false;
+  };
+}, []);
 
   // Get the available years for the selected indicator.
   const selectedIndicator = indicators.find(
@@ -296,28 +310,27 @@ function CompareStates() {
               htmlFor="year"
               className="block text-xs font-medium"
             >
-              Year
+              Year (Optional)
             </label>
 
-            <select
+            <input
               id="year"
+              type="number"
               value={year}
-              onChange={(event) => setYear(event.target.value)}
+              onChange={(event) => {
+                setYear(event.target.value);
+                setError("");
+              }}
+              placeholder="Enter year (e.g. 2023)"
+              min="1900"
+              max="2100"
               className={selectClass}
-              disabled={!indicator || years.length === 0}
-            >
-              <option value="">
-                {years.length > 0
-                  ? "Select year (optional)"
-                  : "All available years"}
-              </option>
+              disabled={!indicator}
+            />
 
-              {years.map((item) => (
-                <option key={item} value={String(item)}>
-                  {item}
-                </option>
-              ))}
-            </select>
+            <p className="mt-2 text-xs text-white/70">
+              Leave blank to compare all available years.
+            </p>
           </div>
 
           {error && (
