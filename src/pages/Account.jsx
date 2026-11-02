@@ -4,64 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { apiRequest } from "../api/api.js";
 
-const savedItems = [
-  {
-    category: "STATES",
-    title: "Lagos vs Ogun",
-    indicator: "ANC 4+",
-    years: "2021 - 2026",
-    date: "Saved Sep 20, 2026",
-  },
-  {
-    category: "STATES",
-    title: "Lagos vs Kano",
-    indicator: "WAEC Pass Rate",
-    years: "2023 - 2025",
-    date: "Saved Sep 10, 2026",
-  },
-  {
-    category: "STATES",
-    title: "Lagos vs Kano",
-    indicator: "WAEC Pass Rate",
-    years: "2023 - 2025",
-    date: "Saved Sep 10, 2026",
-  },
-  {
-    category: "STATES",
-    title: "Lagos vs Imo",
-    indicator: "Primary health centres",
-    years: "2023 - 2026",
-    date: "Saved Aug 20, 2026",
-  },
-];
-
-const exportItems = [
-  {
-    type: "PNG",
-    title: "Lagos vs Ogun",
-    description: "ANC 4+ Coverage (national)",
-    date: "Exported Sep 20, 2026",
-  },
-  {
-    type: "PDF",
-    title: "National Trend",
-    description: "Primary Completion Rate",
-    date: "Exported Sep 14, 2026",
-  },
-  {
-    type: "PDF",
-    title: "National Trend",
-    description: "Primary Completion Rate",
-    date: "Exported Sep 14, 2026",
-  },
-  {
-    type: "CSV",
-    title: "All states",
-    description: "Health budget share",
-    date: "Exported Sep 2, 2026",
-  },
-];
-
 // Get the logged-in user's name from the available user fields.
 function getUserName(user) {
   if (!user) return "";
@@ -91,6 +33,48 @@ function getSignupDate(user) {
   return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
 }
 
+// Format dates received from the backend.
+function formatDisplayDate(date, prefix = "") {
+  if (!date) return `${prefix}Date unavailable`;
+
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return `${prefix}Date unavailable`;
+  }
+
+  return `${prefix}${parsedDate.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })}`;
+}
+
+// Normalize paginated API responses.
+// Supports:
+// { items: [] }
+// { data: { items: [] } }
+// { data: { data: { items: [] } } }
+function normalizeListResponse(response) {
+  const payload =
+    response?.data?.data ??
+    response?.data ??
+    response;
+
+  // Also support an API response that is directly an array.
+  const items = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.items)
+      ? payload.items
+      : [];
+
+  const total = Number(payload?.total ?? items.length);
+
+  return {
+    items,
+    total: Number.isFinite(total) ? total : items.length,
+  };
+}
 
 function SectionHeading({ children }) {
   return (
@@ -104,61 +88,201 @@ function SectionHeading({ children }) {
   );
 }
 
-
 function Account() {
   const { user, logout, isLoggedIn } = useAuth();
   const navigate = useNavigate();
 
+  // Account interface state
   const [editing, setEditing] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
 
+  // Filters and See all controls
   const [savedFilter, setSavedFilter] = useState("All");
   const [exportFilter, setExportFilter] = useState("All");
   const [showAllSaved, setShowAllSaved] = useState(false);
   const [showAllExports, setShowAllExports] = useState(false);
 
-  // Initialize the profile fields from the authenticated user.
+  // Saved comparisons from the backend
+  const [savedItems, setSavedItems] = useState([]);
+  const [savedTotal, setSavedTotal] = useState(0);
+  const [loadingSaved, setLoadingSaved] = useState(true);
+  const [savedError, setSavedError] = useState("");
+  const [deletingSavedId, setDeletingSavedId] = useState(null);
+
+  // Export history from the backend
+  const [exportItems, setExportItems] = useState([]);
+  const [exportTotal, setExportTotal] = useState(0);
+  const [loadingExports, setLoadingExports] = useState(true);
+  const [exportError, setExportError] = useState("");
+
+  // Profile fields
   const [name, setName] = useState(() => getUserName(user));
   const [email, setEmail] = useState(() => user?.email || "");
 
+  // Password fields
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  // Feedback messages
   const [notice, setNotice] = useState("");
   const [noticeType, setNoticeType] = useState("info");
 
-  // Keep the displayed name and email synchronized with AuthContext.
+  // Fetch saved comparisons and export history.
   useEffect(() => {
-    if (!user) return;
+    // No request is needed when the user is logged out.
+    // The login screen is displayed instead.
+    if (!isLoggedIn) return;
 
-    setName(getUserName(user));
-    setEmail(user.email || "");
-  }, [user]);
+    let active = true;
 
+    async function loadAccountData() {
+      // Start loading whenever the user logs in.
+      setLoadingSaved(true);
+      setLoadingExports(true);
+
+      setSavedError("");
+      setExportError("");
+
+      // Fetch both resources independently.
+      const [savedResult, exportResult] =
+        await Promise.allSettled([
+          apiRequest("/saved-comparisons"),
+          apiRequest("/exports"),
+        ]);
+
+      // Prevent updates if the component has unmounted
+      // or the user has logged out.
+      if (!active) return;
+
+      // Process saved comparisons.
+      if (savedResult.status === "fulfilled") {
+        const result = normalizeListResponse(
+          savedResult.value
+        );
+
+        setSavedItems(result.items);
+        setSavedTotal(result.total);
+        setSavedError("");
+      } else {
+        setSavedItems([]);
+        setSavedTotal(0);
+
+        setSavedError(
+          savedResult.reason?.message ||
+            "Unable to load your saved comparisons."
+        );
+      }
+
+      // Process export history.
+      if (exportResult.status === "fulfilled") {
+        const result = normalizeListResponse(
+          exportResult.value
+        );
+
+        setExportItems(result.items);
+        setExportTotal(result.total);
+        setExportError("");
+      } else {
+        setExportItems([]);
+        setExportTotal(0);
+
+        setExportError(
+          exportResult.reason?.message ||
+            "Unable to load your export history."
+        );
+      }
+
+      setLoadingSaved(false);
+      setLoadingExports(false);
+    }
+
+    loadAccountData();
+
+    return () => {
+      active = false;
+    };
+  }, [isLoggedIn]);
+
+  // Display feedback messages.
   function showNotice(message, type = "info") {
     setNotice(message);
     setNoticeType(type);
   }
 
-  function handleLogout() {
-    logout();
-    navigate("/", { replace: true });
+  // Log out.
+  async function handleLogout() {
+    try {
+      await logout();
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      navigate("/", { replace: true });
+    }
   }
 
+  // Delete a saved comparison.
+  async function handleDeleteSaved(savedId) {
+    if (savedId == null || deletingSavedId !== null) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this saved comparison?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setDeletingSavedId(savedId);
+
+      await apiRequest(
+        `/saved-comparisons/${encodeURIComponent(savedId)}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      // Update the interface after successful deletion.
+      setSavedItems((previousItems) =>
+        previousItems.filter(
+          (item) => String(item.id) !== String(savedId)
+        )
+      );
+
+      setSavedTotal((previousTotal) =>
+        Math.max(0, previousTotal - 1)
+      );
+
+      showNotice(
+        "Saved comparison deleted successfully.",
+        "success"
+      );
+    } catch (error) {
+      showNotice(
+        error?.message ||
+          "Unable to delete this saved comparison.",
+        "error"
+      );
+    } finally {
+      setDeletingSavedId(null);
+    }
+  }
+
+  // Save profile changes locally.
+  // A permanent backend profile update still requires its endpoint.
   function handleSaveProfile(event) {
     event.preventDefault();
 
     setEditing(false);
 
     showNotice(
-      "Your changes are displayed for this session. Connect profile updates to the backend to save them permanently.",
+      "Your profile changes are displayed for this session. Permanent profile updates are not yet connected to the backend.",
       "info"
     );
   }
 
+  // Change password.
   async function handlePasswordChange(event) {
     event.preventDefault();
 
@@ -175,7 +299,10 @@ function Account() {
     }
 
     if (newPassword !== confirmPassword) {
-      showNotice("Your new passwords do not match.", "error");
+      showNotice(
+        "Your new passwords do not match.",
+        "error"
+      );
       return;
     }
 
@@ -205,7 +332,10 @@ function Account() {
       setShowPassword(false);
       setShowPasswordForm(false);
 
-      showNotice("Your password has been changed successfully.", "success");
+      showNotice(
+        "Your password has been changed successfully.",
+        "success"
+      );
     } catch (error) {
       showNotice(
         error?.message ||
@@ -217,18 +347,29 @@ function Account() {
     }
   }
 
+  // Profile signup date.
   const signupDate = getSignupDate(user);
 
+  // Filter saved comparisons by indicator sector.
   const filteredSaved =
     savedFilter === "All"
       ? savedItems
-      : savedItems.filter((item) => item.category === savedFilter);
+      : savedItems.filter(
+          (item) =>
+            item.indicator?.sector?.toLowerCase() ===
+            savedFilter.toLowerCase()
+        );
 
+  // Filter exports by format.
   const filteredExports =
     exportFilter === "All"
       ? exportItems
-      : exportItems.filter((item) => item.type === exportFilter);
+      : exportItems.filter(
+          (item) =>
+            item.format?.toUpperCase() === exportFilter
+        );
 
+  // Show four records initially.
   const visibleSaved = showAllSaved
     ? filteredSaved
     : filteredSaved.slice(0, 4);
@@ -237,9 +378,19 @@ function Account() {
     ? filteredExports
     : filteredExports.slice(0, 4);
 
+  // Get unique sectors for the saved data filter.
+  const savedSectors = [
+    ...new Set(
+      savedItems
+        .map((item) => item.indicator?.sector)
+        .filter(Boolean)
+    ),
+  ];
+
+  // Require login.
   if (!isLoggedIn) {
     return (
-      <main className="flex min-h-[60vh] items-center justify-center bg-[#e7edf0] px-5 py-16">
+      <main className="flex min-h-[60vh] items-center justify-center bg-[#e7edf0] px-5 py-16 mt-8">
         <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
           <h1 className="text-2xl font-bold text-[#0B3C5D]">
             Sign in to your account
@@ -267,9 +418,11 @@ function Account() {
 
   return (
     <div className="bg-[#e7edf0] text-[#17191b]">
-      {/* Account details */}
-      <section className="px-5 py-10 pt-16 sm:px-8 sm:py-14 sm:pt-28 lg:px-14">
+
+      {/* ACCOUNT DETAILS */}
+      <section className="px-5 py-10 pt-24 sm:px-8 sm:py-14 sm:pt-28 lg:px-14">
         <div className="mx-auto max-w-5xl">
+
           <div className="flex flex-wrap items-center justify-between gap-4">
             <SectionHeading>Account</SectionHeading>
 
@@ -282,7 +435,7 @@ function Account() {
             </button>
           </div>
 
-          {/* Feedback messages */}
+          {/* FEEDBACK MESSAGES */}
           {notice && (
             <div
               role="status"
@@ -310,9 +463,11 @@ function Account() {
             </div>
           )}
 
-          {/* Profile details */}
+          {/* PROFILE DETAILS */}
           <form onSubmit={handleSaveProfile} className="mt-7">
             <div className="divide-y divide-[#aeb7bc]">
+
+              {/* NAME */}
               <div className="flex min-h-16.5 flex-col justify-center gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <label
                   htmlFor="account-name"
@@ -325,17 +480,20 @@ function Account() {
                   <input
                     id="account-name"
                     value={name}
-                    onChange={(event) => setName(event.target.value)}
+                    onChange={(event) =>
+                      setName(event.target.value)
+                    }
                     required
                     className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm sm:max-w-xs sm:text-right"
                   />
                 ) : (
                   <span className="wrap-break-word text-sm">
-                    {getUserName(user) || "Name unavailable"}
+                    {getUserName(user) || name || "Name unavailable"}
                   </span>
                 )}
               </div>
 
+              {/* EMAIL */}
               <div className="flex min-h-16.5 flex-col justify-center gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <label
                   htmlFor="account-email"
@@ -349,17 +507,20 @@ function Account() {
                     id="account-email"
                     type="email"
                     value={email}
-                    onChange={(event) => setEmail(event.target.value)}
+                    onChange={(event) =>
+                      setEmail(event.target.value)
+                    }
                     required
                     className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm sm:max-w-xs sm:text-right"
                   />
                 ) : (
                   <span className="break-all text-sm">
-                    {user?.email || "Email unavailable"}
+                    {user?.email || email || "Email unavailable"}
                   </span>
                 )}
               </div>
 
+              {/* MEMBER SINCE */}
               <div className="flex min-h-16.5 flex-col justify-center gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm text-[#73797d]">
                   Member since
@@ -376,6 +537,7 @@ function Account() {
                 </span>
               </div>
 
+              {/* CHANGE PASSWORD */}
               <div className="flex min-h-16.5 flex-col justify-center gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm text-[#73797d]">
                   Change Password
@@ -395,6 +557,7 @@ function Account() {
               </div>
             </div>
 
+            {/* PROFILE ACTIONS */}
             {editing ? (
               <div className="mt-4 flex flex-wrap justify-end gap-3">
                 <button
@@ -422,6 +585,8 @@ function Account() {
                 <button
                   type="button"
                   onClick={() => {
+                    setName(getUserName(user));
+                    setEmail(user?.email || "");
                     setEditing(true);
                     setNotice("");
                   }}
@@ -448,7 +613,7 @@ function Account() {
             )}
           </form>
 
-          {/* Change password form */}
+          {/* CHANGE PASSWORD FORM */}
           {showPasswordForm && (
             <form
               onSubmit={handlePasswordChange}
@@ -486,7 +651,9 @@ function Account() {
                   <input
                     type={showPassword ? "text" : "password"}
                     value={newPassword}
-                    onChange={(event) => setNewPassword(event.target.value)}
+                    onChange={(event) =>
+                      setNewPassword(event.target.value)
+                    }
                     required
                     minLength={8}
                     autoComplete="new-password"
@@ -517,7 +684,9 @@ function Account() {
                 <input
                   type="checkbox"
                   checked={showPassword}
-                  onChange={(event) => setShowPassword(event.target.checked)}
+                  onChange={(event) =>
+                    setShowPassword(event.target.checked)
+                  }
                   disabled={changingPassword}
                   className="h-4 w-4 accent-[#1F7A3F]"
                 />
@@ -557,121 +726,239 @@ function Account() {
         </div>
       </section>
 
-      {/* Saved data */}
+      {/* SAVED DATA */}
       <section className="bg-[#92aab8] px-5 py-8 sm:px-8 sm:py-9 lg:px-14">
         <div className="mx-auto max-w-5xl">
+
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <SectionHeading>Saved data</SectionHeading>
+            <SectionHeading>
+              Saved data ({savedTotal})
+            </SectionHeading>
 
             <div className="flex items-center gap-4 text-sm">
               <label className="flex items-center gap-2">
-                <span className="sr-only">Filter saved data</span>
+                <span className="sr-only">
+                  Filter saved data
+                </span>
 
                 <select
                   value={savedFilter}
-                  onChange={(event) => setSavedFilter(event.target.value)}
-                  className="max-w-24 rounded-md px-2 py-1 outline-none"
+                  onChange={(event) =>
+                    setSavedFilter(event.target.value)
+                  }
+                  className="max-w-32 rounded-md px-2 py-1 outline-none"
                 >
-                  <option value="All">Filter</option>
-                  <option value="STATES">States</option>
+                  <option value="All">All sectors</option>
+
+                  {savedSectors.map((sector) => (
+                    <option key={sector} value={sector}>
+                      {sector}
+                    </option>
+                  ))}
                 </select>
 
-                <span aria-hidden="true">☰</span>
+                
               </label>
 
-              <button
-                type="button"
-                onClick={() => setShowAllSaved((value) => !value)}
-                className="font-medium text-[#1F7A3F] hover:underline"
-              >
-                {showAllSaved ? "Show less" : "See all"}
-              </button>
+              {filteredSaved.length > 4 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowAllSaved((value) => !value)
+                  }
+                  className="font-medium text-[#1F7A3F] hover:underline"
+                >
+                  {showAllSaved ? "Show less" : "See all"}
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
-            {visibleSaved.map((item, index) => (
-              <article
-                key={`${item.title}-${item.indicator}-${index}`}
-                className="flex min-h-37 flex-col rounded-lg border-l-4 border-[#0B3C5D] bg-white p-4 shadow-sm"
-              >
-                <p className="text-[11px] font-medium text-[#1F7A3F]">
-                  {item.category}
-                </p>
+          {/* SAVED COMPARISON CARDS */}
+          <div className="mt-8">
+            {loadingSaved ? (
+              <p className="py-8 text-center text-sm text-gray-700">
+                Loading your saved comparisons...
+              </p>
+            ) : savedError ? (
+              <p className="rounded-lg bg-white p-5 text-sm text-red-600">
+                {savedError}
+              </p>
+            ) : visibleSaved.length === 0 ? (
+              <p className="rounded-lg bg-white p-6 text-center text-sm text-gray-500">
+                {savedItems.length === 0
+                  ? "You haven't saved any comparisons yet."
+                  : "No saved comparisons match this filter."}
+              </p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
+                {visibleSaved.map((item) => (
+                  <article
+                    key={item.id}
+                    className="flex min-h-40 flex-col rounded-lg border-l-4 border-[#0B3C5D] bg-white p-4 shadow-sm"
+                  >
+                    <p className="text-[11px] font-medium uppercase text-[#1F7A3F]">
+                      {item.indicator?.sector || "Comparison"}
+                    </p>
 
-                <h3 className="mt-1 text-base font-bold">{item.title}</h3>
+                    <h3 className="mt-1 text-base font-bold">
+                      {item.title || "Untitled comparison"}
+                    </h3>
 
-                <p className="mt-1 text-sm text-gray-700">
-                  {item.indicator}
-                </p>
+                    <p className="mt-1 text-sm text-gray-700">
+                      {item.indicator?.name || "Indicator unavailable"}
+                    </p>
 
-                <p className="mt-1 text-xs text-gray-500">{item.years}</p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {Array.isArray(item.states) &&
+                      item.states.length > 0
+                        ? item.states.join(", ")
+                        : "States unavailable"}
+                    </p>
 
-                <div className="mt-3 border-t border-gray-100 pt-3 text-[10px] text-[#1F7A3F]">
-                  <span aria-hidden="true">✓ </span>
-                  {item.date}
-                </div>
-              </article>
-            ))}
+                    <p className="mt-1 text-xs text-gray-500">
+                      {item.year_from ?? "—"} -{" "}
+                      {item.year_to ?? "—"}
+                    </p>
+
+                    <div className="mt-auto flex items-center justify-between gap-2 border-t border-gray-100 pt-3">
+                      <span className="text-[10px] text-[#1F7A3F]">
+                        {formatDisplayDate(
+                          item.saved_at,
+                          "Saved "
+                        )}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleDeleteSaved(item.id)
+                        }
+                        disabled={
+                          deletingSavedId !== null
+                        }
+                        className="text-xs font-medium text-red-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {String(deletingSavedId) === String(item.id)
+                          ? "Deleting..."
+                          : "Delete"}
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </section>
 
-      {/* Recent exports */}
+      {/* RECENT EXPORTS */}
       <section className="px-5 py-10 sm:px-8 sm:py-12 lg:px-14">
         <div className="mx-auto max-w-5xl">
+
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <SectionHeading>Recent Exports</SectionHeading>
+            <SectionHeading>
+              Recent Exports ({exportTotal})
+            </SectionHeading>
 
             <div className="flex items-center gap-4 text-sm">
               <label className="flex items-center gap-2">
-                <span className="sr-only">Filter recent exports</span>
+                <span className="sr-only">
+                  Filter recent exports
+                </span>
 
                 <select
                   value={exportFilter}
-                  onChange={(event) => setExportFilter(event.target.value)}
+                  onChange={(event) =>
+                    setExportFilter(event.target.value)
+                  }
                   className="max-w-24 px-2 py-1 outline-none"
                 >
-                  <option value="All">Filter</option>
-                  <option value="PNG">PNG</option>
+                  <option value="All">All formats</option>
+                  <option value="XML">XML</option>
                   <option value="PDF">PDF</option>
                   <option value="CSV">CSV</option>
+                  <option value="PNG">PNG</option>
                 </select>
 
-                <span aria-hidden="true">☰</span>
+                
               </label>
 
-              <button
-                type="button"
-                onClick={() => setShowAllExports((value) => !value)}
-                className="font-medium text-[#1F7A3F] hover:underline"
-              >
-                {showAllExports ? "Show less" : "See all"}
-              </button>
+              {filteredExports.length > 4 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowAllExports((value) => !value)
+                  }
+                  className="font-medium text-[#1F7A3F] hover:underline"
+                >
+                  {showAllExports ? "Show less" : "See all"}
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
-            {visibleExports.map((item, index) => (
-              <article
-                key={`${item.title}-${item.type}-${index}`}
-                className="flex min-h-37 flex-col rounded-lg bg-white p-4 shadow-sm"
-              >
-                <span className="w-fit rounded-full bg-[#e8f2ec] px-3 py-1 text-[10px] font-medium text-[#1F7A3F]">
-                  {item.type}
-                </span>
+          {/* EXPORT HISTORY CARDS */}
+          <div className="mt-8">
+            {loadingExports ? (
+              <p className="py-8 text-center text-sm text-gray-500">
+                Loading your export history...
+              </p>
+            ) : exportError ? (
+              <p className="rounded-lg bg-white p-5 text-sm text-red-600">
+                {exportError}
+              </p>
+            ) : visibleExports.length === 0 ? (
+              <p className="rounded-lg bg-white p-6 text-center text-sm text-gray-500">
+                {exportItems.length === 0
+                  ? "You haven't exported any data yet."
+                  : "No exports match this filter."}
+              </p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
+                {visibleExports.map((item) => (
+                  <article
+                    key={item.id}
+                    className="flex min-h-37 flex-col rounded-lg bg-white p-4 shadow-sm"
+                  >
+                    <span className="w-fit rounded-full bg-[#e8f2ec] px-3 py-1 text-[10px] font-medium uppercase text-[#1F7A3F]">
+                      {item.format || "Unknown"}
+                    </span>
 
-                <h3 className="mt-2 text-base font-bold">{item.title}</h3>
+                    <h3 className="mt-2 text-base font-bold">
+                      {item.title ||
+                        item.dataset?.title ||
+                        "Untitled export"}
+                    </h3>
 
-                <p className="mt-2 text-xs leading-5 text-gray-500">
-                  {item.description}
-                </p>
+                    <p className="mt-2 text-xs leading-5 text-gray-500">
+                      {item.subtitle ||
+                        item.indicator?.name ||
+                        "No description"}
+                    </p>
 
-                <div className="mt-auto border-t border-dashed border-gray-200 pt-4 text-[11px] text-gray-500">
-                  {item.date}
-                </div>
-              </article>
-            ))}
+                    {Array.isArray(item.states) &&
+                      item.states.length > 0 && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          {item.states.join(", ")}
+                        </p>
+                      )}
+
+                    <p className="mt-1 text-xs text-gray-500">
+                      {item.year_from ?? "—"} -{" "}
+                      {item.year_to ?? "—"}
+                    </p>
+
+                    <div className="mt-auto border-t border-dashed border-gray-200 pt-4 text-[11px] text-gray-500">
+                      {formatDisplayDate(
+                        item.exported_at,
+                        "Exported "
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </section>

@@ -109,7 +109,7 @@ function Hero() {
   return (
     <section
       id="home"
-      className="scroll-mt-20 bg-[#0B3C5D] text-white"
+      className="scroll-mt-20 bg-[#0B3C5D] overflow-x-hidden text-white w-full sm:overflow-x-hidden"
     >
       <div
         className="
@@ -120,7 +120,7 @@ function Hero() {
           sm:px-8 sm:pt-32 sm:pb-12
           lg:min-h-92.5 lg:grid-cols-2
           lg:justify-items-stretch lg:gap-10
-          lg:px-12 lg:py-24
+          lg:px-12 lg:py-24 
         "
       >
         {/* Hero content */}

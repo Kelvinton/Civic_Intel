@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { apiRequest } from "../api/api.js";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 
@@ -10,6 +11,7 @@ import {
 
 import { useAuth } from "../context/AuthContext.jsx";
 import { getStates } from "../api/referenceData.js";
+import { getPublishedRecords } from "../api/publishedData.js";
 
 import civicIntel from "../assets/civicintel.hero.logo.png";
 import civicIntelLogo from "../assets/civicintellogo1.png";
@@ -17,55 +19,45 @@ import HealthPic1 from "../assets/health/Health1.png";
 import HealthPic2 from "../assets/health/Health2.png";
 import HealthPic3 from "../assets/health/Health3.png";
 
-const overviewStats = [
+// National overview cards.
+// Values are retrieved from the published Health API.
+// If an indicator is unavailable, the card displays "—".
+const overviewCards = [
   {
     label: "COVERAGE",
-    value: "67.4%",
+    indicatorKey: "anc4_pct",
     description: "ANC 4+ Coverage",
     source: "NDHS • 2023",
     color: "#1F7A3F",
   },
   {
     label: "OUTCOMES",
-    value: "512",
+    indicatorKey: "maternal_mortality_ratio",
     description: "Maternal mortality /100k",
     source: "NDHS • 2023",
     color: "#8B2922",
   },
   {
     label: "COVERAGE",
-    value: "57%",
+    indicatorKey: "full_immunization",
     description: "Full immunization 12–23mon",
     source: "NDHS • 2023",
     color: "#145C3B",
   },
   {
     label: "SYSTEM",
-    value: "1:4",
+    indicatorKey: "doctor_population_ratio",
     description: "Doctor-to-population",
     source: "FMCH • 2022",
     color: "#0B3C5D",
   },
   {
     label: "FINANCING",
-    value: "67.4%",
+    indicatorKey: "health_allocation_pct",
     description: "Health share of state budget",
     source: "BudgetIT • 2025",
     color: "#D6A400",
   },
-];
-
-// These are demonstration chart values, not live backend health statistics.
-const demoStateData = [
-  { state: "Imo", value: 86.8, zone: "SE" },
-  { state: "Lagos", value: 82.5, zone: "SW" },
-  { state: "Ogun", value: 76.1, zone: "SW" },
-  { state: "Oyo", value: 71.4, zone: "SW" },
-  { state: "Rivers", value: 68.2, zone: "SS" },
-  { state: "Kaduna", value: 53.0, zone: "NW" },
-  { state: "Kano", value: 48.2, zone: "NW" },
-  { state: "Borno", value: 39.5, zone: "NE" },
-  { state: "Sokoto", value: 28.3, zone: "NW" },
 ];
 
 const releases = [
@@ -87,9 +79,62 @@ const releases = [
 ];
 
 
-function SectionHeading({ children, dark = false }) {
- 
+// Safely formats API values.
+// Empty or missing values are not converted to zero.
+function formatValue(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    String(value).trim() === ""
+  ) {
+    return "—";
+  }
 
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return "—";
+  }
+
+  return new Intl.NumberFormat("en-NG", {
+    maximumFractionDigits: 2,
+  }).format(number);
+}
+
+function isValidNumericValue(value) {
+  return (
+    value !== null &&
+    value !== undefined &&
+    String(value).trim() !== "" &&
+    Number.isFinite(Number(value))
+  );
+}
+
+function escapeXML(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function downloadFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function SectionHeading({ children, dark = false }) {
   return (
     <h2
       className={`mb-6 flex items-center gap-2 text-xl font-bold sm:text-2xl ${
@@ -119,20 +164,22 @@ function SectionHeading({ children, dark = false }) {
   );
 }
 
-
 function Health() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isLoggedIn } = useAuth();
-
-  // Reuse CivicIntel's shared animation settings.
   const motionSettings = useMotionSettings();
 
-  // Restore filter choices when the user returns from login.
   const restoredFilters = location.state?.healthFilters;
 
+  // --------------------------------------------------
+  // FILTER STATES
+  // --------------------------------------------------
+
   const [indicator, setIndicator] = useState(
-    restoredFilters?.indicator ?? "anc"
+    restoredFilters?.indicator === "anc"
+      ? "anc4_pct"
+      : restoredFilters?.indicator ?? "anc4_pct"
   );
 
   const [state, setState] = useState(
@@ -140,31 +187,56 @@ function Health() {
   );
 
   const [year, setYear] = useState(
-    restoredFilters?.year ?? "2020-2024"
+    restoredFilters?.year ?? "all"
   );
+
+  // --------------------------------------------------
+  // REFERENCE DATA STATES
+  // --------------------------------------------------
 
   const [states, setStates] = useState([]);
   const [statesLoading, setStatesLoading] = useState(true);
   const [statesError, setStatesError] = useState("");
 
+  // --------------------------------------------------
+  // HEALTH API STATES
+  // --------------------------------------------------
+
+  const [healthRecords, setHealthRecords] = useState([]);
+  const [recordsLoading, setRecordsLoading] = useState(true);
+  const [recordsError, setRecordsError] = useState("");
+
+  // --------------------------------------------------
+  // APPLIED FILTER STATES
+  // --------------------------------------------------
+
   const [appliedFilters, setAppliedFilters] = useState(
-    isLoggedIn && restoredFilters ? restoredFilters : null
+    isLoggedIn && restoredFilters
+      ? {
+          ...restoredFilters,
+          indicator:
+            restoredFilters.indicator === "anc"
+              ? "anc4_pct"
+              : restoredFilters.indicator,
+        }
+      : null
   );
 
   const [hasAppliedFilters, setHasAppliedFilters] = useState(
     Boolean(isLoggedIn && restoredFilters)
   );
 
-  const [animatedValues, setAnimatedValues] = useState({});
+  const [exportOpen, setExportOpen] = useState(false);
 
-  // Fetch the available states once when the Health page mounts.
-    useEffect(() => {
+  // --------------------------------------------------
+  // LOAD STATES FROM REFERENCE API
+  // --------------------------------------------------
+
+  useEffect(() => {
     let isMounted = true;
 
     async function loadStates() {
       try {
-        setStatesError("");
-
         const data = await getStates();
 
         if (!Array.isArray(data)) {
@@ -173,6 +245,7 @@ function Health() {
 
         if (isMounted) {
           setStates(data);
+          setStatesError("");
         }
       } catch (error) {
         if (isMounted) {
@@ -196,50 +269,370 @@ function Health() {
     };
   }, []);
 
-  // Animate demonstration chart bars after the filters have been applied.
-    useEffect(() => {
-    if (!isLoggedIn || !hasAppliedFilters || !appliedFilters) {
-      return undefined;
+  // --------------------------------------------------
+  // LOAD ALL PUBLISHED HEALTH RECORDS
+  // --------------------------------------------------
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadHealthRecords() {
+      try {
+        const allRecords = [];
+        const limit = 100;
+        let offset = 0;
+        let total = Infinity;
+
+        while (offset < total) {
+          const response = await getPublishedRecords({
+            sector: "health",
+            limit,
+            offset,
+          });
+
+          if (!response || !Array.isArray(response.items)) {
+            throw new Error(
+              "The Health records response was not in the expected format."
+            );
+          }
+
+          allRecords.push(...response.items);
+
+          total = Number(response.total ?? allRecords.length);
+          offset += response.items.length;
+
+          if (
+            response.items.length === 0 ||
+            response.items.length < limit
+          ) {
+            break;
+          }
+        }
+
+        if (isMounted) {
+          setHealthRecords(allRecords);
+          setRecordsError("");
+        }
+      } catch (error) {
+        if (isMounted) {
+          setRecordsError(
+            error instanceof Error
+              ? error.message
+              : "Could not load Health records. Please try again."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setRecordsLoading(false);
+        }
+      }
     }
 
-    let firstFrame;
-    let secondFrame;
-
-    firstFrame = requestAnimationFrame(() => {
-      secondFrame = requestAnimationFrame(() => {
-        const filteredData = demoStateData.filter(
-          (item) =>
-            appliedFilters.state === "all" ||
-            item.state === appliedFilters.state
-        );
-
-        setAnimatedValues(
-          Object.fromEntries(
-            filteredData.map((item) => [item.state, item.value])
-          )
-        );
-      });
-    });
+    loadHealthRecords();
 
     return () => {
-      if (firstFrame !== undefined) {
-        cancelAnimationFrame(firstFrame);
+      isMounted = false;
+    };
+  }, []);
+
+  // --------------------------------------------------
+  // NATIONAL HEALTH OVERVIEW
+  // --------------------------------------------------
+
+  const overviewStats = useMemo(() => {
+    return overviewCards.map((card) => {
+      const nationalRecords = healthRecords
+        .filter(
+          (record) =>
+            record.indicator_key === card.indicatorKey &&
+            String(record.state).trim().toLowerCase() === "national" &&
+            isValidNumericValue(record.value)
+        )
+        .sort(
+          (a, b) => Number(b.year) - Number(a.year)
+        );
+
+      const latestRecord = nationalRecords[0];
+
+      let value = "—";
+
+      if (latestRecord) {
+        const formattedValue = formatValue(latestRecord.value);
+
+        value = latestRecord.unit?.includes("%")
+          ? `${formattedValue}%`
+          : formattedValue;
       }
 
-      if (secondFrame !== undefined) {
-        cancelAnimationFrame(secondFrame);
+      return {
+        ...card,
+        value,
+        reportingYear: latestRecord?.year ?? null,
+      };
+    });
+  }, [healthRecords]);
+
+  // --------------------------------------------------
+  // AVAILABLE INDICATORS
+  // --------------------------------------------------
+
+  const indicatorOptions = useMemo(() => {
+    const uniqueIndicators = new Map();
+
+    healthRecords.forEach((record) => {
+      if (record.indicator_key && record.indicator) {
+        uniqueIndicators.set(record.indicator_key, {
+          key: record.indicator_key,
+          label: record.indicator,
+        });
       }
-    };
+    });
+
+    return Array.from(uniqueIndicators.values()).sort(
+      (a, b) => a.label.localeCompare(b.label)
+    );
+  }, [healthRecords]);
+
+  // --------------------------------------------------
+  // AVAILABLE YEARS
+  // --------------------------------------------------
+
+  const yearOptions = useMemo(() => {
+    return [
+      ...new Set(
+        healthRecords
+          .map((record) => String(record.year))
+          .filter(
+            (value) =>
+              value &&
+              value !== "undefined" &&
+              value !== "null"
+          )
+      ),
+    ].sort((a, b) => Number(b) - Number(a));
+  }, [healthRecords]);
+
+  // --------------------------------------------------
+  // DERIVE VALID FILTER VALUES
+  // --------------------------------------------------
+
+  // These values are calculated during rendering.
+  // No useEffect or setState is needed to correct selections.
+
+  const effectiveIndicator = useMemo(() => {
+    const indicatorExists = indicatorOptions.some(
+      (item) => item.key === indicator
+    );
+
+    if (indicatorExists) {
+      return indicator;
+    }
+
+    return indicatorOptions[0]?.key ?? "";
+  }, [indicatorOptions, indicator]);
+
+  const effectiveYear = useMemo(() => {
+    if (year === "all") {
+      return "all";
+    }
+
+    const yearExists = yearOptions.includes(String(year));
+
+    if (yearExists) {
+      return String(year);
+    }
+
+    return yearOptions[0] ?? "all";
+  }, [yearOptions, year]);
+
+  // --------------------------------------------------
+  // FILTER CHART RECORDS
+  // --------------------------------------------------
+
+  const chartData = useMemo(() => {
+    if (!appliedFilters) {
+      return [];
+    }
+
+    return healthRecords
+      .filter((record) => {
+        const matchesIndicator =
+          record.indicator_key === appliedFilters.indicator;
+
+        const matchesState =
+          appliedFilters.state === "all" ||
+          record.state === appliedFilters.state;
+
+        const matchesYear =
+          appliedFilters.year === "all" ||
+          String(record.year) === String(appliedFilters.year);
+
+        const isNotNational =
+          String(record.state).trim().toLowerCase() !== "national";
+
+        return (
+          matchesIndicator &&
+          matchesState &&
+          matchesYear &&
+          isNotNational &&
+          isValidNumericValue(record.value)
+        );
+      })
+      .map((record) => ({
+        ...record,
+        numericValue: Number(record.value),
+      }));
+  }, [healthRecords, appliedFilters]);
+
+  // --------------------------------------------------
+  // NATIONAL BENCHMARK
+  // --------------------------------------------------
+
+  const nationalBenchmark = useMemo(() => {
+    if (!appliedFilters || appliedFilters.year === "all") {
+      return null;
+    }
+
+    return (
+      healthRecords.find(
+        (record) =>
+          record.indicator_key === appliedFilters.indicator &&
+          String(record.year) === String(appliedFilters.year) &&
+          String(record.state).trim().toLowerCase() === "national" &&
+          isValidNumericValue(record.value)
+      ) ?? null
+    );
+  }, [healthRecords, appliedFilters]);
+
+  // --------------------------------------------------
+  // LATEST RECORD PER STATE
+  // --------------------------------------------------
+
+  const stateChartData = useMemo(() => {
+    if (appliedFilters?.year !== "all") {
+      return chartData;
+    }
+
+    const latestByState = new Map();
+
+    chartData.forEach((record) => {
+      const existing = latestByState.get(record.state);
+
+      if (
+        !existing ||
+        Number(record.year) > Number(existing.year)
+      ) {
+        latestByState.set(record.state, record);
+      }
+    });
+
+    return Array.from(latestByState.values());
+  }, [chartData, appliedFilters]);
+
+  // --------------------------------------------------
+  // SELECTED INDICATOR INFORMATION
+  // --------------------------------------------------
+
+  const selectedIndicator = useMemo(() => {
+    if (!appliedFilters) {
+      return null;
+    }
+
+    return healthRecords.find(
+      (record) =>
+        record.indicator_key === appliedFilters.indicator
+    );
+  }, [healthRecords, appliedFilters]);
+
+  const indicatorLabel =
+    selectedIndicator?.indicator ?? "Health indicator";
+
+  const indicatorUnit = selectedIndicator?.unit ?? "";
+
+  const isPercentageIndicator = indicatorUnit.includes("%");
+
+  // --------------------------------------------------
+  // CHART SCALE
+  // --------------------------------------------------
+
+  const maximumValue = useMemo(() => {
+    const values = stateChartData.map((item) =>
+      Math.abs(item.numericValue)
+    );
+
+    if (nationalBenchmark) {
+      values.push(Math.abs(Number(nationalBenchmark.value)));
+    }
+
+    return values.length ? Math.max(...values) : 0;
+  }, [stateChartData, nationalBenchmark]);
+
+  // --------------------------------------------------
+  // CHART ROWS
+  // --------------------------------------------------
+
+  const chartRows = useMemo(() => {
+    return [...stateChartData]
+      .sort((a, b) => b.numericValue - a.numericValue)
+      .map((item) => {
+        const barWidth = isPercentageIndicator
+          ? Math.max(0, Math.min(item.numericValue, 100))
+          : maximumValue > 0
+            ? (Math.abs(item.numericValue) / maximumValue) * 100
+            : 0;
+
+        return {
+          ...item,
+          barWidth,
+          
+        };
+      });
   }, [
-    isLoggedIn,
-    hasAppliedFilters,
-    appliedFilters,
+    stateChartData,
+    maximumValue,
+    isPercentageIndicator,
   ]);
+
+  // --------------------------------------------------
+  // NATIONAL BENCHMARK POSITION
+  // --------------------------------------------------
+
+  const benchmarkValue = nationalBenchmark
+    ? Number(nationalBenchmark.value)
+    : null;
+
+  const benchmarkPosition =
+    benchmarkValue !== null &&
+    Number.isFinite(benchmarkValue)
+      ? isPercentageIndicator
+        ? Math.max(0, Math.min(benchmarkValue, 100))
+        : maximumValue > 0
+          ? Math.max(
+              0,
+              Math.min(
+                (Math.abs(benchmarkValue) / maximumValue) * 100,
+                100
+              )
+            )
+          : null
+      : null;
+
+  const axisLabels = isPercentageIndicator
+    ? ["0%", "25%", "50%", "75%", "100%"]
+    : ["0", "25", "50", "75", "100"];
+
+  // --------------------------------------------------
+  // APPLY FILTERS
+  // --------------------------------------------------
 
   const handleApplyFilters = (event) => {
     event.preventDefault();
 
-    const filters = { indicator, state, year };
+    const filters = {
+      indicator: effectiveIndicator,
+      state,
+      year: effectiveYear,
+    };
 
     if (!isLoggedIn) {
       navigate("/login", {
@@ -260,7 +653,12 @@ function Health() {
 
     setAppliedFilters(filters);
     setHasAppliedFilters(true);
+    setExportOpen(false);
   };
+
+  // --------------------------------------------------
+  // LOGIN NAVIGATION
+  // --------------------------------------------------
 
   const handleLogin = () => {
     navigate("/login", {
@@ -268,14 +666,21 @@ function Health() {
         from: {
           pathname: "/health",
           state: {
-            healthFilters: { indicator, state, year },
+            healthFilters: {
+              indicator: effectiveIndicator,
+              state,
+              year: effectiveYear,
+            },
           },
         },
-        message:
-          "Please log in to access health data analysis.",
+        message: "Please log in to access health data analysis.",
       },
     });
   };
+
+  // --------------------------------------------------
+  // SIGNUP NAVIGATION
+  // --------------------------------------------------
 
   const handleSignup = () => {
     navigate("/signup", {
@@ -283,32 +688,372 @@ function Health() {
         from: {
           pathname: "/health",
           state: {
-            healthFilters: { indicator, state, year },
+            healthFilters: {
+              indicator: effectiveIndicator,
+              state,
+              year: effectiveYear,
+            },
           },
         },
       },
     });
   };
 
-  const indicatorLabel =
-    appliedFilters?.indicator === "anc"
-      ? "ANC 4+ Attendance"
-      : appliedFilters?.indicator === "immunization"
-        ? "Full Immunization Coverage"
-        : "Maternal Mortality";
+  // --------------------------------------------------
+  // EXPORT DATA
+  // --------------------------------------------------
+
+  const exportRows = chartRows.map((record) => ({
+    State: record.state,
+    Indicator: record.indicator,
+    IndicatorKey: record.indicator_key,
+    Year: record.year,
+    Value: record.value,
+    Unit: record.unit,
+    DatasetID: record.dataset_id,
+  }));
+
+  const exportFilename = `civicintel-health-${
+    appliedFilters?.indicator ?? "data"
+  }-${appliedFilters?.year ?? "all"}`;
+
+    // --------------------------------------------------
+  // RECORD EXPORT IN BACKEND
+  // --------------------------------------------------
+
+  
+const recordHealthExport = async (format) => {
+  if (!isLoggedIn || exportRows.length === 0 || !appliedFilters) {
+    return false;
+  }
+
+  const exportedStates = [
+    ...new Set(
+      exportRows.map((row) => row.State).filter(Boolean)
+    ),
+  ];
+
+  const exportedYears = exportRows
+    .map((row) => Number(row.Year))
+    .filter(Number.isFinite);
+
+  const uniqueDatasetIds = [
+    ...new Set(
+      exportRows
+        .map((row) => row.DatasetID)
+        .filter(Boolean)
+    ),
+  ];
+
+  const yearFrom = exportedYears.length
+    ? Math.min(...exportedYears)
+    : null;
+
+  const yearTo = exportedYears.length
+    ? Math.max(...exportedYears)
+    : null;
+
+  const subtitle = [
+    exportedStates.length === 1
+      ? exportedStates[0]
+      : exportedStates.length === 0
+        ? "No state specified"
+        : "All selected states",
+    yearFrom === null
+      ? "Year unavailable"
+      : yearFrom === yearTo
+        ? String(yearFrom)
+        : `${yearFrom}–${yearTo}`,
+  ].join(" · ");
+
+  const payload = {
+    format,
+    title: `Health — ${indicatorLabel}`,
+    subtitle,
+    indicator: appliedFilters.indicator,
+    states: exportedStates,
+    ...(yearFrom !== null && { year_from: yearFrom }),
+    ...(yearTo !== null && { year_to: yearTo }),
+    ...(uniqueDatasetIds.length === 1 && {
+      dataset_id: uniqueDatasetIds[0],
+    }),
+  };
+
+  try {
+    await apiRequest("/exports", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Could not record Health export:", error);
+
+    window.alert(
+      "Your file was exported, but CivicIntel could not save it to Recent Exports."
+    );
+
+    return false;
+  }
+};
+
+
+    // CSV EXPORT
+  const handleExportCSV = async () => {
+    if (exportRows.length === 0) {
+      window.alert("There are no records to export.");
+      return;
+    }
+
+    const headers = Object.keys(exportRows[0]);
+
+    const csvContent = [
+      headers.join(","),
+      ...exportRows.map((row) =>
+        headers
+          .map((header) => {
+            const value = String(row[header] ?? "");
+            return `"${value.replace(/"/g, '""')}"`;
+          })
+          .join(",")
+      ),
+    ].join("\n");
+
+    downloadFile(
+      csvContent,
+      `${exportFilename}.csv`,
+      "text/csv;charset=utf-8;"
+    );
+
+    setExportOpen(false);
+
+    await recordHealthExport("csv");
+  };
+
+    // XML EXPORT
+  const handleExportXML = async () => {
+    if (exportRows.length === 0) {
+      window.alert("There are no records to export.");
+      return;
+    }
+
+    const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<healthRecords>
+${exportRows
+  .map(
+    (row) => `  <record>
+${Object.entries(row)
+  .map(
+    ([key, value]) =>
+      `    <${key}>${escapeXML(value)}</${key}>`
+  )
+  .join("\n")}
+  </record>`
+  )
+  .join("\n")}
+</healthRecords>`;
+
+    downloadFile(
+      xmlContent,
+      `${exportFilename}.xml`,
+      "application/xml;charset=utf-8;"
+    );
+
+    setExportOpen(false);
+
+    await recordHealthExport("xml");
+  };
+
+  // PDF / PRINT EXPORT
+  const handleExportPDF = async () => {
+    if (exportRows.length === 0) {
+      window.alert("There are no records to export.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+
+    if (!printWindow) {
+      window.alert(
+        "Your browser blocked the print window. Please allow pop-ups and try again."
+      );
+      return;
+    }
+
+    const tableRows = exportRows
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeXML(row.State)}</td>
+            <td>${escapeXML(row.Indicator)}</td>
+            <td>${escapeXML(row.Year)}</td>
+            <td>${escapeXML(row.Value)}</td>
+            <td>${escapeXML(row.Unit)}</td>
+          </tr>
+        `
+      )
+      .join("");
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>CivicIntel Health Data Report</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              padding: 30px;
+              color: #20272B;
+            }
+
+            h1 {
+              color: #0B3C5D;
+              margin-bottom: 8px;
+            }
+
+            .subtitle {
+              color: #64748b;
+              font-size: 13px;
+              margin-bottom: 24px;
+            }
+
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 12px;
+            }
+
+            th, td {
+              border: 1px solid #d5dde1;
+              padding: 10px;
+              text-align: left;
+            }
+
+            th {
+              background: #0B3C5D;
+              color: white;
+            }
+
+            tr:nth-child(even) {
+              background: #f1f5f6;
+            }
+
+            .footer {
+              margin-top: 24px;
+              font-size: 11px;
+              color: #64748b;
+            }
+
+            @media print {
+              body {
+                padding: 0;
+              }
+            }
+          </style>
+        </head>
+
+        <body>
+          <h1>CivicIntel — Health Data Report</h1>
+
+          <p class="subtitle">
+            Indicator: ${escapeXML(indicatorLabel)} |
+            State: ${escapeXML(
+              appliedFilters.state === "all"
+                ? "All states"
+                : appliedFilters.state
+            )} |
+            Year: ${escapeXML(
+              appliedFilters.year === "all"
+                ? "All years"
+                : appliedFilters.year
+            )}
+          </p>
+
+          <table>
+            <thead>
+              <tr>
+                <th>State</th>
+                <th>Indicator</th>
+                <th>Year</th>
+                <th>Value</th>
+                <th>Unit</th>
+              </tr>
+            </thead>
+
+            <tbody>${tableRows}</tbody>
+          </table>
+
+          <p class="footer">
+            Source: CivicIntel published Health records.
+            This report contains the records returned by the connected dataset.
+          </p>
+
+          <script>
+            window.onload = function () {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+
+        printWindow.document.close();
+    setExportOpen(false);
+
+    await recordHealthExport("pdf");
+  };
+
+  // --------------------------------------------------
+  // SAVE INDICATOR
+  // --------------------------------------------------
+
+  // No account-level save endpoint has been connected yet.
+  const handleSaveIndicator = () => {
+    window.alert(
+      "Saving indicators to your CivicIntel account is not available yet. The backend save endpoint still needs to be connected."
+    );
+  };
+
+  // --------------------------------------------------
+  // RETRY LOADING STATES
+  // --------------------------------------------------
+
+  const retryLoadStates = async () => {
+    setStatesLoading(true);
+    setStatesError("");
+
+    try {
+      const data = await getStates();
+
+      if (!Array.isArray(data)) {
+        throw new Error("The states response was not a list.");
+      }
+
+      setStates(data);
+    } catch (error) {
+      setStatesError(
+        error instanceof Error
+          ? error.message
+          : "Could not load states."
+      );
+    } finally {
+      setStatesLoading(false);
+    }
+  };
+
+  // --------------------------------------------------
+  // PAGE UI
+  // --------------------------------------------------
 
   return (
     <main className="bg-[#E8EEF1] text-[#20272B]">
-    
+
       {/* HERO */}
-      
       <motion.section
         {...motionSettings}
         variants={revealVariants}
         className="mx-auto grid max-w-6xl items-center gap-10 px-5 pt-26 pb-16 sm:px-8 sm:pt-36 sm:pb-12 md:min-h-0 md:grid-cols-2 md:gap-8 md:px-8 md:pt-30 md:pb-12 lg:min-h-92.5 lg:gap-10 lg:px-12 lg:py-24"
       >
-
-        {/* Hero content animation */}
         <motion.div
           className="order-2 md:order-1"
           initial={{ opacity: 0, y: 30 }}
@@ -336,7 +1081,6 @@ function Health() {
           </p>
         </motion.div>
 
-        {/* Hero image animation */}
         <motion.div
           className="order-1 flex justify-center md:order-2 md:justify-end"
           initial={{ opacity: 0, scale: 0.92 }}
@@ -364,8 +1108,7 @@ function Health() {
         </motion.div>
       </motion.section>
 
-
-      {/* NATIONAL OVERVIEW */}
+      {/* NATIONAL HEALTH OVERVIEW */}
       <section className="bg-[#0B3C5D] px-5 py-8 sm:px-8 lg:px-12">
         <motion.div
           {...motionSettings}
@@ -384,17 +1127,17 @@ function Health() {
               <motion.article
                 key={stat.description}
                 variants={revealVariants}
-                className="group min-h-32 cursor-pointer rounded-md border border-transparent border-l-4 bg-[#F0F1F0] p-4 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:border-[#1F7A3F] hover:shadow-lg active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F7A3F]"
+                className="group min-h-32 cursor-pointer rounded-md border border-transparent border-l-4 bg-[#F0F1F0] p-4 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:border-[#1F7A3F] hover:shadow-lg active:scale-[0.98]"
                 style={{ borderLeftColor: stat.color }}
               >
                 <span
-                  className="inline-block rounded-full px-3 py-1 text-[9px] font-medium text-white transition-transform duration-300 group-hover:scale-105 group-active:scale-105"
+                  className="inline-block rounded-full px-3 py-1 text-[9px] font-medium text-white transition-transform duration-300 group-hover:scale-105"
                   style={{ backgroundColor: stat.color }}
                 >
                   {stat.label}
                 </span>
 
-                <p className="mt-2 text-xl font-bold text-[#20272B] transition-transform duration-300 ease-out group-hover:scale-105 group-active:scale-105">
+                <p className="mt-2 text-xl font-bold text-[#20272B]">
                   {stat.value}
                 </p>
 
@@ -410,11 +1153,6 @@ function Health() {
               </motion.article>
             ))}
           </motion.div>
-
-          <p className="mt-4 text-xs text-white/60">
-            Demonstration values only. Figures and source dates must be
-            verified before publication.
-          </p>
         </motion.div>
       </section>
 
@@ -425,39 +1163,66 @@ function Health() {
           variants={revealVariants}
           className="mx-auto max-w-5xl"
         >
-          <SectionHeading>HEALTH INDICATOR</SectionHeading>
+          <SectionHeading>
+            HEALTH INDICATOR
+          </SectionHeading>
 
           <form onSubmit={handleApplyFilters}>
             <div className="grid gap-4 md:grid-cols-3">
+
+              {/* INDICATOR FILTER */}
               <label className="flex flex-col gap-2 text-xs">
                 Indicator
 
                 <select
-                  value={indicator}
-                  onChange={(event) => setIndicator(event.target.value)}
-                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
+                  value={effectiveIndicator}
+                  onChange={(event) =>
+                    setIndicator(event.target.value)
+                  }
+                  disabled={
+                    recordsLoading ||
+                    indicatorOptions.length === 0
+                  }
+                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  <option value="anc">
-                    Antenatal Care (ANC 4+ Visits)
-                  </option>
-                  <option value="immunization">
-                    Full Immunization Coverage
-                  </option>
-                  <option value="maternal">Maternal Mortality</option>
+                  {recordsLoading && (
+                    <option value="">
+                      Loading indicators...
+                    </option>
+                  )}
+
+                  {!recordsLoading &&
+                    indicatorOptions.length === 0 && (
+                      <option value="">
+                        No indicators available
+                      </option>
+                    )}
+
+                  {indicatorOptions.map((item) => (
+                    <option key={item.key} value={item.key}>
+                      {item.label}
+                    </option>
+                  ))}
                 </select>
               </label>
 
-              
+              {/* STATE FILTER */}
               <label className="flex flex-col gap-2 text-xs">
                 State
 
                 <select
                   value={state}
-                  onChange={(event) => setState(event.target.value)}
-                  disabled={statesLoading || states.length === 0}
+                  onChange={(event) =>
+                    setState(event.target.value)
+                  }
+                  disabled={
+                    statesLoading || states.length === 0
+                  }
                   className="w-full rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  <option value="all">Select State</option>
+                  <option value="all">
+                    All states
+                  </option>
 
                   {statesLoading && (
                     <option value="loading" disabled>
@@ -467,7 +1232,7 @@ function Health() {
 
                   {statesError && (
                     <option value="error" disabled>
-                      {statesError}
+                      Could not load states
                     </option>
                   )}
 
@@ -483,25 +1248,7 @@ function Health() {
                 {statesError && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setStatesError("");
-                      setStatesLoading(true);
-
-                      getStates()
-                        .then((data) => {
-                          if (!Array.isArray(data)) {
-                            throw new Error("The states response was not a list.");
-                          }
-
-                          setStates(data);
-                        })
-                        .catch((error) => {
-                          setStatesError(
-                            error.message || "Could not load states."
-                          );
-                        })
-                        .finally(() => setStatesLoading(false));
-                    }}
+                    onClick={retryLoadStates}
                     className="self-start text-xs font-semibold text-[#1F7A3F] underline"
                   >
                     Try again
@@ -509,27 +1256,57 @@ function Health() {
                 )}
               </label>
 
-
+              {/* YEAR FILTER */}
               <label className="flex flex-col gap-2 text-xs">
                 Year
 
                 <select
-                  value={year}
-                  onChange={(event) => setYear(event.target.value)}
-                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
+                  value={effectiveYear}
+                  onChange={(event) =>
+                    setYear(event.target.value)
+                  }
+                  disabled={
+                    recordsLoading || yearOptions.length === 0
+                  }
+                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  <option value="2020-2024">2020–2024</option>
-                  <option value="2023">2023</option>
-                  <option value="2022">2022</option>
-                  <option value="2021">2021</option>
-                  <option value="2020">2020</option>
+                  <option value="all">
+                    All available years
+                  </option>
+
+                  {yearOptions.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
                 </select>
               </label>
             </div>
 
+            {/* API ERROR */}
+            {recordsError && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <p>{recordsError}</p>
+
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="mt-2 font-semibold underline"
+                >
+                  Reload page
+                </button>
+              </div>
+            )}
+
+            {/* APPLY BUTTON */}
             <button
               type="submit"
-              className="mx-auto mt-5 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.99] md:w-1/2"
+              disabled={
+                recordsLoading ||
+                indicatorOptions.length === 0 ||
+                Boolean(recordsError)
+              }
+              className="mx-auto mt-5 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 md:w-1/2"
             >
               Apply <span aria-hidden="true">→</span>
             </button>
@@ -538,11 +1315,11 @@ function Health() {
       </section>
 
       {/* CHART AND ANALYSIS */}
-      <section className="bg-[#082C40] px-5 py-8 text-white sm:px-8 lg:px-12">
+      <section className="bg-[#082C40] px-4 py-10 text-white sm:px-6 lg:px-10">
         <motion.div
           {...motionSettings}
           variants={revealVariants}
-          className="mx-auto max-w-5xl"
+          className="mx-auto max-w-7xl"
         >
           {!isLoggedIn ? (
             <div className="mx-auto max-w-2xl rounded-2xl border border-white/20 bg-white/10 p-8 text-center sm:p-10">
@@ -552,13 +1329,13 @@ function Health() {
 
               <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-white/70">
                 Create an account or log in to view health charts, explore
-                filtered data, and save or export your analysis.
+                filtered data, and export your analysis.
               </p>
 
               <button
                 type="button"
                 onClick={handleLogin}
-                className="mt-6 rounded-full bg-[#1F7A3F] px-7 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98]"
+                className="mt-6 rounded-full bg-[#1F7A3F] px-7 py-3 text-sm font-semibold text-white transition hover:bg-[#176331]"
               >
                 Log in to view data →
               </button>
@@ -576,172 +1353,558 @@ function Health() {
             </div>
           ) : !hasAppliedFilters || !appliedFilters ? (
             <div className="rounded-2xl border border-white/20 bg-white/10 p-8 text-center">
-              <h2 className="text-xl font-bold">Your Health Analysis</h2>
+              <h2 className="text-xl font-bold">
+                Your Health Analysis
+              </h2>
 
               <p className="mt-3 text-sm leading-6 text-white/70">
-                Select your indicator, state, and year above, then click Apply
-                to view the chart and analysis.
+                Select your indicator, state, and year above, then click
+                Apply to view the chart and analysis.
               </p>
             </div>
           ) : (
-            <div className="grid gap-7 lg:grid-cols-[1.8fr_0.8fr]">
-              <div className="rounded-sm bg-white p-4 text-[#20272B] shadow-sm transition-all duration-300 ease-out hover:shadow-lg active:scale-[0.995] sm:p-6">
-                <div className="mb-5">
-                  <p className="text-base font-bold text-[#0B3C5D]">
-                    {indicatorLabel} by Selected States
-                  </p>
+            <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,2.1fr)_minmax(300px,0.9fr)]">
 
-                  <p className="mt-1 text-xs text-gray-500">
-                    Demonstration data — not verified health statistics
-                  </p>
+              {/* LEFT: WHITE CHART PANEL */}
+              <div className="min-w-0 bg-white p-4 text-[#0B2F45] shadow-xl sm:p-6">
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold sm:text-lg">
+                        {indicatorLabel} by Selected States
+                      </h2>
+
+                      <span
+                        title="Values are retrieved from CivicIntel's published Health records."
+                        className="flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-gray-400 text-[10px] text-gray-500"
+                      >
+                        i
+                      </span>
+                    </div>
+
+                    <p className="mt-1 text-[11px] text-gray-500">
+                      {indicatorUnit
+                        ? `Unit: ${indicatorUnit}`
+                        : "Published indicator values"}
+
+                      {" · "}
+
+                      {appliedFilters.year === "all"
+                        ? "Latest available record per state"
+                        : `Reporting year ${appliedFilters.year}`}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-x-4 gap-y-2 text-[10px] text-gray-500">
+                    {nationalBenchmark ? (
+                      <>
+                        <span className="flex items-center gap-1.5">
+                          <span className="h-2.5 w-2.5 rounded-sm bg-[#16512F]" />
+                          At/above national
+                        </span>
+
+                        <span className="flex items-center gap-1.5">
+                          <span className="h-2.5 w-2.5 rounded-sm bg-[#0B3048]" />
+                          Below national
+                        </span>
+                      </>
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 rounded-sm bg-[#16512F]" />
+                        State value
+                      </span>
+                    )}
+
+                    {nationalBenchmark && (
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-0.5 w-3 bg-red-600" />
+                        National benchmark
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                <div className="space-y-5">
-                  {demoStateData
-                    .filter(
-                      (item) =>
-                        appliedFilters.state === "all" ||
-                        item.state === appliedFilters.state
-                    )
-                    .map((item, index) => {
-                      const animatedValue = animatedValues[item.state] ?? 0;
+                {/* CHART CONTENT */}
+                {recordsLoading ? (
+                  <div className="flex min-h-64 items-center justify-center">
+                    <p className="text-sm text-gray-500">
+                      Loading Health records...
+                    </p>
+                  </div>
+                ) : chartRows.length > 0 ? (
+                  <>
+                    <div className="relative mt-12">
 
-                      return (
-                        <div
-                          key={item.state}
-                          className="grid grid-cols-[48px_minmax(0,1fr)_40px] items-center gap-2"
-                        >
-                          <span className="text-xs font-medium">
-                            {item.state}
-                          </span>
-
-                          <div className="h-5 overflow-hidden rounded-sm bg-[#E5EAED] ring-1 ring-transparent transition-all duration-300 focus-within:ring-[#1F7A3F]">
-                            <div
-                              className="flex h-full items-center justify-end rounded-sm bg-[#164C32] pr-2 text-[10px] font-semibold text-white transition-[width] duration-1000 ease-out hover:brightness-110 active:brightness-125 motion-reduce:transition-none"
-                              style={{
-                                width: `${animatedValue}%`,
-                                transitionDelay: `${index * 100}ms`,
-                              }}
-                              role="progressbar"
-                              aria-label={`${item.state} demonstration health indicator`}
-                              aria-valuemin={0}
-                              aria-valuemax={100}
-                              aria-valuenow={animatedValue}
-                            >
-                              {animatedValue > 0 ? `${item.value}%` : ""}
-                            </div>
+                      {/* NATIONAL BENCHMARK LINE */}
+                      {benchmarkPosition !== null && (
+                        <>
+                          <div
+                            className="pointer-events-none absolute -top-7 z-20 -translate-x-1/2"
+                            style={{
+                              left: `${benchmarkPosition}%`,
+                            }}
+                          >
+                            <span className="whitespace-nowrap rounded-sm bg-red-700 px-2 py-1 text-[10px] font-semibold text-white">
+                              National: {formatValue(benchmarkValue)}
+                              {nationalBenchmark.unit}
+                            </span>
                           </div>
 
-                          <span className="text-right text-[10px] text-gray-500">
-                            {item.zone}
-                          </span>
-                        </div>
-                      );
-                    })}
+                          <div
+                            className="pointer-events-none absolute bottom-0 top-0 z-10 w-px bg-red-500"
+                            style={{
+                              left: `${benchmarkPosition}%`,
+                            }}
+                          />
+                        </>
+                      )}
 
-                  {appliedFilters.state !== "all" &&
-                    !demoStateData.some(
-                      (item) => item.state === appliedFilters.state
-                    ) && (
-                      <p className="rounded-lg bg-[#E8EEF1] p-4 text-sm text-gray-600">
-                        No demonstration chart is available for{" "}
-                        {appliedFilters.state}. Real health statistics will
-                        appear here when the verified dataset is connected.
+                      {/* STATE CHART ROWS */}
+                      <div className="space-y-2">
+                        {chartRows.map((item, index) => {
+                          const rowKey = `${item.state}-${item.indicator_key}-${item.year}`;
+
+                          const difference =
+                            benchmarkValue === null
+                              ? null
+                              : item.numericValue - benchmarkValue;
+
+                          const atOrAbove =
+                            difference !== null && difference >= 0;
+
+                          const barColor = nationalBenchmark
+                            ? atOrAbove
+                              ? "bg-[#16512F]"
+                              : "bg-[#0B3048]"
+                            : "bg-[#16512F]";
+
+                          return (
+                            <motion.div
+                              key={rowKey}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{
+                                duration: 0.4,
+                                delay: index * 0.045,
+                              }}
+                              className="grid grid-cols-[68px_25px_minmax(0,1fr)_48px] items-center gap-2 sm:grid-cols-[78px_25px_minmax(0,1fr)_62px] sm:gap-2.5"
+                            >
+                              <span className="truncate text-[11px] font-medium">
+                                {item.state}
+                              </span>
+
+                              <span className="rounded-sm bg-[#E9EDEF] px-1 py-0.5 text-center text-[9px] text-gray-500">
+                                {item.zone}
+                              </span>
+
+                              {/* BAR */}
+                              <div className="relative h-7 min-w-0 overflow-hidden rounded-sm bg-[#E6EBEE]">
+                                <motion.div
+                                  className={`absolute inset-y-0 left-0 rounded-sm ${barColor}`}
+                                  initial={{ width: 0 }}
+                                  animate={{
+                                    width: `${item.barWidth}%`,
+                                  }}
+                                  transition={{
+                                    duration: 1,
+                                    delay: index * 0.07,
+                                    ease: [0.22, 1, 0.36, 1],
+                                  }}
+                                />
+
+                                <span
+                                  className={`absolute inset-y-0 flex items-center text-[10px] font-semibold ${
+                                    item.barWidth > 18
+                                      ? "text-white"
+                                      : "text-[#0B3048]"
+                                  }`}
+                                  style={{
+                                    left:
+                                      item.barWidth > 18
+                                        ? `${Math.max(
+                                            item.barWidth - 12,
+                                            1
+                                          )}%`
+                                        : `${Math.min(
+                                            item.barWidth + 1,
+                                            85
+                                          )}%`,
+                                  }}
+                                >
+                                  {formatValue(item.numericValue)}
+                                  {item.unit}
+                                </span>
+                              </div>
+
+                              {/* DIFFERENCE FROM NATIONAL */}
+                              <span
+                                className={`text-right text-[10px] font-medium ${
+                                  difference === null
+                                    ? "text-gray-400"
+                                    : difference >= 0
+                                      ? "text-[#16512F]"
+                                      : "text-red-600"
+                                }`}
+                              >
+                                {difference === null
+                                  ? "—"
+                                  : `${
+                                      difference > 0 ? "+" : ""
+                                    }${formatValue(difference)}${item.unit}`}
+                              </span>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* CHART AXIS */}
+                    <div className="ml-26.25 mt-4 flex justify-between text-[10px] text-gray-500 sm:ml-29.5">
+                      {axisLabels.map((label) => (
+                        <span key={label}>{label}</span>
+                      ))}
+                    </div>
+
+                    {!nationalBenchmark && (
+                      <p className="mt-3 text-[10px] leading-4 text-gray-400">
+                        No matching national benchmark was returned for this
+                        indicator and reporting year. Bars show state values
+                        only; no national comparison is inferred.
                       </p>
                     )}
-                </div>
+                  </>
+                ) : (
+                  <div className="mt-8 rounded-lg bg-[#E8EEF1] p-6 text-sm leading-6 text-gray-600">
+                    No published Health records match these filters. Try
+                    selecting another indicator, state, or year.
+                  </div>
+                )}
 
-                <div className="mt-6 flex justify-between border-t border-gray-200 pt-3 text-[10px] text-gray-500">
-                  <span>0%</span>
-                  <span>25%</span>
-                  <span>50%</span>
-                  <span>75%</span>
-                  <span>100%</span>
-                </div>
+                {/* PROVENANCE */}
+                <div className="mt-8 rounded-lg bg-[#E7ECEF] p-4 sm:p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="flex items-center gap-2 text-xs font-bold text-[#0B3C5D]">
+                      <span className="text-[#1F7A3F]">✓</span>
+                      VERIFIED PROVENANCE RECORD
+                    </h3>
 
-                <div className="mt-8 rounded-md bg-[#E8EEF1] p-4">
-                  <p className="text-xs font-bold text-[#145C3B]">
-                    DATA PROVENANCE RECORD
-                  </p>
+                    <span className="rounded-full bg-[#C5D2D9] px-2 py-1 text-[9px] text-[#0B3C5D]">
+                      Published dataset
+                    </span>
+                  </div>
 
-                  <p className="mt-2 text-xs leading-5 text-gray-600">
-                    Primary source, data vintage, audit date, licence, and
-                    methodology will be displayed here when verified datasets
-                    are connected.
+                  <div className="mt-4 grid gap-3 text-[10px] leading-5 text-gray-500 sm:grid-cols-2">
+                    <p>
+                      <strong className="text-[#0B3C5D]">
+                        Indicator:
+                      </strong>{" "}
+                      {indicatorLabel}
+                    </p>
+
+                    <p>
+                      <strong className="text-[#0B3C5D]">
+                        Data vintage:
+                      </strong>{" "}
+                      {appliedFilters.year === "all"
+                        ? "Multiple available years"
+                        : appliedFilters.year}
+                    </p>
+
+                    <p>
+                      <strong className="text-[#0B3C5D]">
+                        Dataset ID:
+                      </strong>{" "}
+                      {[
+                        ...new Set(
+                          chartRows
+                            .map((item) => item.dataset_id)
+                            .filter(Boolean)
+                        ),
+                      ].join(", ") || "Not provided by API"}
+                    </p>
+
+                    <p>
+                      <strong className="text-[#0B3C5D]">
+                        Unit:
+                      </strong>{" "}
+                      {indicatorUnit || "Not provided"}
+                    </p>
+                  </div>
+
+                  <p className="mt-3 border-t border-gray-300 pt-3 text-[9px] italic leading-4 text-gray-500">
+                    Platform data note: This view displays records returned
+                    by CivicIntel&apos;s published Health API. Source
+                    documentation, independent audit details, QA reference,
+                    audited date, and licence information are not currently
+                    supplied by this endpoint.
                   </p>
                 </div>
               </div>
 
-              <aside className="space-y-6">
-                <div>
-                  <span className="bg-white px-2 py-1 text-[10px] text-[#0B3C5D]">
-                    Analysis brief
-                  </span>
+              {/* RIGHT: DARK ANALYSIS PANEL */}
+              <aside className="min-w-0 space-y-7">
 
-                  <p className="mt-3 text-lg font-bold">
-                    Health indicators across Nigeria
-                  </p>
+                {/* ANALYSIS BRIEF */}
+                <div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="rounded-sm bg-[#E7ECEF] px-2 py-1 text-[10px] font-medium text-[#0B3C5D]">
+                      Analysis Brief
+                    </span>
+
+                    <span className="text-[10px] text-white/50">
+                      {appliedFilters.year === "all"
+                        ? "Multiple reporting years"
+                        : `${appliedFilters.year} data`}
+                    </span>
+                  </div>
+
+                  <h2 className="mt-3 text-xl font-bold leading-snug sm:text-2xl">
+                    {indicatorLabel}
+
+                    <span className="block text-white/90">
+                      State-level analysis
+                    </span>
+                  </h2>
 
                   <p className="mt-3 text-sm leading-6 text-white/65">
-                    Compare health outcomes by state, explore changes over
-                    time, and review the sources behind each indicator.
+                    Explore how {indicatorLabel.toLowerCase()} varies across
+                    the selected Nigerian states. The figures shown are
+                    published records retrieved from CivicIntel&apos;s
+                    Health dataset.
                   </p>
 
-                  <p className="mt-3 text-xs leading-5 text-white/50">
-                    Selected filters:{" "}
-                    {appliedFilters.state === "all"
-                      ? "All states"
-                      : appliedFilters.state}
+                  <p className="mt-3 text-xs leading-5 text-white/45">
+                    {chartRows.length} state record
+                    {chartRows.length === 1 ? "" : "s"} displayed
                     {" · "}
-                    {appliedFilters.year}
+                    {appliedFilters.state === "all"
+                      ? "All available states"
+                      : appliedFilters.state}
                   </p>
+                </div>
 
+                {/* NATIONAL COMPARISON */}
+                <div>
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-xs font-medium text-white/70">
+                      National benchmark comparison
+                    </h3>
+
+                    {nationalBenchmark ? (
+                      <span className="text-[10px] text-white/50">
+                        {formatValue(benchmarkValue)}
+                        {nationalBenchmark.unit}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-white/40">
+                        Not available
+                      </span>
+                    )}
+                  </div>
+
+                  {nationalBenchmark ? (
+                    <>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/15">
+                        <div
+                          className="h-full rounded-full bg-[#1F7A3F]"
+                          style={{
+                            width: `${Math.min(
+                              Math.max(benchmarkPosition ?? 0, 0),
+                              100
+                            )}%`,
+                          }}
+                        />
+                      </div>
+
+                      <p className="mt-2 text-[10px] leading-5 text-white/50">
+                        National value for {appliedFilters.year}:{" "}
+                        {formatValue(benchmarkValue)}
+                        {nationalBenchmark.unit}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-3 text-xs leading-5 text-white/50">
+                      A comparable national value was not returned for this
+                      indicator and year. A regional or national gap cannot be
+                      calculated reliably yet.
+                    </p>
+                  )}
+                </div>
+
+                {/* EXPORT AND SAVE BUTTONS */}
+                <div className="flex flex-col gap-3">
+
+                  {/* EXPORT DROPDOWN */}
+                  <div className="relative w-full">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExportOpen((previous) => !previous)
+                      }
+                      disabled={chartRows.length === 0}
+                      aria-label="Choose export format"
+                      aria-expanded={exportOpen}
+                      className="flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span>Export</span>
+
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className={`transition-transform duration-200 ${
+                          exportOpen ? "rotate-180" : ""
+                        }`}
+                        aria-hidden="true"
+                      >
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </button>
+
+                    {exportOpen && (
+                      <div className="absolute right-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-xl border border-gray-200 bg-white py-2 text-[#20272B] shadow-xl">
+                        <p className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                          Choose format
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={handleExportPDF}
+                          className="w-full px-4 py-2.5 text-left text-sm transition hover:bg-[#EAF2EC] hover:text-[#1F7A3F]"
+                        >
+                          Export PDF
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleExportCSV}
+                          className="w-full px-4 py-2.5 text-left text-sm transition hover:bg-[#EAF2EC] hover:text-[#1F7A3F]"
+                        >
+                          Export CSV
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleExportXML}
+                          className="w-full px-4 py-2.5 text-left text-sm transition hover:bg-[#EAF2EC] hover:text-[#1F7A3F]"
+                        >
+                          Export XML
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* SAVE INDICATOR */}
                   <button
                     type="button"
-                    onClick={() =>
-                      window.alert(
-                        "Export will be enabled when the dataset is connected."
-                      )
-                    }
-                    className="mt-3 inline-flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold transition hover:bg-[#176331] active:scale-[0.98]"
+                    onClick={handleSaveIndicator}
+                    className="flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98]"
                   >
-                    Export data
-                  </button>
+                    <span>Save indicator</span>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      window.alert(
-                        "Saving will be enabled when user accounts and the backend are connected."
-                      )
-                    }
-                    className="mt-3 w-full rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold transition hover:bg-[#176331] active:scale-[0.98]"
-                  >
-                    Save indicator ♧
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="19"
+                      height="19"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <path d="m7 10 5 5 5-5" />
+                      <path d="M12 15V3" />
+                    </svg>
                   </button>
                 </div>
 
-                <div>
-                  <h3 className="text-base font-bold">Facility Spot Check</h3>
+                {/* FACILITY SPOT CHECK */}
+                <div className="pt-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold">
+                      Facility Spot Check
+                    </h3>
 
-                  <p className="mt-2 text-sm leading-6 text-white/65">
-                    A future map will show verified health facilities and
-                    their locations.
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-white/90"
+                      aria-hidden="true"
+                    >
+                      <path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" />
+                      <circle cx="12" cy="10" r="2.5" />
+                    </svg>
+                  </div>
+
+                  <p className="mt-3 text-sm leading-6 text-white/65">
+                    Verified facility locations and audit points will appear
+                    here when facility-level GPS data is connected.
                   </p>
 
-                  <div className="mt-4 flex min-h-44 items-center justify-center rounded-lg border border-white/20 bg-white/10 p-6 text-center transition-all duration-300 hover:bg-white/15 active:scale-[0.99]">
-                    <div>
-                      <p className="text-3xl" aria-hidden="true">
+                  <div className="relative mt-4 flex h-44 items-center justify-center overflow-hidden rounded-lg border border-white/15 bg-[#DCE8E5]">
+                    <div className="absolute inset-0 opacity-40">
+                      <svg
+                        viewBox="0 0 400 180"
+                        preserveAspectRatio="none"
+                        className="h-full w-full"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M-20 40 L80 20 L130 65 L210 15 L300 55 L420 25"
+                          fill="none"
+                          stroke="#A2B9AE"
+                          strokeWidth="3"
+                        />
+
+                        <path
+                          d="M-20 130 L80 95 L150 140 L240 90 L320 145 L420 105"
+                          fill="none"
+                          stroke="#A2B9AE"
+                          strokeWidth="3"
+                        />
+
+                        <path
+                          d="M40 -20 L100 60 L70 200 M220 -20 L190 80 L250 200 M340 -20 L300 70 L370 200"
+                          fill="none"
+                          stroke="#B7C8C0"
+                          strokeWidth="2"
+                        />
+                      </svg>
+                    </div>
+
+                    <div className="relative text-center text-[#0B3C5D]">
+                      <span className="text-2xl" aria-hidden="true">
                         ⌖
+                      </span>
+
+                      <p className="mt-1 text-xs font-semibold">
+                        Facility mapping not connected
                       </p>
 
-                      <p className="mt-2 text-sm font-semibold">
-                        Facility map
+                      <p className="mt-1 text-[10px] text-[#526B70]">
+                        Awaiting verified facility coordinates
                       </p>
+                    </div>
 
-                      <p className="mt-1 text-xs text-white/60">
-                        Map integration coming with verified facility data
-                      </p>
+                    <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between bg-white/90 px-3 py-2 text-[9px] text-[#145C3B]">
+                      <span>● GPS mapping pending</span>
+                      <span>Facility data unavailable</span>
                     </div>
                   </div>
                 </div>
@@ -755,7 +1918,9 @@ function Health() {
       <section className="px-5 py-10 sm:px-8 lg:px-12">
         <div className="mx-auto max-w-5xl">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <SectionHeading>LATEST HEALTH RELEASE</SectionHeading>
+            <SectionHeading>
+              LATEST HEALTH RELEASE
+            </SectionHeading>
 
             <a
               href="#health-releases"
@@ -775,14 +1940,14 @@ function Health() {
                 <motion.article
                   key={release.title}
                   variants={revealVariants}
-                  className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:border-gray-200 hover:shadow-lg active:scale-[0.99] focus-within:border-[#1F7A3F]"
+                  className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg active:scale-[0.99]"
                 >
                   <div className="overflow-hidden">
                     <img
                       src={release.image}
                       alt=""
                       loading="lazy"
-                      className="h-48 w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105 group-active:scale-[1.02]"
+                      className="h-48 w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
                     />
                   </div>
 

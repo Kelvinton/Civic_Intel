@@ -2,10 +2,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Download, Save } from "lucide-react";
+import { Download } from "lucide-react";
 
 import { exportData } from "../utility/exportData.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import { getComparison } from "../api/referenceData.js";
 
 // --------------------------------------------------
 // Validate comparison selections
@@ -16,46 +17,67 @@ function getValidComparison(value) {
     return null;
   }
 
-  const validDomains = ["Health", "Education"];
-
-  const validStates = Array.isArray(value.selectedStates)
+  const selectedStates = Array.isArray(value.selectedStates)
     ? value.selectedStates.filter(
-        (state) => typeof state === "string"
+        (state) => typeof state === "string" && state.trim()
       )
-    : [];
+    : [value.primaryState, value.comparisonState].filter(
+        (state) => typeof state === "string" && state.trim()
+      );
+
+  const uniqueStates = [...new Set(selectedStates)];
 
   const fromYear = String(value.fromYear ?? "");
   const toYear = String(value.toYear ?? "");
 
   if (
-    !validDomains.includes(value.domain) ||
     typeof value.indicator !== "string" ||
     !value.indicator.trim() ||
-    !/^\d{4}$/.test(fromYear) ||
-    !/^\d{4}$/.test(toYear) ||
-    Number(fromYear) > Number(toYear)
+    uniqueStates.length < 2
+  ) {
+    return null;
+  }
+
+  if (
+    (fromYear && !/^\d{4}$/.test(fromYear)) ||
+    (toYear && !/^\d{4}$/.test(toYear)) ||
+    (fromYear &&
+      toYear &&
+      Number(fromYear) > Number(toYear))
   ) {
     return null;
   }
 
   return {
-    domain: value.domain,
+    ...value,
     indicator: value.indicator.trim(),
-    selectedStates: [...new Set(validStates)],
+    selectedStates: uniqueStates,
     fromYear,
     toYear,
+    indicatorName:
+      value.indicatorName || value.indicator,
+    domain: value.domain || "Comparison",
   };
 }
 
 // --------------------------------------------------
+// Format missing values
+// --------------------------------------------------
+
+function formatValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return "—";
+  }
+
+  if (typeof value === "number") {
+    return new Intl.NumberFormat().format(value);
+  }
+
+  return value;
+}
+
+// --------------------------------------------------
 // Prepare export data
-//
-// Current behavior:
-// Export comparison settings only.
-//
-// Future behavior:
-// Pass records returned by the backend into this function.
-// The same export utility can then export actual API records.
 // --------------------------------------------------
 
 function buildExportContent(comparison, records = null) {
@@ -75,34 +97,32 @@ function buildExportContent(comparison, records = null) {
         },
         {
           Field: "Data status",
-          Value: "Configuration preview - API data not connected",
-        },
-        {
-          Field: "Domain",
-          Value: comparison.domain,
+          Value: "No comparison records returned by the API",
         },
         {
           Field: "Indicator",
+          Value: comparison.indicatorName,
+        },
+        {
+          Field: "Indicator key",
           Value: comparison.indicator,
         },
         {
           Field: "Selected states",
-          Value:
-            comparison.selectedStates.join(", ") ||
-            "None selected",
+          Value: comparison.selectedStates.join(", "),
         },
         {
           Field: "From year",
-          Value: comparison.fromYear,
+          Value: comparison.fromYear || "All available years",
         },
         {
           Field: "To year",
-          Value: comparison.toYear,
+          Value: comparison.toYear || "All available years",
         },
         {
           Field: "Note",
           Value:
-            "This is a configuration preview. It contains no verified indicator values, trends, rankings, or statistical findings.",
+            "This report contains comparison settings only. No indicator records were returned by the backend.",
         },
       ];
 
@@ -115,9 +135,6 @@ function buildExportContent(comparison, records = null) {
 
 // --------------------------------------------------
 // Export comparison
-//
-// records and sourceMetadata are optional.
-// Pass real API records and metadata when integrated.
 // --------------------------------------------------
 
 function exportComparison(
@@ -135,8 +152,6 @@ function exportComparison(
   const { headers, rows, hasRecords } =
     buildExportContent(comparison, records);
 
-  const safeDomain = comparison.domain.toLowerCase();
-
   const normalizedFormat =
     format.toLowerCase() === "excel"
       ? "xlsx"
@@ -144,27 +159,32 @@ function exportComparison(
 
   const metadata = {
     "Report type": "CivicIntel comparison",
-    Domain: comparison.domain,
-    Indicator: comparison.indicator,
-    "Selected states":
-      comparison.selectedStates.join(", ") ||
-      "None selected",
-    "From year": comparison.fromYear,
-    "To year": comparison.toYear,
-    "Data status": hasRecords
-      ? sourceMetadata.dataStatus ||
-        "Records supplied by the data service; verification status must be confirmed"
-      : "Configuration preview - verified results not connected",
-    ...sourceMetadata,
+    Indicator: comparison.indicatorName,
+    "Indicator key": comparison.indicator,
+    "Selected states": comparison.selectedStates.join(", "),
+    "From year": comparison.fromYear || "All available years",
+    "To year": comparison.toYear || "All available years",
+    "Data status":
+      sourceMetadata.dataStatus ||
+      (hasRecords
+        ? "Data returned by CivicIntel comparison API"
+        : "No comparison records returned by the API"),
+    "Contains simulated data":
+      sourceMetadata.containsSimulatedData ?? "Not specified",
+    ...(
+      sourceMetadata.notices
+        ? { "API notices": sourceMetadata.notices }
+        : {}
+    ),
   };
 
   exportData({
     format: normalizedFormat,
     headers,
     rows,
-    fileName: `civicintel-${safeDomain}-comparison`,
+    fileName: `civicintel-comparison`,
     title: "CivicIntel - Comparison Report",
-    subtitle: `${comparison.domain} | ${comparison.indicator}`,
+    subtitle: `${comparison.indicatorName} | ${comparison.selectedStates.join(" vs ")}`,
     metadata,
     landscape: true,
   });
@@ -173,12 +193,56 @@ function exportComparison(
 }
 
 // --------------------------------------------------
-// Chart placeholder
+// Comparison results table
 // --------------------------------------------------
 
-function ChartPlaceholder() {
+function ChartPlaceholder({ result, loading, error }) {
+  if (loading) {
+    return (
+      <div className="bg-white p-6 text-center">
+        <div className="flex flex-col items-center justify-center py-8">
+          <div className="size-8 animate-spin rounded-full border-4 border-[#E8EEF1] border-t-[#1F7A3F]" />
+
+          <p className="mt-4 text-sm text-slate-500">
+            Loading comparison results...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white p-5 sm:p-6">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+          <h2 className="text-sm font-semibold text-red-800">
+            Unable to load comparison results
+          </h2>
+
+          <p className="mt-2 text-xs leading-relaxed text-red-700">
+            {error}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!result || !Array.isArray(result.series)) {
+    return (
+      <div className="bg-white p-5 sm:p-6">
+        <h2 className="text-sm font-bold text-slate-800 sm:text-base">
+          Comparison across selected states
+        </h2>
+
+        <p className="mt-2 text-xs text-slate-500">
+          No comparison records have been returned by the backend.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="relative min-w-0 bg-white p-4 sm:p-5">
+    <div className="min-w-0 bg-white p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-bold text-slate-800 sm:text-base">
@@ -186,71 +250,191 @@ function ChartPlaceholder() {
           </h2>
 
           <p className="mt-1 text-xs text-slate-500">
-            Your indicator chart will appear here when data is connected.
+            Results returned by the CivicIntel comparison service.
           </p>
         </div>
 
-        <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-medium text-amber-800">
-          Awaiting data
+        <span className="rounded-full bg-green-50 px-3 py-1 text-[10px] font-medium text-green-800">
+          API response received
         </span>
       </div>
 
-      <div className="mt-6 grid grid-cols-[auto_minmax(0,1fr)] gap-3">
-        <div className="flex flex-col justify-between pb-7 pt-1 text-[10px] text-slate-400">
-          <span>100%</span>
-          <span>75%</span>
-          <span>50%</span>
-          <span>25%</span>
-          <span>0%</span>
+      {result.contains_simulated_data === true && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800">
+          Warning: This response contains simulated data. Treat
+          the figures as simulated rather than verified statistics.
         </div>
+      )}
 
-        <div className="relative min-w-0">
-          <div className="absolute inset-0 bottom-7 flex flex-col justify-between">
-            {[0, 1, 2, 3, 4].map((line) => (
-              <div
-                key={line}
-                className="border-t border-dashed border-slate-200"
-              />
-            ))}
+      {Array.isArray(result.notices) &&
+        result.notices.length > 0 && (
+          <div className="mt-4 rounded-lg bg-slate-50 p-3">
+            <h3 className="text-xs font-semibold text-slate-700">
+              API notices
+            </h3>
+
+            <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">
+              {result.notices.map((notice, index) => (
+                <li key={index}>
+                  {typeof notice === "string"
+                    ? notice
+                    : notice.message || JSON.stringify(notice)}
+                </li>
+              ))}
+            </ul>
           </div>
+        )}
 
-          <div className="relative flex h-64 items-end justify-around gap-2 sm:h-72">
-            {[0, 1, 2, 3, 4, 5].map((item) => (
-              <div
-                key={item}
-                className="flex h-full min-w-0 flex-1 flex-col justify-end"
-              >
-                <div
-                  className="flex h-[72%] items-center justify-center rounded-t-md border border-dashed border-slate-300 bg-slate-100/70"
-                  title="Chart data will be supplied by the API"
-                >
-                  <span className="hidden text-[10px] text-slate-400 sm:inline">
-                    No data
-                  </span>
+      {result.series.length === 0 ? (
+        <div className="mt-5 rounded-lg bg-slate-50 p-5 text-center">
+          <p className="text-sm font-medium text-slate-700">
+            No results available
+          </p>
+
+          <p className="mt-2 text-xs text-slate-500">
+            The backend did not return comparison records for
+            the selected indicator, states, or years.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-6 space-y-8">
+          {result.series.map((period, index) => (
+            <section
+              key={period.year ?? index}
+              className="min-w-0"
+            >
+              <h3 className="mb-3 text-sm font-semibold text-[#0B3C5D]">
+                Year: {formatValue(period.year)}
+              </h3>
+
+              {/* National average information */}
+              <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-lg bg-[#E8EEF1] p-3">
+                  <p className="text-xs text-slate-500">
+                    National average
+                  </p>
+
+                  <p className="mt-1 text-lg font-bold text-[#0B3C5D]">
+                    {formatValue(period.national_average)}
+                  </p>
                 </div>
 
-                <div className="mt-2 truncate text-center text-[9px] text-slate-500 sm:text-xs">
-                  State {item + 1}
+                <div className="rounded-lg bg-[#E8EEF1] p-3">
+                  <p className="text-xs text-slate-500">
+                    National average based on
+                  </p>
+
+                  <p className="mt-1 text-lg font-bold text-[#0B3C5D]">
+                    {formatValue(period.national_average_based_on)}
+                  </p>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
 
-      <div className="mt-4 rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-500">
-        This is a layout preview only. No state values, national averages,
-        trends, or rankings are being reported yet.
-      </div>
+              {/* State comparison records */}
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <table className="w-full min-w-190 border-collapse text-left text-xs">
+                  <thead>
+                    <tr className="bg-[#0B3C5D] text-white">
+                      {[
+                        "State",
+                        "Zone",
+                        "Value",
+                        "Difference from national",
+                        "Selected rank",
+                        "National rank",
+                        "Assessment",
+                      ].map((heading) => (
+                        <th
+                          key={heading}
+                          className="px-3 py-3 font-medium"
+                        >
+                          {heading}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {Array.isArray(period.rows) &&
+                    period.rows.length > 0 ? (
+                      period.rows.map((row, rowIndex) => (
+                        <tr
+                          key={`${row.state}-${rowIndex}`}
+                          className="border-b border-slate-200 last:border-0 even:bg-slate-50"
+                        >
+                          <td className="px-3 py-3 font-medium text-slate-800">
+                            {formatValue(row.state)}
+                          </td>
+
+                          <td className="px-3 py-3 text-slate-600">
+                            {formatValue(row.zone)}
+                          </td>
+
+                          <td className="px-3 py-3 font-medium text-slate-800">
+                            {formatValue(row.value)}
+                          </td>
+
+                          <td className="px-3 py-3 text-slate-700">
+                            {formatValue(
+                              row.difference_from_national
+                            )}
+                          </td>
+
+                          <td className="px-3 py-3 text-slate-700">
+                            {formatValue(
+                              row.rank_among_selected
+                            )}
+                          </td>
+
+                          <td className="px-3 py-3 text-slate-700">
+                            {formatValue(row.national_rank)}
+                          </td>
+
+                          <td className="px-3 py-3 text-slate-700">
+                            {formatValue(row.assessment)}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          className="px-3 py-6 text-center text-slate-500"
+                        >
+                          No state records available for this year.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {Array.isArray(period.missing_states) &&
+                period.missing_states.length > 0 && (
+                  <p className="mt-3 text-xs leading-relaxed text-slate-500">
+                    <span className="font-medium text-slate-700">
+                      Missing state records:
+                    </span>{" "}
+                    {period.missing_states.join(", ")}
+                  </p>
+                )}
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 // --------------------------------------------------
-// Data provenance placeholder
+// Data provenance
 // --------------------------------------------------
 
-function ProvenancePlaceholder() {
+function ProvenancePlaceholder({ result }) {
+  const hasSources =
+    Array.isArray(result?.sources) &&
+    result.sources.length > 0;
+
   return (
     <section className="mt-5 rounded-lg bg-[#E8EEF1] p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -259,43 +443,64 @@ function ProvenancePlaceholder() {
         </h3>
 
         <span className="rounded-full bg-[#C6D6E0] px-2 py-1 text-[10px] text-[#0B3C5D]">
-          Pending integration
+          {hasSources ? "Source records received" : "Source details pending"}
         </span>
       </div>
 
-      <div className="mt-4 grid gap-3 text-xs text-slate-500 sm:grid-cols-2">
-        <p>
-          <span className="font-medium text-[#0B3C5D]">
-            Primary source:
-          </span>{" "}
-          To be supplied by the connected data service
-        </p>
+      {hasSources ? (
+        <div className="mt-4 space-y-3 text-xs text-slate-600">
+          {result.sources.map((source, index) => (
+            <div
+              key={source.source_id ?? index}
+              className="rounded-lg bg-white p-3"
+            >
+              <p className="font-medium text-[#0B3C5D]">
+                Source {index + 1}
+              </p>
 
-        <p>
-          <span className="font-medium text-[#0B3C5D]">
-            Data vintage:
-          </span>{" "}
-          Not available yet
-        </p>
+              <p className="mt-1">
+                Source ID:{" "}
+                {formatValue(source.source_id)}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-4 grid gap-3 text-xs text-slate-500 sm:grid-cols-2">
+          <p>
+            <span className="font-medium text-[#0B3C5D]">
+              Primary source:
+            </span>{" "}
+            To be supplied by the connected data service
+          </p>
 
-        <p>
-          <span className="font-medium text-[#0B3C5D]">
-            Audit status:
-          </span>{" "}
-          Awaiting source metadata
-        </p>
+          <p>
+            <span className="font-medium text-[#0B3C5D]">
+              Data vintage:
+            </span>{" "}
+            Not available yet
+          </p>
 
-        <p>
-          <span className="font-medium text-[#0B3C5D]">
-            License:
-          </span>{" "}
-          To be confirmed from the source
-        </p>
-      </div>
+          <p>
+            <span className="font-medium text-[#0B3C5D]">
+              Audit status:
+            </span>{" "}
+            Awaiting source metadata
+          </p>
+
+          <p>
+            <span className="font-medium text-[#0B3C5D]">
+              License:
+            </span>{" "}
+            To be confirmed from the source
+          </p>
+        </div>
+      )}
 
       <p className="mt-4 text-[10px] italic leading-relaxed text-slate-500">
         Source details, audit records, release dates, and licensing
-        information will be populated from verified metadata.
+        information should be confirmed against the backend's
+        source metadata.
       </p>
     </section>
   );
@@ -305,7 +510,7 @@ function ProvenancePlaceholder() {
 // Analysis brief
 // --------------------------------------------------
 
-function AnalysisBrief({ comparison }) {
+function AnalysisBrief({ comparison, result, resultsLoading }) {
   return (
     <section>
       <div className="flex items-center justify-between gap-3">
@@ -314,25 +519,37 @@ function AnalysisBrief({ comparison }) {
         </span>
 
         <span className="text-[10px] text-slate-500">
-          Data not connected
+          {resultsLoading
+            ? "Loading data"
+            : result
+              ? "API response received"
+              : "Awaiting data"}
         </span>
       </div>
 
       <h2 className="mt-2 text-lg font-bold leading-snug text-slate-900">
-        {comparison.domain} Indicator Comparison
+        {comparison.indicatorName} Comparison
       </h2>
 
       <p className="mt-2 text-xs leading-relaxed text-slate-500 sm:text-sm">
-        This overview will summarize the selected indicator once the
-        comparison data is available. No conclusions about state
-        performance can be made before the data is loaded.
+        This report compares the selected states using the
+        indicator and data returned by the CivicIntel backend.
+        Findings will depend on the available records.
       </p>
 
       <div className="mt-4 space-y-3 border-t border-slate-200 pt-4 text-xs">
         <div className="flex items-start justify-between gap-3">
           <span className="text-slate-500">Indicator</span>
 
-          <span className="max-w-[65%] break-words text-right font-medium text-slate-700">
+          <span className="max-w-[65%] wrap-break-word text-right font-medium text-slate-700">
+            {comparison.indicatorName}
+          </span>
+        </div>
+
+        <div className="flex items-start justify-between gap-3">
+          <span className="text-slate-500">Indicator key</span>
+
+          <span className="max-w-[65%]  wrap-break-word text-right font-medium text-slate-700">
             {comparison.indicator}
           </span>
         </div>
@@ -340,10 +557,8 @@ function AnalysisBrief({ comparison }) {
         <div className="flex items-start justify-between gap-3">
           <span className="text-slate-500">Selected states</span>
 
-          <span className="max-w-[65%] break-words text-right font-medium text-slate-700">
-            {comparison.selectedStates.length
-              ? comparison.selectedStates.join(", ")
-              : "None selected"}
+          <span className="max-w-[65%]  wrap-break-word text-right font-medium text-slate-700">
+            {comparison.selectedStates.join(", ")}
           </span>
         </div>
 
@@ -351,7 +566,11 @@ function AnalysisBrief({ comparison }) {
           <span className="text-slate-500">Year range</span>
 
           <span className="text-right font-medium text-slate-700">
-            {comparison.fromYear}–{comparison.toYear}
+            {comparison.fromYear && comparison.toYear
+              ? comparison.fromYear === comparison.toYear
+                ? comparison.fromYear
+                : `${comparison.fromYear}–${comparison.toYear}`
+              : "All available years"}
           </span>
         </div>
       </div>
@@ -362,8 +581,11 @@ function AnalysisBrief({ comparison }) {
         </p>
 
         <p className="mt-1 text-xs leading-relaxed text-slate-500">
-          Summary statistics, national benchmarks, regional gaps, and
-          insights will appear here after API integration.
+          {resultsLoading
+            ? "The comparison data is being retrieved."
+            : result
+              ? "The comparison records and national averages returned by the backend are displayed in the results section."
+              : "Summary statistics and insights will appear when comparison records are available."}
         </p>
       </div>
     </section>
@@ -381,8 +603,6 @@ function FacilityPlaceholder() {
         <h2 className="text-base font-bold text-slate-900">
           Facility Spot Check
         </h2>
-
-        
       </div>
 
       <p className="mt-2 text-xs leading-relaxed text-slate-500">
@@ -400,8 +620,8 @@ function FacilityPlaceholder() {
         </p>
 
         <p className="mt-1 max-w-xs text-xs leading-relaxed text-slate-500">
-          Facility coordinates, coverage, and registration totals will
-          be shown when verified location data becomes available.
+          Facility coordinates, coverage, and registration totals
+          will be shown when verified location data becomes available.
         </p>
       </div>
     </section>
@@ -422,10 +642,17 @@ function CompareResults() {
     [location.state?.comparison]
   );
 
+  const [result, setResult] = useState(null);
+  const [resultsLoading, setResultsLoading] = useState(false);
+  const [resultsError, setResultsError] = useState("");
+
   const [notice, setNotice] = useState("");
   const [showExportMenu, setShowExportMenu] = useState(false);
 
-  // Keep login protection.
+  // --------------------------------------------------
+  // Login protection
+  // --------------------------------------------------
+
   useEffect(() => {
     if (loading || isLoggedIn) {
       return;
@@ -434,22 +661,73 @@ function CompareResults() {
     navigate("/login", {
       replace: true,
       state: {
-        from: { pathname: "/explore" },
-        exploreDraft: comparison
-          ? {
-              domain: comparison.domain,
-              indicator: comparison.indicator,
-              selectedStates: comparison.selectedStates,
-              fromYear: comparison.fromYear,
-              toYear: comparison.toYear,
-            }
-          : undefined,
+        from: {
+          pathname: "/compare-results",
+        },
+        comparison,
         message: comparison
           ? "Log in to access your comparison results. Your selections will be kept."
           : "Log in to access comparison results.",
       },
     });
   }, [isLoggedIn, loading, navigate, comparison]);
+
+  // --------------------------------------------------
+  // Fetch actual comparison results
+  // --------------------------------------------------
+
+  useEffect(() => {
+    if (!comparison || !isLoggedIn || loading) {
+      return;
+    }
+
+    let isMounted = true;
+
+    async function fetchComparison() {
+      setResultsLoading(true);
+      setResultsError("");
+      setResult(null);
+
+      try {
+        const response = await getComparison({
+          indicator: comparison.indicator,
+          states: comparison.selectedStates,
+          fromYear: comparison.fromYear || undefined,
+          toYear: comparison.toYear || undefined,
+        });
+
+        const data =
+          response?.data?.data ??
+          response?.data ??
+          response;
+
+        if (isMounted) {
+          setResult(data);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setResultsError(
+            error.message ||
+              "Unable to load comparison results. Please try again."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setResultsLoading(false);
+        }
+      }
+    }
+
+    fetchComparison();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [comparison, isLoggedIn, loading]);
+
+  // --------------------------------------------------
+  // Authentication loading screen
+  // --------------------------------------------------
 
   if (loading || !isLoggedIn) {
     return (
@@ -461,31 +739,54 @@ function CompareResults() {
     );
   }
 
-  // Export current comparison settings.
-  //
-  // When the backend is integrated, pass the returned API records
-  // and their real provenance metadata into exportComparison().
+  // --------------------------------------------------
+  // Export actual comparison records
+  // --------------------------------------------------
+
   const handleExport = (format) => {
     setShowExportMenu(false);
     setNotice("");
 
     if (!comparison) {
       setNotice(
-        "No valid comparison is available to export. Return to Explore and configure a comparison."
+        "No valid comparison is available to export. Return to Compare States and configure a comparison."
       );
       return;
     }
 
     try {
+      const records = (result?.series || []).flatMap((period) =>
+        (period.rows || []).map((row) => ({
+          Year: period.year,
+          ...row,
+          National_average: period.national_average,
+          National_average_based_on:
+            period.national_average_based_on,
+        }))
+      );
+
       const hasRecords = exportComparison(
         comparison,
-        format
+        format,
+        records,
+        {
+          dataStatus: result
+            ? result.contains_simulated_data
+              ? "Contains simulated data"
+              : "Data returned by CivicIntel comparison API"
+            : "No comparison data returned",
+          containsSimulatedData:
+            result?.contains_simulated_data ?? "Not specified",
+          notices: Array.isArray(result?.notices)
+            ? result.notices.join("; ")
+            : "",
+        }
       );
 
       setNotice(
         hasRecords
-          ? `${format} export generated successfully.`
-          : `${format} file generated. It contains your comparison settings only, not verified indicator results.`
+          ? `${format} export generated successfully with comparison records.`
+          : `${format} file generated. It contains your comparison settings only because no state records were returned.`
       );
     } catch (error) {
       console.error("Comparison export failed:", error);
@@ -498,47 +799,66 @@ function CompareResults() {
     }
   };
 
-  // Placeholder until the backend save-report endpoint is available.
+  // --------------------------------------------------
+  // Save comparison placeholder
+  // --------------------------------------------------
+
   const handleSave = () => {
     setNotice(
       "Saving reports to your account is not connected yet. This feature will be enabled when the backend save-report endpoint is available."
     );
   };
 
+  // --------------------------------------------------
+  // Page UI
+  // --------------------------------------------------
+
   return (
     <div className="min-h-screen bg-[#E7ECEF] pt-18">
       <main className="mx-auto max-w-7xl px-4 pb-8 pt-18 sm:px-8 sm:pt-14 lg:px-10">
+        {/* Page heading */}
         <header className="relative z-10 mb-8 block w-full px-2 pt-2 text-center sm:mb-10 sm:px-0 sm:pt-0">
           <h1 className="block text-3xl font-bold leading-tight tracking-tight text-[#0B3C5D] sm:text-4xl lg:text-5xl">
             Data Generated
           </h1>
 
           <p className="mx-auto mt-3 block max-w-xl text-sm leading-relaxed text-slate-700">
-            Here is an overview of your comparison setup.
+            Here is an overview of your state comparison.
           </p>
         </header>
 
+        {/* Invalid comparison warning */}
         {!comparison && (
           <div className="mb-5 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
             No valid comparison selections were received. Return to
-            Explore to configure a new comparison.
+            Compare States to configure a new comparison.
           </div>
         )}
 
         {comparison && (
           <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,2.1fr)_minmax(280px,0.9fr)] lg:gap-10">
+            {/* Main results column */}
             <div className="min-w-0">
               <div className="overflow-hidden bg-white shadow-sm">
-                <ChartPlaceholder />
+                <ChartPlaceholder
+                  result={result}
+                  loading={resultsLoading}
+                  error={resultsError}
+                />
 
                 <div className="p-4 pt-0 sm:p-5 sm:pt-0">
-                  <ProvenancePlaceholder />
+                  <ProvenancePlaceholder result={result} />
                 </div>
               </div>
             </div>
 
+            {/* Sidebar */}
             <aside className="min-w-0">
-              <AnalysisBrief comparison={comparison} />
+              <AnalysisBrief
+                comparison={comparison}
+                result={result}
+                resultsLoading={resultsLoading}
+              />
 
               {/* Export menu */}
               <div className="relative mt-5">
@@ -551,8 +871,6 @@ function CompareResults() {
                   aria-controls="comparison-export-menu"
                   className="flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#176332] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F7A3F]"
                 >
-                  
-
                   <span>Export</span>
 
                   <svg
@@ -602,11 +920,12 @@ function CompareResults() {
                 Save comparison
 
                 <Download
-                    className="h-4 w-4"
-                    aria-hidden="true"
-                  />
+                  className="h-4 w-4"
+                  aria-hidden="true"
+                />
               </button>
 
+              {/* Export and save notifications */}
               {notice && (
                 <div
                   role="status"
@@ -616,6 +935,7 @@ function CompareResults() {
                 </div>
               )}
 
+              {/* Facility section */}
               <FacilityPlaceholder />
             </aside>
           </div>
@@ -663,7 +983,6 @@ function CompareResults() {
             state={{
               exploreDraft: comparison
                 ? {
-                    domain: comparison.domain,
                     indicator: comparison.indicator,
                     selectedStates: comparison.selectedStates,
                     fromYear: comparison.fromYear,
