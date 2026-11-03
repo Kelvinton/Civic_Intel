@@ -310,7 +310,7 @@ function CompareStates() {
               htmlFor="year"
               className="block text-xs font-medium"
             >
-              Year (Optional)
+              Year 
             </label>
 
             <input
@@ -328,9 +328,7 @@ function CompareStates() {
               disabled={!indicator}
             />
 
-            <p className="mt-2 text-xs text-white/70">
-              Leave blank to compare all available years.
-            </p>
+           
           </div>
 
           {error && (

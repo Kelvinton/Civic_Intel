@@ -14,43 +14,6 @@ import Education2 from "../assets/education2.png";
 import Education3 from "../assets/education3.png";
 
 // NATIONAL OVERVIEW INDICATORS
-const overviewStats = [
-  {
-    label: "ENROLMENT",
-    indicator: "primary_net_enrolment_pct",
-    description: "Primary net enrolment rate",
-    color: "#1F7A3F",
-    format: "percent",
-  },
-  {
-    label: "COMPLETION",
-    indicator: "primary_completion_pct",
-    description: "Primary completion rate",
-    color: "#8B2922",
-    format: "percent",
-  },
-  {
-    label: "OUTCOMES",
-    indicator: "adult_literacy_pct",
-    description: "Adult literacy rate",
-    color: "#145C3B",
-    format: "percent",
-  },
-  {
-    label: "TEACHERS",
-    indicator: "primary_pupil_teacher_ratio",
-    description: "Primary pupil-teacher ratio",
-    color: "#0B3C5D",
-    format: "ratio",
-  },
-  {
-    label: "FINANCING",
-    indicator: "education_allocation_pct",
-    description: "Education share of state budget",
-    color: "#D6A400",
-    format: "percent",
-  },
-];
 
 
 
@@ -75,7 +38,7 @@ const releases = [
 const formatNumber = (number) =>
   new Intl.NumberFormat("en-NG").format(number);
 
-const formatOverviewValue = (record, format) => {
+const formatOverviewValue = (record) => {
   if (
     !record ||
     record.value === null ||
@@ -86,19 +49,20 @@ const formatOverviewValue = (record, format) => {
 
   const value = Number(record.value);
 
-  if (!Number.isFinite(value)) {
-    return "—";
-  }
+  if (!Number.isFinite(value)) return "—";
 
   const formattedValue = new Intl.NumberFormat("en-NG", {
     maximumFractionDigits: 2,
   }).format(value);
 
-  if (format === "percent") {
+  if (
+    record.unit === "%" ||
+    String(record.indicator_key ?? "").endsWith("_pct")
+  ) {
     return `${formattedValue}%`;
   }
 
-  if (format === "ratio") {
+  if (record.indicator_key === "primary_pupil_teacher_ratio") {
     return `1:${formattedValue}`;
   }
 
@@ -107,23 +71,6 @@ const formatOverviewValue = (record, format) => {
   }
 
   return formattedValue;
-};
-
-const indicatorLabels = {
-  all: "All Education Indicators",
-  adult_literacy_pct: "Adult Literacy Rate",
-  education_allocation: "Education Allocation",
-  education_allocation_pct: "Education Allocation (% of Budget)",
-  gender_parity_index_primary: "Gender Parity Index (Primary)",
-  out_of_school_children_pct: "Out-of-School Children",
-  primary_completion_pct: "Primary Completion Rate",
-  primary_net_enrolment_pct: "Primary Net Enrolment Rate",
-  primary_pupil_teacher_ratio: "Primary Pupil-Teacher Ratio",
-  public_primary_schools: "Public Primary Schools",
-  public_secondary_schools: "Public Secondary Schools",
-  secondary_completion_pct: "Secondary Completion Rate",
-  secondary_net_enrolment_pct: "Secondary Net Enrolment Rate",
-  ssce_5_credits_pct: "SSCE 5+ Credits",
 };
 
 function SectionHeading({ children, dark = false }) {
@@ -331,42 +278,135 @@ function Education() {
     };
   }, []);
 
-  // SELECT THE LATEST NATIONAL RECORD FOR EACH INDICATOR
+  // INDICATORS PROVIDED BY THE BACKEND
+  const availableIndicators = useMemo(() => {
+    const indicators = new Map();
+
+    publishedEducationRecords.forEach((record) => {
+      if (!record.indicator_key) return;
+
+      if (!indicators.has(record.indicator_key)) {
+        indicators.set(record.indicator_key, {
+          key: record.indicator_key,
+          label: record.indicator || record.indicator_key,
+        });
+      }
+    });
+
+    return [...indicators.values()].sort((a, b) =>
+      a.label.localeCompare(b.label)
+    );
+  }, [publishedEducationRecords]);
+
+  // YEARS PROVIDED BY THE BACKEND
+  const availableYears = useMemo(() => {
+    return [
+      ...new Set(
+        publishedEducationRecords
+          .map((record) => Number(record.year))
+          .filter((year) => Number.isFinite(year))
+      ),
+    ].sort((a, b) => b - a);
+  }, [publishedEducationRecords]);
+
+
+
+  // CALCULATE THE LATEST AVAILABLE STATE AVERAGE
   const nationalOverviewStats = useMemo(() => {
-    const nationalEducationRecords = publishedEducationRecords.filter(
-      (record) => {
-        const recordState = String(record.state ?? "")
+    const overviewIndicatorKeys = [
+      "primary_net_enrolment_pct",
+      "primary_completion_pct",
+      "adult_literacy_pct",
+      "out_of_school_children_pct",
+      "primary_pupil_teacher_ratio",
+    ];
+
+    return overviewIndicatorKeys.map((indicatorKey) => {
+      const indicator = availableIndicators.find(
+        (item) => item.key === indicatorKey
+      );
+
+      if (!indicator) {
+        return {
+          key: indicatorKey,
+          label: indicatorKey,
+          value: "—",
+          year: null,
+          stateCount: 0,
+        };
+      }
+
+      const matchingRecords = publishedEducationRecords.filter(
+        (record) => record.indicator_key === indicatorKey
+      );
+
+      const stateRecords = matchingRecords.filter((record) => {
+        const stateName = String(record.state ?? "")
           .trim()
           .toLowerCase();
 
-        return ["national", "nigeria"].includes(recordState);
-      }
-    );
-
-    return overviewStats.map((stat) => {
-      const matchingRecords = nationalEducationRecords
-        .filter(
-          (record) =>
-            record.indicator_key === stat.indicator
-        )
-        .sort(
-          (a, b) => Number(b.year) - Number(a.year)
+        return (
+          stateName &&
+          !["national", "nigeria"].includes(stateName) &&
+          Number.isFinite(Number(record.value)) &&
+          Number.isFinite(Number(record.year))
         );
+      });
 
-      const latestRecord = matchingRecords[0] ?? null;
+      if (stateRecords.length === 0) {
+        return {
+          key: indicatorKey,
+          label: indicator.label,
+          value: "—",
+          year: null,
+          stateCount: 0,
+        };
+      }
+
+      const latestYear = Math.max(
+        ...stateRecords.map((record) => Number(record.year))
+      );
+
+      const latestYearRecords = stateRecords.filter(
+        (record) => Number(record.year) === latestYear
+      );
+
+      const recordsByState = new Map();
+
+      latestYearRecords.forEach((record) => {
+        const stateName = String(record.state)
+          .trim()
+          .toLowerCase();
+
+        if (!recordsByState.has(stateName)) {
+          recordsByState.set(stateName, record);
+        }
+      });
+
+      const comparableRecords = [...recordsByState.values()];
+
+      const average =
+        comparableRecords.reduce(
+          (total, record) => total + Number(record.value),
+          0
+        ) / comparableRecords.length;
+
+      const averageRecord = {
+        value: average,
+        unit: comparableRecords[0]?.unit,
+        indicator_key: indicatorKey,
+      };
 
       return {
-        ...stat,
-        value: formatOverviewValue(
-          latestRecord,
-          stat.format
-        ),
-        source: latestRecord
-          ? `Published data • ${latestRecord.year}`
-          : "No national record available",
+        key: indicatorKey,
+        label: indicator.label,
+        value: formatOverviewValue(averageRecord),
+        year: latestYear,
+        stateCount: comparableRecords.length,
       };
     });
-  }, [publishedEducationRecords]);
+  }, [availableIndicators, publishedEducationRecords]);
+
 
   // SSCE PERFORMANCE OVERVIEW
   // Uses the latest available SSCE record for each state.
@@ -425,6 +465,8 @@ function Education() {
       .sort((a, b) => b.value - a.value);
   }, [publishedEducationRecords]);
 
+  const topSsceStates = ssceStateRecords.slice(0, 10);
+
   const ssceLatestYear = useMemo(() => {
     if (ssceStateRecords.length === 0) return null;
 
@@ -467,8 +509,9 @@ function Education() {
   };
 
   const selectedIndicatorLabel =
-    indicatorLabels[appliedFilters?.indicator] ??
-    "Education Records";
+  availableIndicators.find(
+    (item) => item.key === appliedFilters?.indicator
+  )?.label ?? "Education Records";
 
   // LOAD FILTERED EDUCATION RECORDS AFTER LOGIN AND APPLY
   useEffect(() => {
@@ -734,8 +777,7 @@ function Education() {
 
           <p className="mt-4 max-w-lg text-sm leading-6 text-[#38464D]">
             Explore enrolment, completion, learning outcomes,
-            teachers, examinations, infrastructure, and financing
-            — with figures traceable to their sources.
+            teachers, examinations, infrastructure, and financing with figures traceable to their sources.
           </p>
         </motion.div>
 
@@ -784,22 +826,27 @@ function Education() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {nationalOverviewStats.map((stat, index) => (
               <article
-                key={`${stat.label}-${stat.indicator}`}
+                key={stat.key}
                 tabIndex={0}
                 className="group relative min-h-28 cursor-pointer overflow-hidden rounded-md border border-transparent border-l-4 bg-[#F0F1F0] p-3.5 shadow-sm transform-gpu transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.02] hover:border-[#1F7A3F] hover:shadow-xl active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F7A3F] motion-reduce:transform-none motion-reduce:transition-none"
                 style={{
-                  borderLeftColor: stat.color,
+                  borderLeftColor: [
+                    "#1F7A3F",
+                    "#8B2922",
+                    "#145C3B",
+                    "#0B3C5D",
+                    "#D6A400",
+                  ][index % 5],
                   transitionDelay: `${index * 40}ms`,
                 }}
               >
                 <span
-                  className="inline-block rounded-full px-3 py-1 text-[9px] font-medium text-white transition-transform duration-300 group-hover:scale-105"
-                  style={{ backgroundColor: stat.color }}
+                  className="inline-block rounded-full bg-[#0B3C5D] px-3 py-1 text-[9px] font-medium text-white"
                 >
                   {stat.label}
                 </span>
 
-                <p className="mt-2 text-lg font-bold text-[#20272B] transition-transform duration-300 ease-out group-hover:translate-x-0.5">
+                <p className="mt-3 text-lg font-bold text-[#1F7A3F]">
                   {nationalOverviewLoading ? (
                     <span className="inline-block h-5 w-16 animate-pulse rounded bg-gray-300" />
                   ) : (
@@ -808,7 +855,7 @@ function Education() {
                 </p>
 
                 <p className="mt-1 text-xs leading-5">
-                  {stat.description}
+                  State average
                 </p>
 
                 <div className="my-2 border-t border-dashed border-gray-400" />
@@ -816,7 +863,9 @@ function Education() {
                 <p className="text-[10px] text-gray-600">
                   {nationalOverviewLoading
                     ? "Loading published data..."
-                    : stat.source}
+                    : stat.year
+                      ? `${stat.year} • ${stat.stateCount} states`
+                      : "No state records available"}
                 </p>
               </article>
             ))}
@@ -840,8 +889,8 @@ function Education() {
           ) : (
             <p className="mt-4 text-xs text-gray-700">
               Figures are drawn from the latest available published
-              national education records. A dash (—) means no
-              matching national record.
+              education records. 
+             
             </p>
           )}
         </div>
@@ -891,10 +940,10 @@ function Education() {
                     </div>
                   ))}
                 </div>
-              ) : ssceStateRecords.length > 0 ? (
+              ) : topSsceStates.length > 0 ? (
                 <>
                   <div className="mt-5 space-y-5">
-                    {ssceStateRecords.map((item, index) => (
+                    {topSsceStates.map((item, index) => (
                       <div
                         key={`${item.state}-${item.year}`}
                         className="grid grid-cols-[90px_1fr_48px] items-center gap-3"
@@ -940,9 +989,9 @@ function Education() {
                   </div>
 
                   <p className="mt-5 border-t border-gray-200 pt-3 text-[10px] leading-5 text-gray-500">
-                    States are ranked from highest to lowest using
-                    their latest available published SSCE record.
-                    The reporting year is displayed beside each state.
+                    Showing the top 10 states ranked by their latest available
+                    published SSCE performance records. The reporting year is
+                    displayed beside each state.
                   </p>
                 </>
               ) : (
@@ -1148,8 +1197,11 @@ function Education() {
                   className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
                 >
                   <option value="all">All available years</option>
-                  <option value="2026">2026</option>
-                  <option value="2025">2025</option>
+                  {availableYears.map((availableYear) => (
+                    <option key={availableYear} value={String(availableYear)}>
+                      {availableYear}
+                    </option>
+                  ))}
                 </select>
               </label>
             </div>

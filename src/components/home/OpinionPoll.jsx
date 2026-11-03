@@ -1,24 +1,16 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+
 import {
   revealVariants,
   staggerContainer,
   useMotionSettings,
 } from "../../animation.js";
 
-const pollOptions = [
-  "Reducing inflation and food prices",
-  "Strengthening the Naira",
-  "Creating more jobs",
-  "Improving electricity supply",
-  "Supporting small businesses",
-  "Technological improvement",
-  "Others",
-];
+import { apiRequest } from "../../api/api.js";
 
 // Dedicated animation for poll options.
-// This avoids the extra delay in the shared revealVariants.
 const pollOptionVariants = {
   hidden: {
     opacity: 0,
@@ -34,36 +26,192 @@ const pollOptionVariants = {
   },
 };
 
+function formatClosingDate(date) {
+  if (!date) return "Closing date unavailable";
+
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "Closing date unavailable";
+  }
+
+  return `Poll closes on ${parsedDate.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  })}`;
+}
+
 function OpinionPoll() {
   const motionSettings = useMotionSettings();
   const shouldReduceMotion = useReducedMotion();
 
+  const [poll, setPoll] = useState(null);
   const [selectedOption, setSelectedOption] = useState("");
-  const [otherOpinion, setOtherOpinion] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [isExpired, setIsExpired] = useState(false);
 
-  const isOtherSelected = selectedOption === "Others";
+  // Check whether the poll is still open.
+  const isPollOpen =
+  poll?.status === "open" && !isExpired;
 
-  function handleSubmit(event) {
+  useEffect(() => {
+    if (!poll?.closes_at) return;
+
+    const closingTime = new Date(poll.closes_at).getTime();
+
+    if (Number.isNaN(closingTime)) return;
+
+    const delay = Math.max(0, closingTime - Date.now());
+
+    const timeout = setTimeout(() => {
+      setIsExpired(true);
+    }, delay);
+
+    return () => clearTimeout(timeout);
+  }, [poll?.closes_at]);
+
+  const hasVoted = Boolean(poll?.my_vote);
+
+  // Fetch the available poll.
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadPoll() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response = await apiRequest("/polls");
+
+        const polls = Array.isArray(response?.items)
+          ? response.items
+          : [];
+
+        if (!polls.length) {
+          if (isMounted) {
+            setPoll(null);
+          }
+          return;
+        }
+
+        // Prefer an open poll.
+        // If there is no open poll, display the latest available poll.
+        const sortedPolls = [...polls].sort(
+          (a, b) =>
+            new Date(b.created_at || 0) -
+            new Date(a.created_at || 0)
+        );
+
+        const activePoll = sortedPolls.find(
+          (item) =>
+            item.status === "open" &&
+            (!item.closes_at ||
+              new Date(item.closes_at).getTime() > Date.now())
+        );
+
+        const selectedPoll = activePoll || sortedPolls[0];
+
+        // Fetch full poll details, including options and results.
+        const pollDetails = await apiRequest(
+          `/polls/${selectedPoll.id}`
+        );
+
+        if (isMounted) {
+          const closingTime = pollDetails.closes_at
+            ? new Date(pollDetails.closes_at).getTime()
+            : null;
+
+          setIsExpired(
+            closingTime !== null &&
+            !Number.isNaN(closingTime) &&
+            closingTime <= Date.now()
+          );
+
+          setPoll(pollDetails);
+          setSelectedOption(pollDetails.my_vote || "");
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(
+            err.message || "Unable to load the opinion poll."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadPoll();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Submit a vote.
+  async function handleSubmit(event) {
     event.preventDefault();
 
-    if (!selectedOption) return;
-    if (isOtherSelected && !otherOpinion.trim()) return;
+    if (!poll || !selectedOption || !isPollOpen || hasVoted) {
+      return;
+    }
 
-    const response = isOtherSelected
-      ? otherOpinion.trim()
-      : selectedOption;
+    try {
+      setSubmitting(true);
+      setError("");
+      setSuccess("");
 
-    // Demo only. Replace this with your backend/API later.
-    console.log("Opinion poll response:", response);
+      await apiRequest(`/polls/${poll.id}/vote`, {
+        method: "PUT",
+        body: JSON.stringify({
+          option_id: selectedOption,
+        }),
+      });
 
-    setSubmitted(true);
+      // Fetch the latest poll so the displayed results
+      // reflect the backend's updated vote counts.
+      const updatedPoll = await apiRequest(
+        `/polls/${poll.id}`
+      );
+
+      const closingTime = updatedPoll.closes_at
+        ? new Date(updatedPoll.closes_at).getTime()
+        : null;
+
+      setIsExpired(
+        closingTime !== null &&
+        !Number.isNaN(closingTime) &&
+        closingTime <= Date.now()
+      );
+
+      setPoll(updatedPoll);
+      setSelectedOption(updatedPoll.my_vote || selectedOption);
+
+      setSuccess("Thank you for sharing your opinion. Your vote has been received.");
+    } catch (err) {
+      setError(
+        err.message || "Unable to submit your vote. Please try again."
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  function handleOptionChange(option) {
-    setSelectedOption(option);
-    setSubmitted(false);
+  function handleOptionChange(optionId) {
+    if (hasVoted || !isPollOpen) return;
+
+    setSelectedOption(optionId);
+    setSuccess("");
+    setError("");
   }
+
+  const showResults = Boolean(poll?.results_visible);
 
   return (
     <section
@@ -79,7 +227,6 @@ function OpinionPoll() {
           className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between"
         >
           <div className="flex items-center gap-3">
-            {/* CivicIntel icon */}
             <svg
               viewBox="0 0 24 24"
               fill="currentColor"
@@ -97,7 +244,6 @@ function OpinionPoll() {
           </div>
 
           <div className="flex items-center gap-2.5 text-xs text-[#B8C2C9] sm:text-right sm:text-sm">
-            {/* Database / lock icon */}
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -113,152 +259,214 @@ function OpinionPoll() {
               <path d="M17 14v-1a1.5 1.5 0 0 1 3 0v1" />
             </svg>
 
-            <span>Poll closes on 31st October, 2026</span>
+            <span>
+              {poll
+                ? formatClosingDate(poll.closes_at)
+                : " Opinion Poll"}
+            </span>
           </div>
         </motion.div>
 
-        {/* Poll introduction */}
-        <motion.div
-          variants={revealVariants}
-          {...motionSettings}
-          className="mt-7 max-w-180"
-        >
-          <h3 className="text-xl font-bold leading-snug tracking-[-0.02em] sm:text-2xl">
-            What do you think the Federal Government should improve the most in
-            the 2027 economy?
-          </h3>
+        {/* Loading */}
+        {loading && (
+          <div className="mt-8 text-sm text-[#B8C2C9]" role="status">
+            Loading the latest opinion poll...
+          </div>
+        )}
 
-          <p className="mt-3 text-sm leading-6 text-[#B8C2C9] sm:text-base">
-            Help us understand what Nigerians think should receive the utmost
-            attention.
-          </p>
-        </motion.div>
-
-        {/* Poll form */}
-        <form onSubmit={handleSubmit} className="mt-6">
-          <fieldset>
-            <legend className="sr-only">
-              Select the area the Federal Government should prioritise
-            </legend>
-
-            {/* Animated poll options */}
-            <motion.div
-              variants={staggerContainer}
-              initial={shouldReduceMotion ? false : "hidden"}
-              whileInView="visible"
-              viewport={motionSettings.viewport}
-              className="grid max-w-190 grid-cols-1 gap-x-10 gap-y-3 sm:grid-cols-2 sm:gap-x-12"
-            >
-              {pollOptions.map((option) => (
-                <motion.label
-                  key={option}
-                  variants={pollOptionVariants}
-                  whileHover={
-                    shouldReduceMotion ? undefined : { x: 4 }
-                  }
-                  className="flex min-h-6 cursor-pointer items-center gap-4 text-sm text-[#F3F5F6] transition-colors hover:text-white"
-                >
-                  <input
-                    type="radio"
-                    name="economy-priority"
-                    value={option}
-                    checked={selectedOption === option}
-                    onChange={() => handleOptionChange(option)}
-                    className="h-5.25 w-5.25 shrink-0 cursor-pointer appearance-none rounded-full border-[1.5px] border-[#687782] bg-transparent transition checked:border-[#1F7A3F] checked:bg-[#24834F] checked:shadow-[inset_0_0_0_5px_#061B27] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3CA66B]"
-                  />
-
-                  <span>{option}</span>
-                </motion.label>
-              ))}
-            </motion.div>
-          </fieldset>
-
-          {/* Other opinion input */}
-          {isOtherSelected && (
-            <motion.div
-              initial={
-                shouldReduceMotion
-                  ? false
-                  : { opacity: 0, y: 10 }
-              }
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-              className="mt-6 w-full max-w-xl rounded-2xl bg-[#2D3139] px-5 py-4 transition-shadow focus-within:ring-2 focus-within:ring-[#24834F]"
-            >
-              <label htmlFor="other-opinion" className="sr-only">
-                What else do you think?
-              </label>
-
-              <input
-                type="text"
-                id="other-opinion"
-                value={otherOpinion}
-                onChange={(event) => {
-                  setOtherOpinion(event.target.value);
-                  setSubmitted(false);
-                }}
-                placeholder="What else do you think?"
-                required
-                className="w-full border-none bg-transparent p-0 text-sm text-[#A3A6AA] outline-none placeholder:text-[#A3A6AA]/60 focus:text-white focus:placeholder-transparent"
-              />
-            </motion.div>
-          )}
-
-          {/* Submit button */}
-          <motion.button
-            type="submit"
-            disabled={
-              !selectedOption ||
-              (isOtherSelected && !otherOpinion.trim())
-            }
-            whileHover={
-              shouldReduceMotion || !selectedOption ||
-              (isOtherSelected && !otherOpinion.trim())
-                ? undefined
-                : { scale: 1.03 }
-            }
-            whileTap={
-              shouldReduceMotion || !selectedOption ||
-              (isOtherSelected && !otherOpinion.trim())
-                ? undefined
-                : { scale: 0.97 }
-            }
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="mt-6 inline-flex min-h-12 items-center justify-center gap-4 rounded-full bg-white px-4 py-3 text-sm font-medium text-[#1F7A3F] transition hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white "
+        {/* Error */}
+        {!loading && error && (
+          <p
+            className="mt-6 text-sm leading-6 text-red-300"
+            role="alert"
           >
-            <span>Submit Feedback</span>
+            {error}
+          </p>
+        )}
 
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              className="h-6 w-6"
-              aria-hidden="true"
-            >
-              <path d="M4 12h16M13 5l7 7-7 7" />
-            </svg>
-          </motion.button>
+        {/* No poll available */}
+        {!loading && !error && !poll && (
+          <p className="mt-7 text-sm leading-6 text-[#B8C2C9]">
+            There is currently no opinion poll available. Please check back later.
+          </p>
+        )}
 
-          {/* Submission confirmation */}
-          {submitted && (
-            <motion.p
-              initial={
-                shouldReduceMotion
-                  ? false
-                  : { opacity: 0, y: 8 }
-              }
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              role="status"
-              aria-live="polite"
-              className="mt-4 text-sm leading-6 text-[#77D69A]"
+        {/* Poll content */}
+        {!loading && poll && (
+          <>
+            {/* Poll introduction */}
+            <motion.div
+              variants={revealVariants}
+              {...motionSettings}
+              className="mt-7 max-w-180"
             >
-              Thank you for sharing your opinion. Your response has been
-              received in this demo.
-            </motion.p>
-          )}
-        </form>
+              <h3 className="text-xl font-bold leading-snug tracking-[-0.02em] sm:text-2xl">
+                {poll.question}
+              </h3>
+
+              {poll.description && (
+                <p className="mt-3 text-sm leading-6 text-[#B8C2C9] sm:text-base">
+                  {poll.description}
+                </p>
+              )}
+            </motion.div>
+
+            {/* Poll form */}
+            <form onSubmit={handleSubmit} className="mt-6">
+              <fieldset disabled={!isPollOpen || hasVoted || submitting}>
+                <legend className="sr-only">
+                  Select your preferred poll option
+                </legend>
+
+                <motion.div
+                  variants={staggerContainer}
+                  initial={shouldReduceMotion ? false : "hidden"}
+                  whileInView="visible"
+                  viewport={motionSettings.viewport}
+                  className="grid max-w-190 grid-cols-1 gap-x-10 gap-y-3 sm:grid-cols-2 sm:gap-x-12"
+                >
+                  {poll.options?.map((option) => (
+                    <motion.label
+                      key={option.id}
+                      variants={pollOptionVariants}
+                      whileHover={
+                        shouldReduceMotion || !isPollOpen || hasVoted
+                          ? undefined
+                          : { x: 4 }
+                      }
+                      className={`flex min-h-6 items-center gap-4 text-sm text-[#F3F5F6] transition-colors ${
+                        isPollOpen && !hasVoted
+                          ? "cursor-pointer hover:text-white"
+                          : "cursor-default"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="economy-priority"
+                        value={option.id}
+                        checked={selectedOption === option.id}
+                        onChange={() => handleOptionChange(option.id)}
+                        className="h-5.25 w-5.25 shrink-0 cursor-pointer appearance-none rounded-full border-[1.5px] border-[#687782] bg-transparent transition checked:border-[#1F7A3F] checked:bg-[#24834F] checked:shadow-[inset_0_0_0_5px_#061B27] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3CA66B] disabled:cursor-not-allowed"
+                      />
+
+                      <span>{option.text}</span>
+                    </motion.label>
+                  ))}
+                </motion.div>
+              </fieldset>
+
+              {/* Submit button */}
+              {isPollOpen && !hasVoted && (
+                <motion.button
+                  type="submit"
+                  disabled={!selectedOption || submitting}
+                  whileHover={
+                    shouldReduceMotion || !selectedOption || submitting
+                      ? undefined
+                      : { scale: 1.03 }
+                  }
+                  whileTap={
+                    shouldReduceMotion || !selectedOption || submitting
+                      ? undefined
+                      : { scale: 0.97 }
+                  }
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className="mt-6 inline-flex min-h-12 items-center justify-center gap-4 rounded-full bg-white px-4 py-3 text-sm font-medium text-[#1F7A3F] transition hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span>
+                    {submitting ? "Submitting..." : "Submit Feedback"}
+                  </span>
+
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                    className="h-6 w-6"
+                    aria-hidden="true"
+                  >
+                    <path d="M4 12h16M13 5l7 7-7 7" />
+                  </svg>
+                </motion.button>
+              )}
+
+              {/* Already voted */}
+              {hasVoted && isPollOpen && (
+                <p className="mt-5 text-sm text-[#77D69A]">
+                  You have already submitted your vote.
+                </p>
+              )}
+
+              {/* Closed poll */}
+              {!isPollOpen && (
+                <p className="mt-5 text-sm text-[#B8C2C9]">
+                  This poll is now closed. Voting is no longer available.
+                </p>
+              )}
+
+              {/* Submission confirmation */}
+              {success && (
+                <motion.p
+                  initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  role="status"
+                  aria-live="polite"
+                  className="mt-4 text-sm leading-6 text-[#77D69A]"
+                >
+                  {success}
+                </motion.p>
+              )}
+
+              {/* Poll results */}
+              {showResults && (
+                <div className="mt-8 border-t border-white/10 pt-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h4 className="text-sm font-bold uppercase tracking-wide text-white">
+                      Poll Results
+                    </h4>
+
+                    <span className="text-xs text-[#B8C2C9]">
+                      {poll.total_votes ?? 0} total votes
+                    </span>
+                  </div>
+
+                  <div className="mt-5 space-y-5">
+                    {poll.options?.map((option) => (
+                      <div key={option.id}>
+                        <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                          <span className="text-[#F3F5F6]">
+                            {option.text}
+                          </span>
+
+                          <span className="shrink-0 font-semibold text-[#77D69A]">
+                            {Number(option.percent ?? 0).toFixed(1)}%
+                          </span>
+                        </div>
+
+                        <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className="h-full rounded-full bg-[#24834F] transition-all duration-500"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                Math.max(0, Number(option.percent) || 0)
+                              )}%`,
+                            }}
+                          />
+                        </div>
+
+                        <p className="mt-1 text-xs text-[#B8C2C9]">
+                          {option.votes ?? 0} votes
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </form>
+          </>
+        )}
 
         {/* Privacy notice */}
         <motion.div
@@ -287,8 +495,7 @@ function OpinionPoll() {
           </svg>
 
           <p>
-            Your response is anonymous. Results will be published when the poll
-            closes.
+            Your response has been received. Results are displayed when the poll closes.
           </p>
         </motion.div>
       </div>
