@@ -1,4 +1,6 @@
 
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 
 import OperatingRoom from "../../assets/category/operating.room.png";
@@ -9,6 +11,8 @@ import {
   staggerContainer,
   useMotionSettings,
 } from "../../animation.js";
+
+import { getPublishedRecords } from "../../api/publishedData.js";
 
 const imageSlideRight = {
   hidden: {
@@ -40,56 +44,145 @@ const imageSlideLeft = {
   },
 };
 
-const categories = [
+// These are the three indicators displayed in each category.
+const categoryConfig = [
   {
     id: "health",
+    sector: "health",
     title: "Health Indicators",
     description:
       "Explore coverage, outcomes, and system indicators drawn from verified national surveys and administrative sources, filterable by state and year.",
     image: OperatingRoom,
     imageAlt: "Healthcare professionals in a hospital operating room",
-    metrics: [
+    link: "/health",
+    indicators: [
       {
-        value: "67.4%",
-        label: "ANC 4+ Coverage (national)",
-        trend: "2.1 pts vs prior year",
-        positive: true,
+        key: "anc4_pct",
+        label: "ANC 4+ visits",
       },
       {
-        value: "512",
-        label: "Maternal mortality ratio/100k",
-        trend: "Improving trend",
-        positive: false,
+        key: "hiv_prevalence_pct",
+        label: "HIV prevalence among adults 15–49",
+      },
+      {
+        key: "maternal_mortality_ratio",
+        label: "Maternal mortality ratio",
       },
     ],
-    source: "NDHS • 2023 • Verified Aug 2026",
   },
   {
     id: "education",
+    sector: "education",
     title: "Education Indicators",
     description:
-      "Explore enrolment, completion, learning outcomes, teachers, examinations, infrastructure, and financing — filterable by state and year, with every figure traceable to its source.",
+      "Explore enrolment, completion, learning outcomes, teachers, examinations, infrastructure, and financing, filterable by state and year, with every figure traceable to its source.",
     image: StudentsInClass,
     imageAlt: "Schoolchildren participating in a classroom lesson",
-    metrics: [
+    link: "/education",
+    indicators: [
       {
-        value: "68.2%",
-        label: "Primary completion rate",
-        trend: "1.4 pts vs prior year",
-        positive: true,
+        key: "primary_net_enrolment_pct",
+        label: "Primary net enrolment rate",
       },
       {
-        value: "10.5M",
-        label: "Out-of-school children",
-        trend: "Latest estimate",
-        positive: null,
+        key: "primary_completion_pct",
+        label: "Primary completion rate",
+      },
+      {
+        key: "adult_literacy_pct",
+        label: "Adult literacy rate",
+      },
+      {
+        key: "primary_pupil_teacher_ratio",
+        label: "Primary pupil-teacher ratio",
       },
     ],
-    source: "UNICEF/EMIS • 2022 • Verified Aug 2026",
   },
 ];
 
-function CategoryRow({ category, reverse = false }) {
+// Fetch every page of published records for a sector.
+async function fetchSectorRecords(sector) {
+  const allRecords = [];
+  const limit = 100;
+  let offset = 0;
+  let total = Infinity;
+
+  while (offset < total) {
+    const response = await getPublishedRecords({
+      sector,
+      limit,
+      offset,
+    });
+
+    if (!response || !Array.isArray(response.items)) {
+      throw new Error(
+        `The ${sector} records response was not in the expected format.`
+      );
+    }
+
+    allRecords.push(...response.items);
+
+    total = Number(response.total ?? allRecords.length);
+    offset += response.items.length;
+
+    if (
+      response.items.length === 0 ||
+      response.items.length < limit
+    ) {
+      break;
+    }
+  }
+
+  return allRecords;
+}
+
+// Get the latest available Lagos record for each selected indicator.
+function getCategoryMetrics(records, indicators) {
+  return indicators.map((indicator) => {
+    const matchingRecords = records
+      .filter(
+        (record) =>
+          record.state?.toLowerCase() === "lagos" &&
+          record.indicator_key === indicator.key &&
+          record.value !== null &&
+          record.value !== undefined
+      )
+      .sort((a, b) => Number(b.year) - Number(a.year));
+
+    const record = matchingRecords[0];
+
+    return {
+      ...indicator,
+      record: record ?? null,
+    };
+  });
+}
+
+function formatMetricValue(record) {
+  if (!record) return "Not available";
+
+  const value = Number(record.value);
+
+  if (!Number.isFinite(value)) {
+    return String(record.value);
+  }
+
+  const formattedValue = new Intl.NumberFormat("en-NG", {
+    maximumFractionDigits: 2,
+  }).format(value);
+
+  return record.unit === "%"
+    ? `${formattedValue}%`
+    : `${formattedValue} ${record.unit || ""}`.trim();
+}
+
+function CategoryRow({
+  category,
+  reverse = false,
+  metrics,
+  loading,
+  error,
+}) {
   const motionSettings = useMotionSettings();
 
   // Health enters from the right; Education enters from the left.
@@ -140,48 +233,52 @@ function CategoryRow({ category, reverse = false }) {
           viewport={{ once: false, amount: 0.2 }}
           className="mt-7 grid grid-cols-2 gap-5"
         >
-          {category.metrics.map((metric) => (
-            <motion.div
-              key={metric.label}
-              variants={revealVariants}
-              className="min-w-0"
-            >
-              <p className="text-lg font-bold text-black sm:text-xl">
-                {metric.value}
-              </p>
-
-              <p className="mt-1 text-xs leading-5 text-gray-500">
-                {metric.label}
-              </p>
-
-              <div className="mt-2 flex items-center gap-1">
-                {metric.positive === true && (
-                  <div className="h-2 w-2 bg-[#1F7A3F] [clip-path:polygon(50%_0%,0%_100%,100%_100%)]" />
-                )}
-
-                {metric.positive === false && (
-                  <div className="h-2 w-2 bg-red-600 [clip-path:polygon(50%_100%,0%_0%,100%_0%)]" />
-                )}
-
-                <p
-                  className={`text-[10px] leading-4 ${
-                    metric.positive === true
-                      ? "text-[#1F7A3F]"
-                      : metric.positive === false
-                        ? "text-red-600"
-                        : "text-gray-500"
-                  }`}
-                >
-                  {metric.trend}
+          {loading ? (
+            <p className="col-span-2 text-sm text-gray-500">
+              Loading published indicators...
+            </p>
+          ) : error ? (
+            <p className="col-span-2 text-sm text-red-600">
+              Could not load indicators. Please try again later.
+            </p>
+          ) : (
+            metrics.map((metric) => (
+              <motion.div
+                key={metric.key}
+                variants={revealVariants}
+                className="min-w-0"
+              >
+                <p className="text-lg font-bold text-black sm:text-xl">
+                  {formatMetricValue(metric.record)}
                 </p>
-              </div>
-            </motion.div>
-          ))}
+
+                <p className="mt-1 text-xs leading-5 text-gray-500">
+                  {metric.label}
+                </p>
+
+                <p className="mt-2 text-[10px] leading-4 text-gray-500">
+                  {metric.record
+                    ? `Lagos • ${metric.record.year}`
+                    : "No published Lagos record"}
+                </p>
+              </motion.div>
+            ))
+          )}
         </motion.div>
 
-        <p className="mt-8 text-center text-sm text-gray-500 sm:text-center">
-          {category.source}
-        </p>
+        <div className="mt-8 flex flex-col items-center gap-4">
+          <p className="text-center text-xs text-gray-500">
+            Showing the latest available published figures for Lagos State.
+          </p>
+
+          <Link
+            to={category.link}
+            className="inline-flex items-center gap-2  px-5 py-2.5 text-sm font-semibold  transition-colors duration-300 hover:text-[#1F7A3F] text-black"
+          >
+            See More
+            <span aria-hidden="true">→</span>
+          </Link>
+        </div>
       </motion.div>
     </article>
   );
@@ -189,6 +286,66 @@ function CategoryRow({ category, reverse = false }) {
 
 function Categories() {
   const motionSettings = useMotionSettings();
+
+  const [categoryData, setCategoryData] = useState({
+    health: [],
+    education: [],
+  });
+
+  const [loading, setLoading] = useState({
+    health: true,
+    education: true,
+  });
+
+  const [errors, setErrors] = useState({
+    health: "",
+    education: "",
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCategoryData(category) {
+      try {
+        const records = await fetchSectorRecords(category.sector);
+
+        const metrics = getCategoryMetrics(
+          records,
+          category.indicators
+        );
+
+        if (isMounted) {
+          setCategoryData((previous) => ({
+            ...previous,
+            [category.id]: metrics,
+          }));
+        }
+      } catch (error) {
+        if (isMounted) {
+          setErrors((previous) => ({
+            ...previous,
+            [category.id]:
+              error instanceof Error
+                ? error.message
+                : `Could not load ${category.title}.`,
+          }));
+        }
+      } finally {
+        if (isMounted) {
+          setLoading((previous) => ({
+            ...previous,
+            [category.id]: false,
+          }));
+        }
+      }
+    }
+
+    categoryConfig.forEach(loadCategoryData);
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <section id="categories" className="bg-white text-black">
@@ -225,10 +382,21 @@ function Categories() {
 
       <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-22">
         {/* Health: text left, image slides in from the right */}
-        <CategoryRow category={categories[0]} />
+        <CategoryRow
+          category={categoryConfig[0]}
+          metrics={categoryData.health}
+          loading={loading.health}
+          error={errors.health}
+        />
 
         {/* Education: image left, text right, image slides in from the left */}
-        <CategoryRow category={categories[1]} reverse />
+        <CategoryRow
+          category={categoryConfig[1]}
+          reverse
+          metrics={categoryData.education}
+          loading={loading.education}
+          error={errors.education}
+        />
       </div>
     </section>
   );

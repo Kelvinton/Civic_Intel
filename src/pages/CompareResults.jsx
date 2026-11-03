@@ -123,7 +123,7 @@ function buildExportContent(comparison, records = null) {
         {
           Field: "Note",
           Value:
-            "This report contains comparison settings only. No indicator records were returned by the backend.",
+            "This report contains comparison settings only. No indicator records were returned by the Server.",
         },
       ];
 
@@ -236,7 +236,7 @@ function ChartPlaceholder({ result, loading, error }) {
         </h2>
 
         <p className="mt-2 text-xs text-slate-500">
-          No comparison records have been returned by the backend.
+          No comparison records have been returned by the server.
         </p>
       </div>
     );
@@ -256,7 +256,7 @@ function ChartPlaceholder({ result, loading, error }) {
         </div>
 
         <span className="rounded-full bg-green-50 px-3 py-1 text-[10px] font-medium text-green-800">
-          API response received
+          Response received
         </span>
       </div>
 

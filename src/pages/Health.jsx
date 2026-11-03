@@ -339,38 +339,63 @@ function Health() {
   // NATIONAL HEALTH OVERVIEW
   // --------------------------------------------------
 
-  const overviewStats = useMemo(() => {
-    return overviewCards.map((card) => {
-      const nationalRecords = healthRecords
-        .filter(
-          (record) =>
-            record.indicator_key === card.indicatorKey &&
-            String(record.state).trim().toLowerCase() === "national" &&
-            isValidNumericValue(record.value)
-        )
-        .sort(
-          (a, b) => Number(b.year) - Number(a.year)
-        );
+ 
+// --------------------------------------------------
+// STATE AVERAGE HEALTH OVERVIEW
+// --------------------------------------------------
 
-      const latestRecord = nationalRecords[0];
+const overviewStats = useMemo(() => {
+  return overviewCards.map((card) => {
+    // Get valid state-level records for this indicator.
+    const stateRecords = healthRecords.filter(
+      (record) =>
+        record.indicator_key === card.indicatorKey &&
+        String(record.state).trim().toLowerCase() !== "national" &&
+        isValidNumericValue(record.value) &&
+        record.year !== null &&
+        record.year !== undefined
+    );
 
-      let value = "—";
+    // Find the latest reporting year available.
+    const latestYear = stateRecords.reduce(
+      (latest, record) =>
+        Number(record.year) > latest
+          ? Number(record.year)
+          : latest,
+      0
+    );
 
-      if (latestRecord) {
-        const formattedValue = formatValue(latestRecord.value);
+    // Keep only records from that reporting year.
+    const latestYearRecords = stateRecords.filter(
+      (record) => Number(record.year) === latestYear
+    );
 
-        value = latestRecord.unit?.includes("%")
+    // Calculate the arithmetic average across available states.
+    const average =
+      latestYearRecords.length > 0
+        ? latestYearRecords.reduce(
+            (sum, record) => sum + Number(record.value),
+            0
+          ) / latestYearRecords.length
+        : null;
+
+    const formattedValue =
+      average !== null ? formatValue(average) : "—";
+
+    const unit = latestYearRecords[0]?.unit ?? "";
+
+    return {
+      ...card,
+      value:
+        average !== null && unit.includes("%")
           ? `${formattedValue}%`
-          : formattedValue;
-      }
+          : formattedValue,
+      reportingYear: latestYear || null,
+      reportingStates: latestYearRecords.length,
+    };
+  });
+}, [healthRecords]);
 
-      return {
-        ...card,
-        value,
-        reportingYear: latestRecord?.year ?? null,
-      };
-    });
-  }, [healthRecords]);
 
   // --------------------------------------------------
   // AVAILABLE INDICATORS
@@ -1148,7 +1173,15 @@ ${Object.entries(row)
                 <div className="my-3 border-t border-dashed border-gray-400" />
 
                 <p className="text-[10px] text-gray-600">
-                  {stat.source}
+                  {stat.reportingYear
+                    ? `State average · ${stat.reportingYear}`
+                    : "No state data available"}
+                </p>
+
+                <p className="mt-1 text-[9px] text-gray-500">
+                  {stat.reportingStates > 0
+                    ? `Based on ${stat.reportingStates} state records`
+                    : ""}
                 </p>
               </motion.article>
             ))}
