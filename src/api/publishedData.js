@@ -1,3 +1,4 @@
+
 import { apiRequest } from "./api.js";
 
 export function getPublishedRecords({
@@ -29,4 +30,39 @@ export function getPublishedRecords({
   return apiRequest(
     `/published/records?${params.toString()}`
   );
+}
+
+export async function getAllPublishedRecords({
+  sector = "education",
+  state,
+  indicator,
+  year,
+  limit = 100,
+} = {}) {
+  let allRecords = [];
+  let offset = 0;
+  let total = Infinity;
+
+  while (allRecords.length < total) {
+    const response = await getPublishedRecords({
+      sector,
+      state,
+      indicator,
+      year,
+      limit,
+      offset,
+    });
+
+    const items = response.items || [];
+
+    allRecords = [...allRecords, ...items];
+
+    total = response.total ?? allRecords.length;
+
+    if (items.length === 0) break;
+
+    offset += items.length;
+  }
+
+  return allRecords;
 }

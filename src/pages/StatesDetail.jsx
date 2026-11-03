@@ -1,133 +1,175 @@
 
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import StateHero from "../assets/states/States.hero.png";
+import Adamawa from "../assets/states/Adamawa.jpg";
+import AkwaIbom from "../assets/states/AkwaIbom.jpg";
+import Anambra from "../assets/states/Anambra.jpg";
+import Bauchi from "../assets/states/Bauchi.jpg";
+import Bayelsa from "../assets/states/Bayelsa.jpg";
+import Benue from "../assets/states/Benue.jpg";
+import Borno from "../assets/states/Borno.jpg";
+import Delta from "../assets/states/Delta.jpg";
+import Ebonyi from "../assets/states/Ebonyi.jpg";
+import Edo from "../assets/states/Edo.jpg";
+import Ekiti from "../assets/states/Ekiti.jpg";
+import Gombe from "../assets/states/Gombe.jpg";
+import Imo from "../assets/states/Imo.jpg";
+import Jigawa from "../assets/states/Jigawa.jpg";
+import Katsina from "../assets/states/Katsina.jpg";
+import Kebbi from "../assets/states/Kebbi.jpg";
+import Kogi from "../assets/states/Kogi.jpg";
+import Kwara from "../assets/states/Kwara.png";
+import Nasarawa from "../assets/states/Nasarawa.jpg";
+import Niger from "../assets/states/Niger.jpg";
+import Ondo from "../assets/states/Ondo.jpg";
+import Osun from "../assets/states/Osun.jpg";
+import Oyo from "../assets/states/Oyo.jpg";
+import Plateau from "../assets/states/Plateau.jpg";
+import Sokoto from "../assets/states/Sokoto.jpg";
+import Taraba from "../assets/states/Taraba.jpg";
+import Yobe from "../assets/states/Yobe.jpg";
+import Zamfara from "../assets/states/Zamfara.jpg";
+import Abuja from "../assets/states/FCT.png";
+import Abia from "../assets/states/Abia.jpg";
+import Lagos from "../assets/states/Lagos.png";
+import Kano from "../assets/states/Kano.jpg";
+import Rivers from "../assets/states/Rivers.jpg";
+import Ogun from "../assets/states/Ogun.jpg";
+import Kaduna from "../assets/states/Kaduna.jpeg";
+import Enugu from "../assets/states/Enugu.jfif";
+import CrossRiver from "../assets/states/CrossRiver.png";
 
-const stateProfiles = {
-  lagos: {
-    name: "Lagos State",
-    capital: "Ikeja",
-    population: "~15.9M (est.)",
-    image: StateHero,
-    health: [
-      { value: "71.2%", label: "ANC 4+ Coverage (national)", trend: "▲ 3.8 pts vs national", source: "NDHS • 2023", positive: true },
-      { value: "438", label: "Maternal mortality /100k", trend: "▼ below national average", source: "NDHS • 2023", positive: false },
-      { value: "64%", label: "Full immunization", trend: "▲ 7 pts vs national", source: "NDHS • 2023", positive: true },
-      { value: "1:2", label: "Doctor-to-population", trend: "▲ above national average", source: "FMCH • 2022", positive: true },
-      { value: "6.8%", label: "Health budget share", trend: "▲ 2.1 pts vs prior year", source: "BudgIT • 2025", positive: true },
-    ],
-    education: [
-      { value: "81.4%", label: "Primary completion rate", trend: "▲ 13 pts vs national", source: "NBS/UBEC • 2023", positive: true },
-      { value: "89%", label: "Net primary enrollment", trend: "▲ 21 pts vs national", source: "NBS/UBEC • 2023", positive: true },
-      { value: "72.1%", label: "WAEC pass rate", trend: "▲ above national average", source: "WAEC • 2025", positive: true },
-      { value: "1:32", label: "Teacher-pupil ratio", trend: "▲ better than national", source: "FME • 2022", positive: true },
-      { value: "9.4%", label: "Education budget share", trend: "≈ national average", source: "BudgIT • 2025", positive: true },
-    ],
-    publisher: "National Demographic and Health Survey (NDHS)",
-    dataset: "NDHS 2023 State Report",
-    vintage: "2023",
-    geography: "State-level, Lagos",
-    license: "Public / Open (per publisher terms)",
-    verified: "September, 2026",
-  },
-  fct: {
-    name: "Federal Capital Territory",
-    capital: "Abuja",
-    population: "Pending verification",
-    image: StateHero,
-  },
-  kano: {
-    name: "Kano State",
-    capital: "Kano",
-    population: "Pending verification",
-    image:StateHero,
-  },
-  rivers: {
-    name: "Rivers State",
-    capital: "Port Harcourt",
-    population: "Pending verification",
-    image: StateHero,
-  },
-  ogun: {
-    name: "Ogun State",
-    capital: "Abeokuta",
-    population: "Pending verification",
-    image: StateHero,
-  },
-  kaduna: {
-    name: "Kaduna State",
-    capital: "Kaduna",
-    population: "Pending verification",
-    image: StateHero,
-  },
-  enugu: {
-    name: "Enugu State",
-    capital: "Enugu",
-    population: "Pending verification",
-    image: StateHero
-  },
-  "cross-river": {
-    name: "Cross River State",
-    capital: "Calabar",
-    population: "Pending verification",
-    image: StateHero,
-  },
-  abia: {
-    name: "Abia State",
-    capital: "Umuahia",
-    population: "Pending verification",
-    image: StateHero,
-  },
-};
+import { getStates } from "../api/referenceData.js";
+import { getAllPublishedRecords } from "../api/publishedData.js";
 
-const fallbackMetrics = [
-  {
-    value: "Pending",
-    label: "Data integration",
-    trend: "Awaiting verified dataset",
-    source: "Not yet connected",
-    positive: true,
-  },
+const healthIndicators = [
+  { key: "anc4_pct", label: "ANC 4+ Coverage" },
+  { key: "health_allocation", label: "Health Allocation" },
+  { key: "health_allocation_pct", label: "Health Budget Share" },
+  { key: "hiv_prevalence_pct", label: "HIV Prevalence" },
+  { key: "hiv_prevalence_per_1000", label: "HIV Prevalence per 1,000" },
 ];
 
-function IndicatorSection({ title, items = [] }) {
-  const metrics = items.length ? items : Array(5).fill(fallbackMetrics[0]);
+const educationIndicators = [
+  { key: "adult_literacy_pct", label: "Adult Literacy Rate" },
+  { key: "primary_completion_pct", label: "Primary Completion Rate" },
+  { key: "primary_net_enrolment_pct", label: "Primary Net Enrolment" },
+  { key: "out_of_school_children_pct", label: "Out-of-School Children" },
+  { key: "primary_pupil_teacher_ratio", label: "Primary Pupil-Teacher Ratio" },
+];
 
+function createSlug(name) {
+  return name.toLowerCase().trim().replace(/\s+/g, "-");
+}
+
+const stateImages = {
+  abia: Abia,
+  adamawa: Adamawa,
+  "akwa-ibom": AkwaIbom,
+  anambra: Anambra,
+  bauchi: Bauchi,
+  bayelsa: Bayelsa,
+  benue: Benue,
+  borno: Borno,
+  "cross-river": CrossRiver,
+  delta: Delta,
+  ebonyi: Ebonyi,
+  edo: Edo,
+  ekiti: Ekiti,
+  enugu: Enugu,
+  fct: Abuja,
+  gombe: Gombe,
+  imo: Imo,
+  jigawa: Jigawa,
+  kaduna: Kaduna,
+  kano: Kano,
+  katsina: Katsina,
+  kebbi: Kebbi,
+  kogi: Kogi,
+  kwara: Kwara,
+  lagos: Lagos,
+  nasarawa: Nasarawa,
+  niger: Niger,
+  ogun: Ogun,
+  ondo: Ondo,
+  osun: Osun,
+  oyo: Oyo,
+  plateau: Plateau,
+  rivers: Rivers,
+  sokoto: Sokoto,
+  taraba: Taraba,
+  yobe: Yobe,
+  zamfara: Zamfara,
+};
+
+function normalizeStateName(name) {
+  const normalized = name.toLowerCase().trim();
+
+  if (
+    normalized === "fct" ||
+    normalized === "federal capital territory"
+  ) {
+    return "fct";
+  }
+
+  return normalized.replace(/\s+state$/i, "");
+}
+
+
+function formatValue(record) {
+  if (!record || record.value == null) return "Not available";
+
+  const value = Number(record.value);
+
+  if (!Number.isFinite(value)) return "Not available";
+
+  const formatted = new Intl.NumberFormat("en-NG", {
+    maximumFractionDigits: 2,
+  }).format(value);
+
+  if (record.unit === "%") return `${formatted}%`;
+
+  return `${formatted} ${record.unit || ""}`.trim();
+}
+
+function IndicatorSection({ title, indicators, records }) {
   return (
-    <section className="mb-20 ">
-      <h2 className="mb-7 flex items-center gap-2 text-2xl font-bold text-[#171D20] sm:text-3xl pt-30 sm:pt-28">
+    <section className="mb-20">
+      <h2 className="mb-7 flex items-center gap-2 pt-30 text-2xl font-bold text-[#171D20] sm:pt-28 sm:text-3xl">
         <span className="h-3 w-3 rounded-full bg-[#1F7A3F]" />
         {title}
       </h2>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 lg:gap-8">
-        {metrics.map((item, index) => (
-          <article
-            key={`${title}-${index}`}
-            className="flex min-h-37.5 flex-col rounded-lg bg-white p-3 sm:min-h-41 sm:p-4"
-          >
-            <p className="text-lg font-bold text-[#161616]">
-              {item.value}
-            </p>
+        {indicators.map((indicator) => {
+          const record = records.find(
+            (item) => item.indicator_key === indicator.key
+          );
 
-            <p className="mt-2 text-xs leading-5 text-gray-500">
-              {item.label}
-            </p>
-
-            <p
-              className={`mt-2 text-[10px] leading-4 ${
-                item.positive ? "text-[#1F7A3F]" : "text-red-600"
-              }`}
+          return (
+            <article
+              key={indicator.key}
+              className="flex min-h-37.5 flex-col rounded-lg bg-white p-3 sm:min-h-41 sm:p-4"
             >
-              {item.trend}
-            </p>
+              <p className="text-lg font-bold text-[#161616]">
+                {formatValue(record)}
+              </p>
 
-            <div className="my-3 border-t border-dashed border-gray-200" />
+              <p className="mt-2 text-xs leading-5 text-gray-500">
+                {indicator.label}
+              </p>
 
-            <p className="mt-auto text-[10px] text-gray-500">
-              {item.source}
-            </p>
-          </article>
-        ))}
+              <div className="my-3 border-t border-dashed border-gray-200" />
+
+              <p className="mt-auto text-[10px] text-gray-500">
+                {record
+                  ? `Published record • ${record.year}`
+                  : "No published record available"}
+              </p>
+            </article>
+          );
+        })}
       </div>
     </section>
   );
@@ -135,16 +177,130 @@ function IndicatorSection({ title, items = [] }) {
 
 function StateDetails() {
   const { stateSlug } = useParams();
-  const state = stateProfiles[stateSlug?.toLowerCase()];
+
+  const [states, setStates] = useState([]);
+  const [healthRecords, setHealthRecords] = useState([]);
+  const [educationRecords, setEducationRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadStateData() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const [statesData, healthData, educationData] =
+          await Promise.all([
+            getStates(),
+            getAllPublishedRecords({ sector: "health" }),
+            getAllPublishedRecords({ sector: "education" }),
+          ]);
+
+        if (!isMounted) return;
+
+        setStates(Array.isArray(statesData) ? statesData : []);
+        setHealthRecords(healthData);
+        setEducationRecords(educationData);
+      } catch (err) {
+        if (isMounted) {
+          setError(
+            err.message || "Unable to load this state's published data."
+          );
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+
+    loadStateData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const state = useMemo(() => {
+    return states.find(
+      (item) => createSlug(item.name) === stateSlug?.toLowerCase()
+    );
+  }, [states, stateSlug]);
+  const stateImageKey = state
+  ? normalizeStateName(state.name).replace(/\s+/g, "-")
+  : "";
+
+  const stateImage = stateImages[stateImageKey] || StateHero;
+
+  const selectedHealthRecords = useMemo(() => {
+    if (!state) return [];
+
+    return healthRecords.filter(
+      (record) =>
+        normalizeStateName(record.state) ===
+        normalizeStateName(state.name)
+    );
+  }, [healthRecords, state]);
+
+  const selectedEducationRecords = useMemo(() => {
+    if (!state) return [];
+
+    return educationRecords.filter(
+      (record) =>
+        normalizeStateName(record.state) ===
+        normalizeStateName(state.name)
+    );
+  }, [educationRecords, state]);
+
+  const allSelectedRecords = [
+    ...selectedHealthRecords,
+    ...selectedEducationRecords,
+  ];
+
+  const datasetIds = [
+    ...new Set(
+      allSelectedRecords
+        .map((record) => record.dataset_id)
+        .filter(Boolean)
+    ),
+  ];
+
+  if (loading) {
+    return (
+      <main className="flex min-h-[60vh] items-center justify-center bg-[#E7EDF0] px-6 pt-24">
+        <p className="text-sm text-[#0B3C5D]">
+          Loading state profile...
+        </p>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="flex min-h-[60vh] flex-col items-center justify-center bg-[#E7EDF0] px-6 pt-24 text-center">
+        <h1 className="text-2xl font-bold text-[#0B3C5D]">
+          Unable to load state profile
+        </h1>
+        <p className="mt-3 text-sm text-gray-600">{error}</p>
+        <Link
+          to="/states"
+          className="mt-6 rounded-full bg-[#1F7A3F] px-6 py-3 text-white"
+        >
+          Return to states
+        </Link>
+      </main>
+    );
+  }
 
   if (!state) {
     return (
-      <main className="flex min-h-[60vh] flex-col items-center justify-center bg-[#E7EDF0] px-6 text-center pt-24">
+      <main className="flex min-h-[60vh] flex-col items-center justify-center bg-[#E7EDF0] px-6 pt-24 text-center">
         <h1 className="text-3xl font-bold text-[#0B3C5D]">
           State profile not found
         </h1>
         <p className="mt-3 text-gray-600">
-          This state has not been added to the current directory data.
+          This location could not be found in the states directory.
         </p>
         <Link
           to="/states"
@@ -159,7 +315,7 @@ function StateDetails() {
   return (
     <main className="bg-[#E7EDF0] text-[#0B3C5D]">
       {/* State hero */}
-      <section className="mx-auto max-w-7xl px-5 pt-28 pb-16 sm:px-10 sm:pt-32 lg:px-14 lg:pt-36 lg:pb-20">
+      <section className="mx-auto max-w-7xl px-5 pb-16 pt-28 sm:px-10 sm:pt-32 lg:px-14 lg:pb-20 lg:pt-36">
         <div className="grid items-center gap-10 md:grid-cols-2">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-[#1F7A3F]">
@@ -167,47 +323,44 @@ function StateDetails() {
             </p>
 
             <h1 className="mt-3 text-4xl font-bold leading-tight sm:text-5xl">
-              {state.name}
+              {state.name === "FCT"
+                ? "Federal Capital Territory"
+                : `${state.name} State`}
             </h1>
 
             <p className="mt-3 text-sm text-[#40484D]">
-              Capital: {state.capital}
-              <span className="mx-2">|</span>
-              Population: {state.population}
+              Geopolitical Zone: {state.zone || "Not available"}
             </p>
 
-            <a
-              href="/states"
+            <Link
+              to="/explore"
               className="mt-4 inline-flex items-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-2.5 text-xs font-medium text-white transition hover:bg-[#176331]"
             >
               Compare this state
-              <span
-              className="flex size-5 items-center justify-center rounded-full bg-white text-[#1F7A3F]"
-              aria-hidden="true"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="#0B3C5D" 
-                stroke-width="1.8" 
-                class="w-4 h-4"
-                aria-hidden="true"
-              >
-                <path 
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M4.5 12h15m-7.5-7.5L19.5 12 12 19.5"
-                />
-              </svg>
-            </span>
-            </a>
+              <span className="flex size-5 items-center justify-center rounded-full bg-white text-[#1F7A3F]">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className="h-4 w-4"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4.5 12h15m-7.5-7.5L19.5 12 12 19.5"
+                  />
+                </svg>
+              </span>
+            </Link>
           </div>
 
           <div className="h-64 overflow-hidden rounded-xl sm:h-72 lg:h-73.75">
             <img
-              src={state.image}
-              alt={`Illustrative records image for ${state.name}`}
+              src={stateImage}
+              alt={`Image representing ${state.name}`}
               className="h-full w-full object-cover"
             />
           </div>
@@ -216,31 +369,64 @@ function StateDetails() {
 
       {/* Health and education indicators */}
       <div className="mx-auto max-w-7xl px-5 pb-6 sm:px-10 lg:px-14">
-        <IndicatorSection title="HEALTH" items={state.health} />
-        <IndicatorSection title="EDUCATION" items={state.education} />
+        <IndicatorSection
+          title="HEALTH"
+          indicators={healthIndicators}
+          records={selectedHealthRecords}
+        />
+
+        <IndicatorSection
+          title="EDUCATION"
+          indicators={educationIndicators}
+          records={selectedEducationRecords}
+        />
 
         {/* Source and methodology */}
         <section className="mb-2 rounded-2xl bg-[#061D2A] px-6 py-8 text-white sm:px-8 sm:py-9 lg:px-10">
-          <h2 className="text-xl font-bold">Source &amp; Methodology</h2>
+          <h2 className="text-xl font-bold">
+            Source &amp; Methodology
+          </h2>
 
           <div className="mt-8 grid gap-x-10 gap-y-6 sm:grid-cols-2">
-            {[
-              ["PUBLISHER", state.publisher || "Pending verified source"],
-              ["DATASET", state.dataset || "Awaiting dataset integration"],
-              ["VINTAGE", state.vintage || "Pending"],
-              ["GEOGRAPHY", state.geography || `State-level, ${state.name}`],
-              ["LICENSE", state.license || "To be confirmed from publisher"],
-              ["LAST VERIFIED", state.verified || "Pending validation"],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <p className="text-[11px] font-medium text-white/90">
-                  {label}
-                </p>
-                <p className="mt-2 text-xs leading-5 text-white/60">
-                  {value}
-                </p>
-              </div>
-            ))}
+            <div>
+              <p className="text-[11px] font-medium text-white/90">
+                DATA SOURCE
+              </p>
+              <p className="mt-2 text-xs leading-5 text-white/60">
+                CivicIntel published records API
+              </p>
+            </div>
+
+            <div>
+              <p className="text-[11px] font-medium text-white/90">
+                GEOGRAPHY
+              </p>
+              <p className="mt-2 text-xs leading-5 text-white/60">
+                {state.name === "FCT"
+                  ? "Federal Capital Territory"
+                  : `State-level, ${state.name}`}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-[11px] font-medium text-white/90">
+                PUBLISHED RECORDS
+              </p>
+              <p className="mt-2 text-xs leading-5 text-white/60">
+                {allSelectedRecords.length}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-[11px] font-medium text-white/90">
+                DATASET IDENTIFIERS
+              </p>
+              <p className="mt-2 text-xs leading-5 text-white/60">
+                {datasetIds.length
+                  ? datasetIds.join(", ")
+                  : "No dataset identifiers available"}
+              </p>
+            </div>
           </div>
 
           <Link

@@ -1342,7 +1342,7 @@ function Education() {
                         {[
                           { label: "Export as CSV", format: "csv" },
                           { label: "Export as PDF", format: "pdf" },
-                          { label: "Export as XML", format: "xml" },
+                          { label: "Export as XLSX", format: "xlsx" },
                         ].map((option) => (
                           <button
                             key={option.format}
@@ -1563,12 +1563,13 @@ function Education() {
               LATEST EDUCATION RELEASE
             </SectionHeading>
 
-            <a
-              href="#education-releases"
-              className="mb-6 text-xs font-semibold text-[#1F7A3F] hover:underline"
+            <button
+              type="button"
+              onClick={() => navigate("/media")}
+              className="mb-6 text-xs font-semibold text-[#1F7A3F] transition-colors hover:underline"
             >
-              View all Releases →
-            </a>
+              View all releases →
+            </button>
           </div>
 
           <div

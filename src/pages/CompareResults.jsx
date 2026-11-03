@@ -8,6 +8,7 @@ import { apiRequest } from "../api/api.js";
 import { exportData } from "../utility/exportData.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getComparison } from "../api/referenceData.js";
+import SurveyCoverageChart from "../components/SurveyCoverageChart.jsx";
 
 // --------------------------------------------------
 // Validate comparison selections
@@ -593,41 +594,7 @@ function AnalysisBrief({ comparison, result, resultsLoading }) {
   );
 }
 
-// --------------------------------------------------
-// Facility placeholder
-// --------------------------------------------------
 
-function FacilityPlaceholder() {
-  return (
-    <section className="mt-7">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-bold text-slate-900">
-          Facility Spot Check
-        </h2>
-      </div>
-
-      <p className="mt-2 text-xs leading-relaxed text-slate-500">
-        Facility locations and audit points will be displayed here
-        when a verified map or facility service is connected.
-      </p>
-
-      <div className="mt-3 flex min-h-44 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-[#E8EEF1] p-5 text-center">
-        <span className="text-2xl text-[#1F7A3F]" aria-hidden="true">
-          ◎
-        </span>
-
-        <p className="mt-2 text-sm font-semibold text-[#0B3C5D]">
-          Map integration pending
-        </p>
-
-        <p className="mt-1 max-w-xs text-xs leading-relaxed text-slate-500">
-          Facility coordinates, coverage, and registration totals
-          will be shown when verified location data becomes available.
-        </p>
-      </div>
-    </section>
-  );
-}
 
 // --------------------------------------------------
 // Main CompareResults page
@@ -840,9 +807,6 @@ function CompareResults() {
     );
   };
 
-  // --------------------------------------------------
-  // Page UI
-  // --------------------------------------------------
 
   return (
     <div className="min-h-screen bg-[#E7ECEF] pt-18">
@@ -928,7 +892,7 @@ function CompareResults() {
                     id="comparison-export-menu"
                     className="absolute left-0 right-0 z-10 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
                   >
-                    {["CSV", "PDF", "XML"].map((format) => (
+                    {["CSV", "PDF", "XLSX"].map((format) => (
                       <button
                         key={format}
                         type="button"
@@ -946,7 +910,7 @@ function CompareResults() {
               <button
                 type="button"
                 onClick={handleSave}
-                className="mt-2 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#176332] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F7A3F]"
+                className="mt-2 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#176332] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F7A3F] "
               >
                 Save comparison
 
@@ -960,14 +924,14 @@ function CompareResults() {
               {notice && (
                 <div
                   role="status"
-                  className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900"
+                  className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 "
                 >
                   {notice}
                 </div>
               )}
 
-              {/* Facility section */}
-              <FacilityPlaceholder />
+              {/* Survey coverage chart */}
+              <SurveyCoverageChart />
             </aside>
           </div>
         )}

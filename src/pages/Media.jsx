@@ -1,10 +1,12 @@
 
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 
-import Media1 from "../assets/media1.png";
-import Media2 from "../assets/media2.png";
-import Media3 from "../assets/media3.png";
+import {
+  getMedia,
+  getMediaOptions,
+} from "../api/media.js";
 
 const heroSlides = [
   {
@@ -44,58 +46,7 @@ const heroSlides = [
   },
 ];
 
-const releases = [
-  {
-    id: 1,
-    title: "Lagos state budget",
-    category: "Health",
-    date: "Aug 20, 2026",
-    source: "Lagos State Ministry of Health",
-    image: Media1,
-  },
-  {
-    id: 2,
-    title: "Health awareness and community wellbeing",
-    category: "Health",
-    date: "Aug 20, 2026",
-    source: "CivicIntel Research",
-    image: Media2,
-  },
-  {
-    id: 3,
-    title: "Primary school enrollment",
-    category: "Education",
-    date: "Sept 20, 2026",
-    source: "Open Source",
-    image: Media3,
-  },
-  {
-    id: 4,
-    title: "Lagos state budget",
-    category: "Health",
-    date: "Aug 20, 2026",
-    source: "Lagos State Ministry of Health",
-    image: Media1,
-  },
-  {
-    id: 5,
-    title: "Health awareness and community wellbeing",
-    category: "Health",
-    date: "Aug 20, 2026",
-    source: "CivicIntel Research",
-    image: Media2,
-  },
-  {
-    id: 6,
-    title: "Primary school enrollment",
-    category: "Education",
-    date: "Sept 20, 2026",
-    source: "Open Source",
-    image: Media3,
-  },
-];
 
-const years = ["All years", "2026", "2025", "2024", "2023"];
 
 /* Reusable scroll-reveal animation */
 function Reveal({
@@ -171,7 +122,76 @@ function Media() {
   const [category, setCategory] = useState("All categories");
   const [year, setYear] = useState("All years");
 
+  const [releases, setReleases] = useState([]);
+  
+  const [categories, setCategories] = useState([]);
+  const [years, setYears] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
   const shouldReduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadMedia() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const [mediaResult, optionsResult] =
+        await Promise.allSettled([
+          getMedia({ limit: 100, offset: 0 }),
+          getMediaOptions(),
+        ]);
+
+        if (!isMounted) return;
+
+        if (mediaResult.status === "rejected") {
+          throw mediaResult.reason;
+        }
+
+        const mediaData = mediaResult.value;
+        const optionsData =
+          optionsResult.status === "fulfilled"
+            ? optionsResult.value
+            : {};
+
+        setReleases(
+          Array.isArray(mediaData.items) ? mediaData.items : []
+        );
+
+        setCategories(
+          Array.isArray(optionsData.categories)
+            ? optionsData.categories
+            : []
+        );
+
+        setYears(
+          Array.isArray(optionsData.years)
+            ? optionsData.years
+            : []
+        );
+
+      } catch (err) {
+        if (!isMounted) return;
+
+        console.error("Failed to load media reports:", err);
+        setError(
+          err.message || "Unable to load media reports."
+        );
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+
+    loadMedia();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Automatically advance the hero carousel.
   useEffect(() => {
@@ -188,14 +208,19 @@ function Media() {
 
   const currentSlide = heroSlides[activeSlide];
 
+  
+
   const filteredReleases = releases.filter((release) => {
     const matchesCategory =
       category === "All categories" ||
       release.category === category;
 
+    const publishedYear = release.published_on
+      ? new Date(release.published_on).getFullYear().toString()
+      : "";
+
     const matchesYear =
-      year === "All years" ||
-      release.date.includes(year);
+      year === "All years" || publishedYear === year;
 
     return matchesCategory && matchesYear;
   });
@@ -290,9 +315,13 @@ function Media() {
                 }
                 className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-[#1F7A3F]"
               >
-                <option>All categories</option>
-                <option>Health</option>
-                <option>Education</option>
+                <option value="All categories">All categories</option>
+
+                {categories.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -312,8 +341,12 @@ function Media() {
                 }
                 className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-[#1F7A3F]"
               >
+                <option value="All years">All years</option>
+
                 {years.map((item) => (
-                  <option key={item}>{item}</option>
+                  <option key={item} value={String(item)}>
+                    {item}
+                  </option>
                 ))}
               </select>
             </div>
@@ -346,11 +379,25 @@ function Media() {
             </div>
           </Reveal>
 
-          {/* Staggered media release cards */}
-          {filteredReleases.length > 0 ? (
-            <motion.div
-              className="grid min-w-0 grid-cols-1 gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3"
-            >
+          {loading ? (
+            <div className="py-12 text-center text-sm text-gray-500">
+              Loading media releases...
+            </div>
+          ) : error ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+              <p className="text-sm text-red-700">{error}</p>
+
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="mt-3 text-sm font-semibold text-[#1F7A3F] underline"
+              >
+                Try again
+              </button>
+            </div>
+          ) : filteredReleases.length > 0 ? (
+            /* Staggered media release cards */
+            <motion.div className="grid min-w-0 grid-cols-1 gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
               {filteredReleases.map((release, index) => (
                 <Reveal
                   key={release.id}
@@ -366,56 +413,75 @@ function Media() {
                     transition={{ duration: 0.25 }}
                     className="group min-w-0"
                   >
-                    <div className="overflow-hidden rounded-tl-[52px] rounded-br-[52px] bg-gray-300">
-                      <img
-                        src={release.image}
-                        alt={release.title}
-                        loading="lazy"
-                        className="h-60 w-full object-cover transition-transform duration-500 group-hover:scale-105 sm:h-64"
-                      />
-                    </div>
+                    <Link
+                      to={`/media/${release.id}`}
+                      className="group block"
+                    >
+                      <div className="overflow-hidden rounded-tl-[52px] rounded-br-[52px] bg-gray-300">
+                        {release.image_url ? (
+                          <img
+                            src={release.image_url}
+                            alt={release.title}
+                            loading="lazy"
+                            className="h-60 w-full object-cover transition-transform duration-500 group-hover:scale-105 sm:h-64"
+                          />
+                        ) : (
+                          <div className="flex h-60 items-center justify-center bg-[#0B3C5D] text-sm text-white/70 sm:h-64">
+                            CivicIntel Report
+                          </div>
+                        )}
+                      </div>
 
-                    <div className="space-y-3 pt-4 text-sm">
-                      <p className="flex min-w-0 gap-3">
-                        <span className="shrink-0 font-semibold text-[#14552E]">
-                          Title:
-                        </span>
+                      <div className="space-y-3 pt-4 text-sm">
+                        <p className="flex min-w-0 gap-3">
+                          <span className="shrink-0 font-semibold text-[#14552E]">
+                            Title:
+                          </span>
 
-                        <span className="min-w-0 wrap-break-word text-gray-600">
-                          {release.title}
-                        </span>
-                      </p>
+                          <span className="min-w-0 wrap-break-word text-gray-600">
+                            {release.title}
+                          </span>
+                        </p>
 
-                      <p className="flex min-w-0 gap-3">
-                        <span className="shrink-0 font-semibold text-[#14552E]">
-                          Category:
-                        </span>
+                        <p className="flex min-w-0 gap-3">
+                          <span className="shrink-0 font-semibold text-[#14552E]">
+                            Category:
+                          </span>
 
-                        <span className="min-w-0 wrap-break-word text-gray-600">
-                          {release.category}
-                        </span>
-                      </p>
+                          <span className="min-w-0 wrap-break-word text-gray-600">
+                            {release.category}
+                          </span>
+                        </p>
 
-                      <p className="flex min-w-0 gap-3">
-                        <span className="shrink-0 font-semibold text-[#14552E]">
-                          Published date:
-                        </span>
+                        <p className="flex min-w-0 gap-3">
+                          <span className="shrink-0 font-semibold text-[#14552E]">
+                            Published date:
+                          </span>
 
-                        <span className="min-w-0 wrap-break-word text-gray-600">
-                          {release.date}
-                        </span>
-                      </p>
+                          <span className="min-w-0 wrap-break-word text-gray-600">
+                            {release.published_on
+                              ? new Date(
+                                  release.published_on
+                                ).toLocaleDateString("en-NG", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                })
+                              : "Date not available"}
+                          </span>
+                        </p>
 
-                      <p className="flex min-w-0 gap-3">
-                        <span className="shrink-0 font-semibold text-[#14552E]">
-                          Source:
-                        </span>
+                        <p className="flex min-w-0 gap-3">
+                          <span className="shrink-0 font-semibold text-[#14552E]">
+                            Source:
+                          </span>
 
-                        <span className="min-w-0 wrap-break-word text-gray-600">
-                          {release.source}
-                        </span>
-                      </p>
-                    </div>
+                          <span className="min-w-0 wrap-break-word text-gray-600">
+                            {release.source}
+                          </span>
+                        </p>
+                      </div>
+                    </Link>
                   </motion.article>
                 </Reveal>
               ))}

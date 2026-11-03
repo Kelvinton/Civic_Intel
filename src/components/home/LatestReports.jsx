@@ -1,5 +1,6 @@
 
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import {
   revealVariants,
   staggerContainer,
@@ -48,6 +49,7 @@ const reports = [
 
 function LatestReports() {
   const motionSettings = useMotionSettings();
+  const navigate = useNavigate();
 
   return (
     <section
@@ -85,19 +87,20 @@ function LatestReports() {
             </h2>
           </div>
 
-          <a
-            href="/reports"
-            className="group inline-flex items-center gap-2 text-xs font-bold text-[#1F7A3F] transition-colors duration-300 hover:text-[#145C3B] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#1F7A3F] sm:text-sm"
-          >
-            View All Releases
+          <button
+              type="button"
+              onClick={() => navigate("/media")}
+              className="mb-6 text-xs font-semibold text-[#1F7A3F] transition-colors hover:underline inline-flex"
+            >
+              View all releases 
 
-            <svg
+              <svg
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
               strokeWidth={1.5}
               stroke="currentColor"
-              className="size-4 transition-transform duration-300 group-hover:translate-x-1"
+              className="size-4 transition-transform duration-300 group-hover:translate-x-1 ml-4"
               aria-hidden="true"
             >
               <path
@@ -106,7 +109,7 @@ function LatestReports() {
                 d="M4.5 12h15m0 0-6.75-6.75M19.5 12l-6.75 6.75"
               />
             </svg>
-          </a>
+          </button>
         </motion.div>
 
         {/* Report cards */}

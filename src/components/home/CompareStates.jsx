@@ -269,7 +269,7 @@ function CompareStates() {
 
                 {states.map((state) => (
                   <option key={state.name} value={state.name}>
-                    {state.name} — {state.zone || "Zone unavailable"}
+                    {state.name}
                   </option>
                 ))}
               </select>
@@ -298,7 +298,7 @@ function CompareStates() {
 
                 {states.map((state) => (
                   <option key={state.name} value={state.name}>
-                    {state.name} — {state.zone || "Zone unavailable"}
+                    {state.name}
                   </option>
                 ))}
               </select>

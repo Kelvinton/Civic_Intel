@@ -159,7 +159,7 @@ function Footer() {
 
               <li>
                 <a
-                  href="https://www.facebook.com/"
+                  href="https://www.fb.me/civicsystem/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="transition-colors duration-200 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
@@ -170,7 +170,7 @@ function Footer() {
 
               <li>
                 <a
-                  href="https://www.instagram.com/"
+                  href="https://www.instagram.com/civicintelafrica/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="transition-colors duration-200 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
@@ -181,12 +181,27 @@ function Footer() {
 
               <li>
                 <a
-                  href="https://www.linkedin.com/"
+                  href="https://www.LinkedIn.com/company/civicintel/"
+
+
                   target="_blank"
                   rel="noopener noreferrer"
                   className="transition-colors duration-200 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
                 >
                   LinkedIn
+                </a>
+              </li>
+
+              <li>
+                <a
+                  href="https://www.x.com/civic_intel/"
+
+
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="transition-colors duration-200 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
+                >
+                  X formerly Twitter
                 </a>
               </li>
             </ul>
