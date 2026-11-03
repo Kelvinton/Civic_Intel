@@ -1,6 +1,7 @@
 import { apiRequest } from "../api/api.js";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { exportData } from "../utility/exportData.js";
 import { motion } from "framer-motion";
 
 import {
@@ -855,39 +856,38 @@ const recordHealthExport = async (format) => {
     await recordHealthExport("csv");
   };
 
-    // XML EXPORT
-  const handleExportXML = async () => {
-    if (exportRows.length === 0) {
-      window.alert("There are no records to export.");
-      return;
-    }
+    // XLSX EXPORT
+    const handleExportXLSX = async () => {
+      if (exportRows.length === 0) {
+        window.alert("There are no records to export.");
+        return;
+      }
 
-    const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
-<healthRecords>
-${exportRows
-  .map(
-    (row) => `  <record>
-${Object.entries(row)
-  .map(
-    ([key, value]) =>
-      `    <${key}>${escapeXML(value)}</${key}>`
-  )
-  .join("\n")}
-  </record>`
-  )
-  .join("\n")}
-</healthRecords>`;
+      const headers = Object.keys(exportRows[0]);
 
-    downloadFile(
-      xmlContent,
-      `${exportFilename}.xml`,
-      "application/xml;charset=utf-8;"
-    );
+      exportData({
+        format: "xlsx",
+        headers,
+        rows: exportRows,
+        fileName: exportFilename,
+        title: "CivicIntel Health Data Report",
+        subtitle: `Indicator: ${indicatorLabel}`,
+        metadata: {
+          State:
+            appliedFilters.state === "all"
+              ? "All states"
+              : appliedFilters.state,
+          Year:
+            appliedFilters.year === "all"
+              ? "All years"
+              : appliedFilters.year,
+        },
+      });
 
-    setExportOpen(false);
+      setExportOpen(false);
 
-    await recordHealthExport("xml");
-  };
+      await recordHealthExport("xlsx");
+    };
 
   // PDF / PRINT EXPORT
   const handleExportPDF = async () => {
@@ -1824,10 +1824,10 @@ ${Object.entries(row)
 
                         <button
                           type="button"
-                          onClick={handleExportXML}
+                          onClick={handleExportXLSX}
                           className="w-full px-4 py-2.5 text-left text-sm transition hover:bg-[#EAF2EC] hover:text-[#1F7A3F]"
                         >
-                          Export XML
+                          Export XLSX
                         </button>
                       </div>
                     )}
@@ -1955,12 +1955,13 @@ ${Object.entries(row)
               LATEST HEALTH RELEASE
             </SectionHeading>
 
-            <a
-              href="#health-releases"
+            <button
+              type="button"
+              onClick={() => navigate("/media")}
               className="mb-6 text-xs font-semibold text-[#1F7A3F] transition-colors hover:underline"
             >
               View all releases →
-            </a>
+            </button>
           </div>
 
           <div id="health-releases">

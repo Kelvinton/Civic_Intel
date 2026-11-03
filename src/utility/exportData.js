@@ -27,29 +27,6 @@ function escapeCSV(value) {
   return `"${safeValue.replace(/"/g, '""')}"`;
 }
 
-function escapeXML(value) {
-  const safeValue =
-    value !== null && typeof value === "object"
-      ? JSON.stringify(value)
-      : String(value ?? "");
-
-  return safeValue
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
-function toXMLName(value) {
-  const name = String(value)
-    .trim()
-    .replace(/[^a-zA-Z0-9_.-]/g, "_");
-
-  return /^[a-zA-Z_]/.test(name)
-    ? name
-    : `field_${name}`;
-}
 
 function formatCSV({ headers, rows, fileName }) {
   const content = [
@@ -65,52 +42,6 @@ function formatCSV({ headers, rows, fileName }) {
     "\uFEFF" + content,
     "text/csv;charset=utf-8;",
     `${fileName}.csv`
-  );
-}
-
-function formatXML({
-  headers,
-  rows,
-  fileName,
-  title,
-  metadata = {},
-}) {
-  const metadataXML = Object.entries(metadata)
-    .map(
-      ([key, value]) =>
-        `    <${toXMLName(key)}>${escapeXML(value)}</${toXMLName(key)}>`
-    )
-    .join("\n");
-
-  const recordsXML = rows
-    .map(
-      (row) => `    <record>
-${headers
-  .map(
-    (header) =>
-      `      <${toXMLName(header)}>${escapeXML(row[header])}</${toXMLName(header)}>`
-  )
-  .join("\n")}
-    </record>`
-    )
-    .join("\n");
-
-  const content = `<?xml version="1.0" encoding="UTF-8"?>
-<export>
-  <title>${escapeXML(title)}</title>
-  <metadata>
-${metadataXML}
-    <recordCount>${rows.length}</recordCount>
-  </metadata>
-  <records>
-${recordsXML}
-  </records>
-</export>`;
-
-  downloadFile(
-    content,
-    "application/xml;charset=utf-8;",
-    `${fileName}.xml`
   );
 }
 
@@ -265,7 +196,7 @@ function formatPDF({
 /**
  * Shared CivicIntel export utility.
  *
- * format: "csv", "xml", "pdf", or "xlsx"
+ * format: "csv", "pdf", or "xlsx"
  * headers: array of column labels
  * rows: array of objects keyed by those labels
  * metadata: optional report and data provenance information
@@ -311,10 +242,6 @@ export function exportData({
   switch (String(format).toLowerCase()) {
     case "csv":
       formatCSV(options);
-      break;
-
-    case "xml":
-      formatXML(options);
       break;
 
     case "pdf":

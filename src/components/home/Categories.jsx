@@ -68,6 +68,12 @@ const categoryConfig = [
         key: "maternal_mortality_ratio",
         label: "Maternal mortality ratio",
       },
+      {
+        key: "under_five_mortality",
+        label: "Under Five Mortality ratio",
+      },
+
+    
     ],
   },
   {
