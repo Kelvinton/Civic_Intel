@@ -616,6 +616,7 @@ function CompareResults() {
 
   const [notice, setNotice] = useState("");
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [savingComparison, setSavingComparison] = useState(false);
 
   // --------------------------------------------------
   // Login protection
@@ -798,13 +799,59 @@ function CompareResults() {
   };
 
   // --------------------------------------------------
-  // Save comparison placeholder
+  // Save comparison to the user's account
   // --------------------------------------------------
 
-  const handleSave = () => {
-    setNotice(
-      "Saving reports to your account is not connected yet. This feature will be enabled when the backend save-report endpoint is available."
-    );
+  const handleSave = async () => {
+    setNotice("");
+
+    if (!comparison) {
+      setNotice(
+        "No valid comparison is available to save. Return to Compare States and configure a comparison."
+      );
+      return;
+    }
+
+    if (comparison.selectedStates.length < 2) {
+      setNotice("Select at least two states before saving.");
+      return;
+    }
+
+    setSavingComparison(true);
+
+    const payload = {
+      id: crypto.randomUUID(),
+      title: `${comparison.domain} — ${comparison.indicatorName}`,
+      indicator: comparison.indicator,
+      states: comparison.selectedStates,
+      ...(comparison.fromYear && {
+        year_from: Number(comparison.fromYear),
+      }),
+      ...(comparison.toYear && {
+        year_to: Number(comparison.toYear),
+      }),
+      saved_at: new Date().toISOString(),
+    };
+
+    try {
+      await apiRequest("/saved-comparisons", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      setNotice(
+        "Comparison saved successfully to your account."
+      );
+    } catch (error) {
+      console.error("Could not save comparison:", error);
+
+      setNotice(
+        error.message ||
+          "Could not save this comparison. Please try again."
+      );
+    } finally {
+      setSavingComparison(false);
+    }
   };
 
 
@@ -910,21 +957,27 @@ function CompareResults() {
               <button
                 type="button"
                 onClick={handleSave}
-                className="mt-2 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#176332] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F7A3F] "
+                disabled={savingComparison || !comparison}
+                className="mt-2 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#176332] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F7A3F] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Save comparison
+                {savingComparison ? "Saving..." : "Save comparison"}
 
-                <Download
-                  className="h-4 w-4"
-                  aria-hidden="true"
-                />
+                {savingComparison ? (
+                  <span className="size-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                ) : (
+                  <Download
+                    className="h-4 w-4"
+                    aria-hidden="true"
+                  />
+                )}
               </button>
 
               {/* Export and save notifications */}
               {notice && (
                 <div
                   role="status"
-                  className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 "
+                  aria-live="polite"
+                  className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-xs leading-relaxed text-slate-700"
                 >
                   {notice}
                 </div>

@@ -875,10 +875,10 @@ function Account() {
                   className="max-w-24 px-2 py-1 outline-none"
                 >
                   <option value="All">All formats</option>
-                  <option value="XML">XML</option>
+                  <option value="XLSX">XLSX</option>
                   <option value="PDF">PDF</option>
                   <option value="CSV">CSV</option>
-                  <option value="PNG">PNG</option>
+                  
                 </select>
 
                 

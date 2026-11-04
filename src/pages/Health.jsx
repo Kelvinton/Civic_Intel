@@ -228,10 +228,10 @@ function Health() {
   );
 
   const [exportOpen, setExportOpen] = useState(false);
+  const [savingIndicator, setSavingIndicator] = useState(false);
+  const [saveNotice, setSaveNotice] = useState("");
+  const [saveNoticeType, setSaveNoticeType] = useState("");
 
-  // --------------------------------------------------
-  // LOAD STATES FROM REFERENCE API
-  // --------------------------------------------------
 
   useEffect(() => {
     let isMounted = true;
@@ -336,9 +336,6 @@ function Health() {
     };
   }, []);
 
-  // --------------------------------------------------
-  // NATIONAL HEALTH OVERVIEW
-  // --------------------------------------------------
 
  
 // --------------------------------------------------
@@ -398,15 +395,22 @@ const overviewStats = useMemo(() => {
 }, [healthRecords]);
 
 
+ 
   // --------------------------------------------------
-  // AVAILABLE INDICATORS
+  // AVAILABLE INDICATORS WITH PUBLISHED DATA
   // --------------------------------------------------
 
   const indicatorOptions = useMemo(() => {
     const uniqueIndicators = new Map();
 
     healthRecords.forEach((record) => {
-      if (record.indicator_key && record.indicator) {
+      const hasValidData = isValidNumericValue(record.value);
+
+      if (
+        record.indicator_key &&
+        record.indicator &&
+        hasValidData
+      ) {
         uniqueIndicators.set(record.indicator_key, {
           key: record.indicator_key,
           label: record.indicator,
@@ -418,6 +422,7 @@ const overviewStats = useMemo(() => {
       (a, b) => a.label.localeCompare(b.label)
     );
   }, [healthRecords]);
+
 
   // --------------------------------------------------
   // AVAILABLE YEARS
@@ -1029,15 +1034,79 @@ const recordHealthExport = async (format) => {
   };
 
   // --------------------------------------------------
-  // SAVE INDICATOR
-  // --------------------------------------------------
+// SAVE INDICATOR
+// --------------------------------------------------
 
-  // No account-level save endpoint has been connected yet.
-  const handleSaveIndicator = () => {
-    window.alert(
-      "Saving indicators to your CivicIntel account is not available yet. The backend save endpoint still needs to be connected."
-    );
+const handleSaveIndicator = async () => {
+  if (!isLoggedIn) {
+    handleLogin();
+    return;
+  }
+
+  if (!appliedFilters || chartRows.length === 0 || chartData.length === 0) {
+    setSaveNotice("There are no Health records available to save.");
+    setSaveNoticeType("error");
+    return;
+  }
+
+  setSavingIndicator(true);
+  setSaveNotice("");
+  setSaveNoticeType("");
+
+  // Get all states represented by the selected filters.
+  const selectedStates = [
+    ...new Set(
+      chartData
+        .map((record) => record.state)
+        .filter(Boolean)
+    ),
+  ];
+
+  // Get the reporting years represented by the selected filters.
+  const selectedYears = chartData
+    .map((record) => Number(record.year))
+    .filter(Number.isFinite);
+
+  const yearFrom = selectedYears.length
+    ? Math.min(...selectedYears)
+    : null;
+
+  const yearTo = selectedYears.length
+    ? Math.max(...selectedYears)
+    : null;
+
+  const payload = {
+    id: crypto.randomUUID(),
+    title: `Health — ${indicatorLabel}`,
+    indicator: appliedFilters.indicator,
+    states: selectedStates,
+    year_from: yearFrom,
+    year_to: yearTo,
+    saved_at: new Date().toISOString(),
   };
+
+  try {
+    await apiRequest("/saved-comparisons", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    setSaveNotice("Health indicator saved successfully to your account.");
+    setSaveNoticeType("success");
+  } catch (error) {
+    console.error("Could not save Health indicator:", error);
+
+    setSaveNotice(
+      error instanceof Error
+        ? error.message
+        : "Could not save this indicator. Please try again."
+    );
+
+    setSaveNoticeType("error");
+  } finally {
+    setSavingIndicator(false);
+  }
+};
 
   // --------------------------------------------------
   // RETRY LOADING STATES
@@ -1520,7 +1589,7 @@ const recordHealthExport = async (format) => {
                                 duration: 0.4,
                                 delay: index * 0.045,
                               }}
-                              className="grid grid-cols-[68px_25px_minmax(0,1fr)_48px] items-center gap-2 sm:grid-cols-[78px_25px_minmax(0,1fr)_62px] sm:gap-2.5"
+                              className="grid grid-cols-[68px_25px_minmax(0,1fr)_55px_48px] items-center gap-2 sm:grid-cols-[78px_25px_minmax(0,1fr)_65px_62px] sm:gap-2.5"
                             >
                               <span className="truncate text-[11px] font-medium">
                                 {item.state}
@@ -1531,9 +1600,9 @@ const recordHealthExport = async (format) => {
                               </span>
 
                               {/* BAR */}
-                              <div className="relative h-7 min-w-0 overflow-hidden rounded-sm bg-[#E6EBEE]">
+                              <div className="relative h-8 min-w-0 overflow-hidden rounded-md bg-[#E6EBEE]">
                                 <motion.div
-                                  className={`absolute inset-y-0 left-0 rounded-sm ${barColor}`}
+                                  className={`absolute inset-y-0 left-0 rounded-md ${barColor}`}
                                   initial={{ width: 0 }}
                                   animate={{
                                     width: `${item.barWidth}%`,
@@ -1546,26 +1615,23 @@ const recordHealthExport = async (format) => {
                                 />
 
                                 <span
-                                  className={`absolute inset-y-0 flex items-center text-[10px] font-semibold ${
-                                    item.barWidth > 18
+                                  className={`absolute inset-y-0 flex items-center whitespace-nowrap px-2 text-[9px] font-bold sm:text-[10px] ${
+                                    item.barWidth > 25
                                       ? "text-white"
                                       : "text-[#0B3048]"
                                   }`}
                                   style={{
                                     left:
-                                      item.barWidth > 18
-                                        ? `${Math.max(
-                                            item.barWidth - 12,
-                                            1
-                                          )}%`
-                                        : `${Math.min(
-                                            item.barWidth + 1,
-                                            85
-                                          )}%`,
+                                      item.barWidth > 25
+                                        ? `${Math.max(item.barWidth - 2, 1)}%`
+                                        : `${Math.min(item.barWidth + 1, 75)}%`,
+                                    transform:
+                                      item.barWidth > 25
+                                        ? "translateX(-100%)"
+                                        : "none",
                                   }}
                                 >
-                                  {formatValue(item.numericValue)}
-                                  {item.unit}
+                                  {formatValue(item.numericValue)} {item.unit}
                                 </span>
                               </div>
 
@@ -1834,30 +1900,73 @@ const recordHealthExport = async (format) => {
                   </div>
 
                   {/* SAVE INDICATOR */}
-                  <button
-                    type="button"
-                    onClick={handleSaveIndicator}
-                    className="flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98]"
-                  >
-                    <span>Save indicator</span>
+<div className="flex flex-col gap-3">
+  <button
+    type="button"
+    onClick={handleSaveIndicator}
+    disabled={savingIndicator || chartRows.length === 0}
+    className="flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+  >
+    <span>
+      {savingIndicator ? "Saving..." : "Save indicator"}
+    </span>
 
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="19"
-                      height="19"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <path d="m7 10 5 5 5-5" />
-                      <path d="M12 15V3" />
-                    </svg>
-                  </button>
+    {savingIndicator ? (
+      <svg
+        className="h-5 w-5 animate-spin"
+        viewBox="0 0 24 24"
+        fill="none"
+        aria-hidden="true"
+      >
+        <circle
+          cx="12"
+          cy="12"
+          r="9"
+          stroke="currentColor"
+          strokeWidth="3"
+          className="opacity-25"
+        />
+        <path
+          d="M21 12a9 9 0 0 0-9-9"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+        />
+      </svg>
+    ) : (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="19"
+        height="19"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <path d="m7 10 5 5 5-5" />
+        <path d="M12 15V3" />
+      </svg>
+    )}
+  </button>
+
+  {saveNotice && (
+    <p
+      role="status"
+      aria-live="polite"
+      className={`rounded-lg px-3 py-2 text-xs leading-5 ${
+        saveNoticeType === "success"
+          ? "border border-green-400/30 bg-green-500/10 text-green-200"
+          : "border border-red-400/30 bg-red-500/10 text-red-200"
+      }`}
+    >
+      {saveNotice}
+    </p>
+  )}
+</div>
                 </div>
 
                 {/* FACILITY SPOT CHECK */}
@@ -1974,7 +2083,7 @@ const recordHealthExport = async (format) => {
                 <motion.article
                   key={release.title}
                   variants={revealVariants}
-                  className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg active:scale-[0.99]"
+                  className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg active:scale-[0.99] cursor-pointer"
                 >
                   <div className="overflow-hidden">
                     <img
@@ -1994,9 +2103,7 @@ const recordHealthExport = async (format) => {
                       {release.title}
                     </h3>
 
-                    <p className="mt-3 text-xs text-[#1F7A3F]">
-                      Demonstration release
-                    </p>
+                    
                   </div>
                 </motion.article>
               ))}

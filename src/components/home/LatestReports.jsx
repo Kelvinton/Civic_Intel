@@ -90,7 +90,7 @@ function LatestReports() {
           <button
               type="button"
               onClick={() => navigate("/media")}
-              className="mb-6 text-xs font-semibold text-[#1F7A3F] transition-colors hover:underline inline-flex"
+              className="mb-6 text-xs font-semibold text-[#1F7A3F] transition-colors hover:underline inline-flex justify-center item-center"
             >
               View all releases 
 
@@ -100,7 +100,7 @@ function LatestReports() {
               viewBox="0 0 24 24"
               strokeWidth={1.5}
               stroke="currentColor"
-              className="size-4 transition-transform duration-300 group-hover:translate-x-1 ml-4"
+              className="size-4 transition-transform duration-300 group-hover:translate-x-1 ml-2"
               aria-hidden="true"
             >
               <path
@@ -124,7 +124,7 @@ function LatestReports() {
             <motion.article
               key={report.id}
               variants={revealVariants}
-              className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-gray-300 bg-white text-[#171717] shadow-sm transition-all duration-300 ease-out hover:-translate-y-2 hover:shadow-xl active:scale-[0.99] focus-within:border-[#1F7A3F] motion-reduce:transform-none motion-reduce:transition-none"
+              className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-gray-300 bg-white text-[#171717] shadow-sm transition-all duration-300 ease-out hover:-translate-y-2 hover:shadow-xl active:scale-[0.99] focus-within:border-[#1F7A3F] motion-reduce:transform-none motion-reduce:transition-none cursor-pointer"
             >
               {/* Report image */}
               <a

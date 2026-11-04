@@ -1579,7 +1579,7 @@ function Education() {
             {releases.map((release) => (
               <article
                 key={release.title}
-                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-md"
+                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-md cursor-pointer"
               >
                 <img
                   src={release.image}
@@ -1597,9 +1597,9 @@ function Education() {
                     {release.title}
                   </h3>
 
-                  <p className="mt-3 text-xs text-[#1F7A3F]">
-                    Demonstration release
-                  </p>
+                  {/* <p className="mt-3 text-xs text-[#1F7A3F]">
+                    
+                  </p> */}
                 </div>
               </article>
             ))}
