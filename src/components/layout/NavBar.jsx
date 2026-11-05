@@ -5,7 +5,7 @@ import { NavLink, Link, useLocation } from "react-router-dom";
 
 
 import { useAuth } from "../../context/AuthContext.jsx";
-import civicIntelLogo from "../../assets/civicintellogo1.png";
+import civicIntelLogo from "../../assets/signup.logo.png";
 
 const navLinks = [
   { label: "Home", to: "/" },
@@ -83,7 +83,7 @@ function Navbar() {
           <img
             src={civicIntelLogo}
             alt="CivicIntel"
-            className="h-12 w-auto max-w-13.5 rounded-md bg-white object-contain"
+            className="h-14 w-auto max-w-13.5 rounded-md  object-contain"
           />
         </Link>
 

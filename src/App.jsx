@@ -62,22 +62,24 @@ function AppContent() {
       <Route
         path="/login"
         element={
-          isLoggedIn ? (
-            <Navigate to="/" replace />
-          ) : (
-            <AuthPage onLogin={login} onSignup={signup} />
-          )
+          <AuthPage
+            mode="login"
+            isLoggedIn={isLoggedIn}
+            onLogin={login}
+            onSignup={signup}
+          />
         }
       />
 
       <Route
         path="/signup"
         element={
-          isLoggedIn ? (
-            <Navigate to="/" replace />
-          ) : (
-            <AuthPage onLogin={login} onSignup={signup} />
-          )
+          <AuthPage
+            mode="signup"
+            isLoggedIn={isLoggedIn}
+            onLogin={login}
+            onSignup={signup}
+          />
         }
       />
 

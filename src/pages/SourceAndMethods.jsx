@@ -192,7 +192,7 @@ function SourcesAndMethods() {
       {/* Hero */}
         <motion.section
           {...getRevealProps(shouldReduceMotion)}
-          className="pl-4 sm:pl-8 w-full"
+          className="pl-4 sm:pl-8 w-full max-w-6xl"
         >
           <div className="flex flex-col items-center  md:flex-row  w-full gap-8">
             {/* Hero text */}

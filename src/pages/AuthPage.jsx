@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import PasswordRecovery from "./PasswordRecovery.jsx";
@@ -16,8 +16,7 @@ const initialSignup = {
   lastName: "",
   phone: "",
   email: "",
-  address: "",
-  state: "",
+  country: "",
   password: "",
   confirmPassword: "",
   agreeToTerms: false,
@@ -114,6 +113,16 @@ function AuthInput({
 function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const destination = location.state?.from;
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      navigate(destination?.pathname || "/", {
+        replace: true,
+        state: destination?.state,
+      });
+    }
+  }, [isLoggedIn, navigate, destination]);
 
   // Controls whether the password recovery modal is visible.
   const [showPasswordRecovery, setShowPasswordRecovery] = useState(false);
@@ -163,18 +172,8 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
         nextErrors.lastName = "Enter your last name.";
       }
 
-      if (!signup.phone.trim()) {
-        nextErrors.phone = "Enter your phone number.";
-      } else if (!/^[+\d][\d\s()-]{6,19}$/.test(signup.phone.trim())) {
-        nextErrors.phone = "Enter a valid phone number.";
-      }
-
-      if (!signup.address.trim()) {
-        nextErrors.address = "Enter your address.";
-      }
-
-      if (!signup.state) {
-        nextErrors.state = "Select your state.";
+      if (!signup.country) {
+        nextErrors.country = "Select your country.";
       }
 
       if (signup.password.length < 8) {
@@ -217,23 +216,23 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
         const result = await onSignup({
           firstName: signup.firstName.trim(),
           lastName: signup.lastName.trim(),
-          phone: signup.phone.trim(),
           email: signup.email.trim(),
-          address: signup.address.trim(),
-          state: signup.state,
+          country: signup.country,
           password: signup.password,
           confirmPassword: signup.confirmPassword,
           termsAccepted: signup.agreeToTerms,
         });
 
         if (result?.user) {
-          navigate(location.state?.from?.pathname || "/", {
+          navigate(destination?.pathname || "/", {
             replace: true,
+            state: destination?.state,
           });
         } else {
           navigate("/login", {
             replace: true,
             state: {
+              from: destination,
               message:
                 result?.message ||
                 "Your registration request was submitted. Please log in or follow any verification instructions.",
@@ -246,8 +245,6 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
           password: login.password,
           remember: login.remember,
         });
-
-        const destination = location.state?.from;
 
         navigate(destination?.pathname || "/", {
           replace: true,
@@ -268,19 +265,9 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
   if (isLoggedIn) {
     return (
       <main className="flex min-h-[70vh] items-center justify-center bg-[#E7ECEF] px-6">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold">You're signed in</h1>
-          <p className="mt-3 text-gray-600">
-            Welcome to CivicIntel.
-          </p>
-          <Link
-            to="/"
-            className="mt-6 inline-flex rounded-full bg-[#1F7A3F]
-              px-6 py-3 text-white transition hover:bg-[#176331]"
-          >
-            Explore CivicIntel
-          </Link>
-        </div>
+        <p className="text-gray-600">
+          Redirecting you to your destination...
+        </p>
       </main>
     );
   }
@@ -323,7 +310,7 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
               <ul className="list-disc space-y-2 text-center text-base leading-6 text-white/90">
                 <li>Save comparisons for later</li>
                 <li>Access previous analysis</li>
-                <li>Export data (PNG, PDF, CSV)</li>
+                <li>Export data (PDF, CSV, XLSX)</li>
               </ul>
             </div>
           </aside>
@@ -399,7 +386,7 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
                         error={errors.lastName}
                       />
 
-                      <AuthInput
+                      {/* <AuthInput
                         label="Phone number"
                         name="phone"
                         type="tel"
@@ -408,9 +395,10 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
                         placeholder="08000000000"
                         autoComplete="tel"
                         error={errors.phone}
-                      />
+                      /> */}
+                    </div>
 
-                      <AuthInput
+                    <AuthInput
                         label="Email Address"
                         name="email"
                         type="email"
@@ -420,87 +408,49 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
                         autoComplete="email"
                         error={errors.email}
                       />
-                    </div>
-
-                    <AuthInput
-                      label="Address"
-                      name="address"
-                      value={signup.address}
-                      onChange={updateField}
-                      placeholder="12, Macaulay Way, Ikeja, Lagos"
-                      autoComplete="street-address"
-                      error={errors.address}
-                    />
 
                     <div>
                       <label
-                        htmlFor="state"
+                        htmlFor="country"
                         className="mb-2 block text-sm font-medium"
                       >
-                        State
+                        Country
                       </label>
 
                       <select
-                        id="state"
-                        name="state"
-                        value={signup.state}
+                        id="country"
+                        name="country"
+                        value={signup.country}
                         onChange={updateField}
                         required
-                        aria-invalid={Boolean(errors.state)}
+                        aria-invalid={Boolean(errors.country)}
                         className="w-full rounded-full border border-[#A5AAAD] bg-transparent px-4 py-3 text-sm outline-none transition focus:border-[#1F7A3F] focus:ring-2 focus:ring-[#1F7A3F]/15"
                       >
-                        <option value="">Select state</option>
+                        <option value="">Select country</option>
                         {[
-                          "Abia",
-                          "Adamawa",
-                          "Akwa Ibom",
-                          "Anambra",
-                          "Bauchi",
-                          "Bayelsa",
-                          "Benue",
-                          "Borno",
-                          "Cross River",
-                          "Delta",
-                          "Ebonyi",
-                          "Edo",
-                          "Ekiti",
-                          "Enugu",
-                          "FCT",
-                          "Gombe",
-                          "Imo",
-                          "Jigawa",
-                          "Kaduna",
-                          "Kano",
-                          "Katsina",
-                          "Kebbi",
-                          "Kogi",
-                          "Kwara",
-                          "Lagos",
-                          "Nasarawa",
-                          "Niger",
-                          "Ogun",
-                          "Ondo",
-                          "Osun",
-                          "Oyo",
-                          "Plateau",
-                          "Rivers",
-                          "Sokoto",
-                          "Taraba",
-                          "Yobe",
-                          "Zamfara",
-                        ].map((state) => (
-                          <option key={state} value={state}>
-                            {state}
+                          "Nigeria",
+                          "Ghana",
+                          "Kenya",
+                          "South Africa",
+                          "United States",
+                          "United Kingdom",
+                          "Canada",
+                          "Other",
+                        ].map((country) => (
+                          <option key={country} value={country}>
+                            {country}
                           </option>
                         ))}
                       </select>
 
-                      {errors.state && (
+                      {errors.country && (
                         <p className="mt-1 text-xs text-red-600">
-                          {errors.state}
+                          {errors.country}
                         </p>
                       )}
                     </div>
+
+                    
                   </>
                 )}
 

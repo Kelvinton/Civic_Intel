@@ -4,11 +4,23 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Download } from "lucide-react";
 
+import {
+  BarChart,
+  Bar,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
 import { apiRequest } from "../api/api.js";
 import { exportData } from "../utility/exportData.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getComparison } from "../api/referenceData.js";
 import SurveyCoverageChart from "../components/SurveyCoverageChart.jsx";
+
+
 
 // --------------------------------------------------
 // Validate comparison selections
@@ -32,6 +44,21 @@ function getValidComparison(value) {
   const fromYear = String(value.fromYear ?? "");
   const toYear = String(value.toYear ?? "");
 
+  const selectedYears = Array.isArray(value.selectedYears)
+    ? [
+        ...new Set(
+          value.selectedYears
+            .map(Number)
+            .filter(
+              (year) =>
+                Number.isInteger(year) &&
+                year >= 1900 &&
+                year <= 2100
+            )
+        ),
+      ].sort((a, b) => a - b)
+    : [];
+
   if (
     typeof value.indicator !== "string" ||
     !value.indicator.trim() ||
@@ -54,10 +81,10 @@ function getValidComparison(value) {
     ...value,
     indicator: value.indicator.trim(),
     selectedStates: uniqueStates,
+    selectedYears,
     fromYear,
     toYear,
-    indicatorName:
-      value.indicatorName || value.indicator,
+    indicatorName: value.indicatorName || value.indicator,
     domain: value.domain || "Comparison",
   };
 }
@@ -114,17 +141,23 @@ function buildExportContent(comparison, records = null) {
           Value: comparison.selectedStates.join(", "),
         },
         {
+          Field: "Selected years",
+          Value:
+            comparison.selectedYears?.join(", ") ||
+            "All available years",
+        },
+        {
           Field: "From year",
-          Value: comparison.fromYear || "All available years",
+          Value: comparison.fromYear || "Not specified",
         },
         {
           Field: "To year",
-          Value: comparison.toYear || "All available years",
+          Value: comparison.toYear || "Not specified",
         },
         {
           Field: "Note",
           Value:
-            "This report contains comparison settings only. No indicator records were returned by the Server.",
+            "This report contains comparison settings only. No indicator records were returned by the server.",
         },
       ];
 
@@ -164,8 +197,11 @@ function exportComparison(
     Indicator: comparison.indicatorName,
     "Indicator key": comparison.indicator,
     "Selected states": comparison.selectedStates.join(", "),
-    "From year": comparison.fromYear || "All available years",
-    "To year": comparison.toYear || "All available years",
+    "Selected years":
+      comparison.selectedYears?.join(", ") ||
+      "All available years",
+    "From year": comparison.fromYear || "Not specified",
+    "To year": comparison.toYear || "Not specified",
     "Data status":
       sourceMetadata.dataStatus ||
       (hasRecords
@@ -173,18 +209,16 @@ function exportComparison(
         : "No comparison records returned by the API"),
     "Contains simulated data":
       sourceMetadata.containsSimulatedData ?? "Not specified",
-    ...(
-      sourceMetadata.notices
-        ? { "API notices": sourceMetadata.notices }
-        : {}
-    ),
+    ...(sourceMetadata.notices
+      ? { "API notices": sourceMetadata.notices }
+      : {}),
   };
 
   exportData({
     format: normalizedFormat,
     headers,
     rows,
-    fileName: `civicintel-comparison`,
+    fileName: "civicintel-comparison",
     title: "CivicIntel - Comparison Report",
     subtitle: `${comparison.indicatorName} | ${comparison.selectedStates.join(" vs ")}`,
     metadata,
@@ -194,17 +228,17 @@ function exportComparison(
   return hasRecords;
 }
 
+
 // --------------------------------------------------
 // Comparison results table
 // --------------------------------------------------
 
-function ChartPlaceholder({ result, loading, error }) {
+function ChartPlaceholder({result, loading, error, selectedStates = [], unit = "",}) {
   if (loading) {
     return (
       <div className="bg-white p-6 text-center">
         <div className="flex flex-col items-center justify-center py-8">
           <div className="size-8 animate-spin rounded-full border-4 border-[#E8EEF1] border-t-[#1F7A3F]" />
-
           <p className="mt-4 text-sm text-slate-500">
             Loading comparison results...
           </p>
@@ -220,7 +254,6 @@ function ChartPlaceholder({ result, loading, error }) {
           <h2 className="text-sm font-semibold text-red-800">
             Unable to load comparison results
           </h2>
-
           <p className="mt-2 text-xs leading-relaxed text-red-700">
             {error}
           </p>
@@ -232,10 +265,9 @@ function ChartPlaceholder({ result, loading, error }) {
   if (!result || !Array.isArray(result.series)) {
     return (
       <div className="bg-white p-5 sm:p-6">
-        <h2 className="text-sm font-bold text-slate-800 sm:text-base">
+        <h2 className="text-sm font-bold text-slate-800">
           Comparison across selected states
         </h2>
-
         <p className="mt-2 text-xs text-slate-500">
           No comparison records have been returned by the server.
         </p>
@@ -243,186 +275,193 @@ function ChartPlaceholder({ result, loading, error }) {
     );
   }
 
+  // Prepare graph data: one entry per year, one value per state.
+  const graphData = result.series.map((period) => {
+    const yearData = { year: String(period.year) };
+
+    (period.rows || []).forEach((row) => {
+      if (
+        row.value !== null &&
+        row.value !== undefined &&
+        row.value !== "" &&
+        Number.isFinite(Number(row.value))
+      ) {
+        yearData[row.state] = Number(row.value);
+      }
+    });
+
+    return yearData;
+  });
+
+  const hasData = graphData.some((item) =>
+    selectedStates.some((state) => item[state] !== undefined)
+  );
+
+  const stateColors = ["#1F7A3F", "#D6A756", "#0B3C5D", "#8B5CF6"];
+
   return (
     <div className="min-w-0 bg-white p-4 sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-bold text-slate-800 sm:text-base">
-            Comparison across selected states
-          </h2>
-
-          <p className="mt-1 text-xs text-slate-500">
-            Results returned by the CivicIntel comparison service.
-          </p>
-        </div>
-
-        <span className="rounded-full bg-green-50 px-3 py-1 text-[10px] font-medium text-green-800">
-          Response received
-        </span>
+      <div>
+        <h2 className="text-sm font-bold text-slate-800 sm:text-base">
+          Comparison across selected states
+        </h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Compare indicator values across the selected years.
+          {unit && (
+            <span className="ml-1 font-semibold text-[#0B3C5D]">
+              Unit: {unit}
+            </span>
+          )}
+        </p>
       </div>
 
       {result.contains_simulated_data === true && (
-        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800">
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
           Warning: This response contains simulated data. Treat
           the figures as simulated rather than verified statistics.
         </div>
       )}
 
-      {Array.isArray(result.notices) &&
-        result.notices.length > 0 && (
-          <div className="mt-4 rounded-lg bg-slate-50 p-3">
-            <h3 className="text-xs font-semibold text-slate-700">
-              API notices
-            </h3>
-
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">
-              {result.notices.map((notice, index) => (
-                <li key={index}>
-                  {typeof notice === "string"
-                    ? notice
-                    : notice.message || JSON.stringify(notice)}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-      {result.series.length === 0 ? (
+      {!hasData ? (
         <div className="mt-5 rounded-lg bg-slate-50 p-5 text-center">
           <p className="text-sm font-medium text-slate-700">
             No results available
           </p>
-
           <p className="mt-2 text-xs text-slate-500">
-            The backend did not return comparison records for
-            the selected indicator, states, or years.
+            The backend did not return state records for the selected
+            indicator or years.
           </p>
         </div>
       ) : (
-        <div className="mt-6 space-y-8">
-          {result.series.map((period, index) => (
-            <section
-              key={period.year ?? index}
-              className="min-w-0"
-            >
-              <h3 className="mb-3 text-sm font-semibold text-[#0B3C5D]">
-                Year: {formatValue(period.year)}
-              </h3>
+        <>
+          {/* Grouped comparison graph */}
+          <div className="mt-5 h-72 w-full max-w-3xl">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={graphData}
+                margin={{
+                  top: 15,
+                  right: 15,
+                  left: 0,
+                  bottom: 10,
+                }}
+                barCategoryGap="35%"
+                barGap={5}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  vertical={false}
+                  stroke="#E2E8F0"
+                />
 
-              {/* National average information */}
-              <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-lg bg-[#E8EEF1] p-3">
-                  <p className="text-xs text-slate-500">
-                    National average
+                <XAxis
+                  dataKey="year"
+                  tick={{ fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={40}
+                />
+
+                <Tooltip
+                  formatter={(value, name) => [
+                    `${Number(value).toLocaleString(undefined, {
+                      maximumFractionDigits: 2,
+                    })}${unit ? ` ${unit}` : ""}`,
+                    name,
+                  ]}
+                  contentStyle={{
+                    backgroundColor: "rgba(255, 255, 255, 0.88)",
+                    backdropFilter: "blur(6px)",
+                    borderRadius: "8px",
+                    border: "1px solid #E2E8F0",
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+                    fontSize: "11px",
+                    padding: "8px 12px",
+                  }}
+                  itemStyle={{
+                    padding: "2px 0",
+                    fontWeight: 600,
+                  }}
+                  labelStyle={{
+                    color: "#0B3C5D",
+                    fontWeight: 700,
+                    marginBottom: "4px",
+                  }}
+                  wrapperStyle={{
+                    pointerEvents: "none",
+                    zIndex: 10,
+                  }}
+                />
+
+                {selectedStates.map((state, index) => (
+                  <Bar
+                    key={state}
+                    dataKey={state}
+                    name={state}
+                    fill={stateColors[index % stateColors.length]}
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={22}
+                  />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Legend */}
+          <div className="mt-3 flex flex-wrap justify-center gap-4">
+            {selectedStates.map((state, index) => (
+              <div key={state} className="flex items-center gap-2">
+                <span
+                  className="size-2.5 rounded-sm"
+                  style={{
+                    backgroundColor:
+                      stateColors[index % stateColors.length],
+                  }}
+                />
+                <span className="text-xs text-slate-600">
+                  {state}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* National averages and missing records */}
+          <div className="mt-6 space-y-3">
+            {result.series.map((period, index) => (
+              <div
+                key={period.year ?? index}
+                className="rounded-lg border border-slate-200 p-3"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-[#0B3C5D]">
+                    {period.year}
                   </p>
 
-                  <p className="mt-1 text-lg font-bold text-[#0B3C5D]">
-                    {formatValue(period.national_average)}
+                  <p className="text-xs text-slate-600">
+                    National average:{" "}
+                    <span className="font-semibold text-slate-800">
+                      {formatValue(period.national_average)}
+                    </span>
                   </p>
                 </div>
 
-                <div className="rounded-lg bg-[#E8EEF1] p-3">
-                  <p className="text-xs text-slate-500">
-                    National average based on
-                  </p>
-
-                  <p className="mt-1 text-lg font-bold text-[#0B3C5D]">
-                    {formatValue(period.national_average_based_on)}
-                  </p>
-                </div>
+                {Array.isArray(period.missing_states) &&
+                  period.missing_states.length > 0 && (
+                    <p className="mt-2 text-[11px] text-slate-500">
+                      No records for:{" "}
+                      {period.missing_states.join(", ")}
+                    </p>
+                  )}
               </div>
-
-              {/* State comparison records */}
-              <div className="overflow-x-auto rounded-lg border border-slate-200">
-                <table className="w-full min-w-190 border-collapse text-left text-xs">
-                  <thead>
-                    <tr className="bg-[#0B3C5D] text-white">
-                      {[
-                        "State",
-                        "Zone",
-                        "Value",
-                        "Difference from national",
-                        "Selected rank",
-                        "National rank",
-                        "Assessment",
-                      ].map((heading) => (
-                        <th
-                          key={heading}
-                          className="px-3 py-3 font-medium"
-                        >
-                          {heading}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {Array.isArray(period.rows) &&
-                    period.rows.length > 0 ? (
-                      period.rows.map((row, rowIndex) => (
-                        <tr
-                          key={`${row.state}-${rowIndex}`}
-                          className="border-b border-slate-200 last:border-0 even:bg-slate-50"
-                        >
-                          <td className="px-3 py-3 font-medium text-slate-800">
-                            {formatValue(row.state)}
-                          </td>
-
-                          <td className="px-3 py-3 text-slate-600">
-                            {formatValue(row.zone)}
-                          </td>
-
-                          <td className="px-3 py-3 font-medium text-slate-800">
-                            {formatValue(row.value)}
-                          </td>
-
-                          <td className="px-3 py-3 text-slate-700">
-                            {formatValue(
-                              row.difference_from_national
-                            )}
-                          </td>
-
-                          <td className="px-3 py-3 text-slate-700">
-                            {formatValue(
-                              row.rank_among_selected
-                            )}
-                          </td>
-
-                          <td className="px-3 py-3 text-slate-700">
-                            {formatValue(row.national_rank)}
-                          </td>
-
-                          <td className="px-3 py-3 text-slate-700">
-                            {formatValue(row.assessment)}
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td
-                          colSpan={7}
-                          className="px-3 py-6 text-center text-slate-500"
-                        >
-                          No state records available for this year.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {Array.isArray(period.missing_states) &&
-                period.missing_states.length > 0 && (
-                  <p className="mt-3 text-xs leading-relaxed text-slate-500">
-                    <span className="font-medium text-slate-700">
-                      Missing state records:
-                    </span>{" "}
-                    {period.missing_states.join(", ")}
-                  </p>
-                )}
-            </section>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -445,7 +484,9 @@ function ProvenancePlaceholder({ result }) {
         </h3>
 
         <span className="rounded-full bg-[#C6D6E0] px-2 py-1 text-[10px] text-[#0B3C5D]">
-          {hasSources ? "Source records received" : "Source details pending"}
+          {hasSources
+            ? "Source records received"
+            : "Source details pending"}
         </span>
       </div>
 
@@ -461,8 +502,7 @@ function ProvenancePlaceholder({ result }) {
               </p>
 
               <p className="mt-1">
-                Source ID:{" "}
-                {formatValue(source.source_id)}
+                Source ID: {formatValue(source.source_id)}
               </p>
             </div>
           ))}
@@ -513,6 +553,15 @@ function ProvenancePlaceholder({ result }) {
 // --------------------------------------------------
 
 function AnalysisBrief({ comparison, result, resultsLoading }) {
+  const displayedYears =
+    comparison.selectedYears?.length > 0
+      ? comparison.selectedYears.join(", ")
+      : comparison.fromYear && comparison.toYear
+        ? comparison.fromYear === comparison.toYear
+          ? comparison.fromYear
+          : `${comparison.fromYear}–${comparison.toYear}`
+        : "All available years";
+
   return (
     <section>
       <div className="flex items-center justify-between gap-3">
@@ -551,7 +600,7 @@ function AnalysisBrief({ comparison, result, resultsLoading }) {
         <div className="flex items-start justify-between gap-3">
           <span className="text-slate-500">Indicator key</span>
 
-          <span className="max-w-[65%]  wrap-break-word text-right font-medium text-slate-700">
+          <span className="max-w-[65%] wrap-break-word text-right font-medium text-slate-700">
             {comparison.indicator}
           </span>
         </div>
@@ -559,20 +608,24 @@ function AnalysisBrief({ comparison, result, resultsLoading }) {
         <div className="flex items-start justify-between gap-3">
           <span className="text-slate-500">Selected states</span>
 
-          <span className="max-w-[65%]  wrap-break-word text-right font-medium text-slate-700">
+          <span className="max-w-[65%] wrap-break-word text-right font-medium text-slate-700">
             {comparison.selectedStates.join(", ")}
           </span>
         </div>
 
         <div className="flex items-start justify-between gap-3">
-          <span className="text-slate-500">Year range</span>
+          <span className="text-slate-500">Selected years</span>
 
-          <span className="text-right font-medium text-slate-700">
-            {comparison.fromYear && comparison.toYear
-              ? comparison.fromYear === comparison.toYear
-                ? comparison.fromYear
-                : `${comparison.fromYear}–${comparison.toYear}`
-              : "All available years"}
+          <span className="max-w-[65%] text-right font-medium text-slate-700">
+            {displayedYears}
+          </span>
+        </div>
+
+        <div className="flex items-start justify-between gap-3">
+          <span className="text-slate-500">Unit</span>
+
+          <span className="max-w-[65%] text-right font-medium text-slate-700">
+            {comparison.unit || result?.indicator?.unit || "Not specified"}
           </span>
         </div>
       </div>
@@ -586,15 +639,13 @@ function AnalysisBrief({ comparison, result, resultsLoading }) {
           {resultsLoading
             ? "The comparison data is being retrieved."
             : result
-              ? "The comparison records and national averages returned by the backend are displayed in the results section."
+              ? "The comparison records, state averages, and national averages returned by the backend are displayed in the results section."
               : "Summary statistics and insights will appear when comparison records are available."}
         </p>
       </div>
     </section>
   );
 }
-
-
 
 // --------------------------------------------------
 // Main CompareResults page
@@ -632,8 +683,10 @@ function CompareResults() {
       state: {
         from: {
           pathname: "/compare-results",
+          state: {
+            comparison,
+          },
         },
-        comparison,
         message: comparison
           ? "Log in to access your comparison results. Your selections will be kept."
           : "Log in to access comparison results.",
@@ -658,20 +711,128 @@ function CompareResults() {
       setResult(null);
 
       try {
-        const response = await getComparison({
-          indicator: comparison.indicator,
-          states: comparison.selectedStates,
-          fromYear: comparison.fromYear || undefined,
-          toYear: comparison.toYear || undefined,
+        let responses;
+
+        // Request each selected year separately.
+        if (comparison.selectedYears?.length > 0) {
+          console.log(
+            "Years selected for comparison:",
+            comparison.selectedYears
+          );
+
+          responses = await Promise.all(
+            comparison.selectedYears.map((year) =>
+              getComparison({
+                indicator: comparison.indicator,
+                states: comparison.selectedStates,
+                fromYear: year,
+                toYear: year,
+              })
+            )
+          );
+        } else {
+          // Keep the existing behaviour for comparisons without selected years.
+          responses = [
+            await getComparison({
+              indicator: comparison.indicator,
+              states: comparison.selectedStates,
+              fromYear: comparison.fromYear || undefined,
+              toYear: comparison.toYear || undefined,
+            }),
+          ];
+        }
+
+        const results = responses.map(
+          (response) =>
+            response?.data?.data ?? response?.data ?? response
+        );
+
+        console.log("Individual year responses:", results);
+
+        results.forEach((item) => {
+          console.log("Year:", item.series?.[0]?.year);
+
+          console.table(
+            (item.series?.[0]?.rows || []).map((row) => ({
+              year: item.series?.[0]?.year,
+              state: row.state,
+              value: row.value,
+              zone: row.zone,
+            }))
+          );
+
+          console.log(
+            "Missing states:",
+            item.series?.[0]?.missing_states
+          );
         });
 
-        const data =
-          response?.data?.data ??
-          response?.data ??
-          response;
+        const firstResult = results[0] || {};
+
+        // Combine the series returned by all individual requests.
+        const combinedResult = {
+          ...firstResult,
+
+          series: results
+            .flatMap((item) =>
+              Array.isArray(item.series) ? item.series : []
+            )
+            .sort((a, b) => Number(a.year) - Number(b.year)),
+
+          notices: [
+            ...new Map(
+              results
+                .flatMap((item) =>
+                  Array.isArray(item.notices) ? item.notices : []
+                )
+                .map((item) => [JSON.stringify(item), item])
+            ).values(),
+          ],
+
+          sources: [
+            ...new Map(
+              results
+                .flatMap((item) =>
+                  Array.isArray(item.sources) ? item.sources : []
+                )
+                .map((item) => [
+                  item.source_id ?? JSON.stringify(item),
+                  item,
+                ])
+            ).values(),
+          ],
+
+          missing_years: [
+            ...new Set(
+              results.flatMap((item) =>
+                Array.isArray(item.missing_years)
+                  ? item.missing_years
+                  : []
+              )
+            ),
+          ],
+
+          contains_simulated_data: results.some(
+            (item) => item.contains_simulated_data === true
+          ),
+
+          years_requested:
+            comparison.selectedYears?.length > 0
+              ? comparison.selectedYears
+              : results.flatMap((item) =>
+                  Array.isArray(item.years_requested)
+                    ? item.years_requested
+                    : []
+                ),
+        };
+
+        console.log(
+          "Combined comparison result:",
+          combinedResult
+        );
 
         if (isMounted) {
-          setResult(data);
+          setResult(combinedResult);
         }
       } catch (error) {
         if (isMounted) {
@@ -824,12 +985,18 @@ function CompareResults() {
       title: `${comparison.domain} — ${comparison.indicatorName}`,
       indicator: comparison.indicator,
       states: comparison.selectedStates,
+
+      // Preserve the exact years selected by the user.
+      selected_years: comparison.selectedYears || [],
+
+      // Keep the year range as well.
       ...(comparison.fromYear && {
         year_from: Number(comparison.fromYear),
       }),
       ...(comparison.toYear && {
         year_to: Number(comparison.toYear),
       }),
+
       saved_at: new Date().toISOString(),
     };
 
@@ -854,6 +1021,9 @@ function CompareResults() {
     }
   };
 
+  // --------------------------------------------------
+  // Page layout
+  // --------------------------------------------------
 
   return (
     <div className="min-h-screen bg-[#E7ECEF] pt-18">
@@ -880,12 +1050,18 @@ function CompareResults() {
         {comparison && (
           <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,2.1fr)_minmax(280px,0.9fr)] lg:gap-10">
             {/* Main results column */}
-            <div className="min-w-0">
+            <div className="min-w-0 space-y-5">
+              {/* NEW: Average chart and table */}
+             
+
+              {/* Existing year-by-year results */}
               <div className="overflow-hidden bg-white shadow-sm">
                 <ChartPlaceholder
                   result={result}
                   loading={resultsLoading}
                   error={resultsError}
+                  selectedStates={comparison.selectedStates}
+                  unit={comparison.unit || result?.indicator?.unit || ""}
                 />
 
                 <div className="p-4 pt-0 sm:p-5 sm:pt-0">
@@ -1016,7 +1192,7 @@ function CompareResults() {
               >
                 <path
                   fillRule="evenodd"
-                  d="M12.97 3.97a.75.75 0 0 1 1.06 0l7.5 7.5a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 1 1-1.06-1.06l6.22-6.22H3a.75.75 0 0 1 0-1.5h16.19l-6.22-6.22a.75.75 0 0 1 0-1.06Z"
+                  d="M12.97 3.97a.75.75 0 0 1 1.06 0l7.5 7.5a.75.75 0 0 1 0 1.06l-6.22 6.22H3a.75.75 0 0 1 0-1.5h16.19l-6.22-6.22a.75.75 0 0 1 0-1.06Z"
                   clipRule="evenodd"
                 />
               </svg>
@@ -1035,6 +1211,7 @@ function CompareResults() {
                     selectedStates: comparison.selectedStates,
                     fromYear: comparison.fromYear,
                     toYear: comparison.toYear,
+                    selectedYears: comparison.selectedYears,
                   }
                 : undefined,
             }}
