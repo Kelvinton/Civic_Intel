@@ -5,6 +5,18 @@ import { exportData } from "../utility/exportData.js";
 import { motion } from "framer-motion";
 
 import {
+  BarChart,
+  Bar,
+  Cell,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ReferenceLine,
+  ResponsiveContainer,
+} from "recharts";
+
+import {
   revealVariants,
   staggerContainer,
   useMotionSettings,
@@ -20,46 +32,7 @@ import HealthPic1 from "../assets/health/Health1.png";
 import HealthPic2 from "../assets/health/Health2.png";
 import HealthPic3 from "../assets/health/Health3.png";
 
-// National overview cards.
-// Values are retrieved from the published Health API.
-// If an indicator is unavailable, the card displays "—".
-const overviewCards = [
-  {
-    label: "COVERAGE",
-    indicatorKey: "anc4_pct",
-    description: "ANC 4+ Coverage",
-    source: "NDHS • 2023",
-    color: "#1F7A3F",
-  },
-  {
-    label: "OUTCOMES",
-    indicatorKey: "maternal_mortality_ratio",
-    description: "Maternal mortality /100k",
-    source: "NDHS • 2023",
-    color: "#8B2922",
-  },
-  {
-    label: "COVERAGE",
-    indicatorKey: "full_immunization",
-    description: "Full immunization 12–23mon",
-    source: "NDHS • 2023",
-    color: "#145C3B",
-  },
-  {
-    label: "SYSTEM",
-    indicatorKey: "doctor_population_ratio",
-    description: "Doctor-to-population",
-    source: "FMCH • 2022",
-    color: "#0B3C5D",
-  },
-  {
-    label: "FINANCING",
-    indicatorKey: "health_allocation_pct",
-    description: "Health share of state budget",
-    source: "BudgetIT • 2025",
-    color: "#D6A400",
-  },
-];
+
 
 const releases = [
   {
@@ -338,61 +311,107 @@ function Health() {
 
 
  
-// --------------------------------------------------
-// STATE AVERAGE HEALTH OVERVIEW
-// --------------------------------------------------
+  // --------------------------------------------------
+  // STATE AVERAGE HEALTH OVERVIEW
+  // --------------------------------------------------
 
-const overviewStats = useMemo(() => {
-  return overviewCards.map((card) => {
-    // Get valid state-level records for this indicator.
-    const stateRecords = healthRecords.filter(
-      (record) =>
-        record.indicator_key === card.indicatorKey &&
-        String(record.state).trim().toLowerCase() !== "national" &&
-        isValidNumericValue(record.value) &&
-        record.year !== null &&
-        record.year !== undefined
-    );
+  const overviewStats = useMemo(() => {
+    const groupedIndicators = {};
 
-    // Find the latest reporting year available.
-    const latestYear = stateRecords.reduce(
-      (latest, record) =>
-        Number(record.year) > latest
-          ? Number(record.year)
-          : latest,
-      0
-    );
+    healthRecords.forEach((record) => {
+      const indicatorKey = record.indicator_key;
+      const state = String(record.state ?? "").trim();
+      const year = Number(record.year);
 
-    // Keep only records from that reporting year.
-    const latestYearRecords = stateRecords.filter(
-      (record) => Number(record.year) === latestYear
-    );
+      if (
+        !indicatorKey ||
+        !state ||
+        state.toLowerCase() === "national" ||
+        !Number.isFinite(year) ||
+        !isValidNumericValue(record.value)
+      ) {
+        return;
+      }
 
-    // Calculate the arithmetic average across available states.
-    const average =
-      latestYearRecords.length > 0
-        ? latestYearRecords.reduce(
+      if (!groupedIndicators[indicatorKey]) {
+        groupedIndicators[indicatorKey] = [];
+      }
+
+      groupedIndicators[indicatorKey].push(record);
+    });
+
+    const colors = [
+      "#1F7A3F",
+      "#8B2922",
+      "#145C3B",
+      "#0B3C5D",
+      "#D6A400",
+    ];
+
+    return Object.entries(groupedIndicators)
+      .map(([indicatorKey, records]) => {
+        // Find the latest year for this indicator.
+        const latestYear = Math.max(
+          ...records.map((record) => Number(record.year))
+        );
+
+        const latestYearRecords = records.filter(
+          (record) => Number(record.year) === latestYear
+        );
+
+        // Keep only one record per state.
+        const uniqueStateRecords = [
+          ...new Map(
+            latestYearRecords.map((record) => [
+              String(record.state).trim().toLowerCase(),
+              record,
+            ])
+          ).values(),
+        ];
+
+        // Calculate the average across available states.
+        const average =
+          uniqueStateRecords.reduce(
             (sum, record) => sum + Number(record.value),
             0
-          ) / latestYearRecords.length
-        : null;
+          ) / uniqueStateRecords.length;
 
-    const formattedValue =
-      average !== null ? formatValue(average) : "—";
+        const unit = uniqueStateRecords[0]?.unit ?? "";
+        const indicatorName =
+          uniqueStateRecords[0]?.indicator?.name ||
+          uniqueStateRecords[0]?.indicator_name ||
+          uniqueStateRecords[0]?.indicator ||
+          indicatorKey;
 
-    const unit = latestYearRecords[0]?.unit ?? "";
+        const formattedValue = formatValue(average);
 
-    return {
-      ...card,
-      value:
-        average !== null && unit.includes("%")
-          ? `${formattedValue}%`
-          : formattedValue,
-      reportingYear: latestYear || null,
-      reportingStates: latestYearRecords.length,
-    };
-  });
-}, [healthRecords]);
+        return {
+          indicatorKey,
+          label: "HEALTH DATA",
+          description: indicatorName,
+          color: "",
+          value: unit.includes("%")
+            ? `${formattedValue}%`
+            : unit
+              ? `${formattedValue} ${unit}`
+              : formattedValue,
+          reportingYear: latestYear,
+          reportingStates: uniqueStateRecords.length,
+        };
+      })
+      // Show indicators with the widest state coverage first.
+      .sort(
+        (a, b) =>
+          b.reportingStates - a.reportingStates ||
+          a.description.localeCompare(b.description)
+      )
+      // Display the five strongest indicators.
+      .slice(0, 5)
+      .map((stat, index) => ({
+        ...stat,
+        color: colors[index],
+      }));
+  }, [healthRecords]);
 
 
  
@@ -647,10 +666,6 @@ const overviewStats = useMemo(() => {
             )
           : null
       : null;
-
-  const axisLabels = isPercentageIndicator
-    ? ["0%", "25%", "50%", "75%", "100%"]
-    : ["0", "25", "50", "75", "100"];
 
   // --------------------------------------------------
   // APPLY FILTERS
@@ -1202,62 +1217,6 @@ const handleSaveIndicator = async () => {
         </motion.div>
       </motion.section>
 
-      {/* NATIONAL HEALTH OVERVIEW */}
-      <section className="bg-[#0B3C5D] px-5 py-8 sm:px-8 lg:px-12">
-        <motion.div
-          {...motionSettings}
-          variants={staggerContainer}
-          className="mx-auto max-w-5xl"
-        >
-          <SectionHeading dark>
-            NATIONAL HEALTH OVERVIEW
-          </SectionHeading>
-
-          <motion.div
-            variants={staggerContainer}
-            className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
-          >
-            {overviewStats.map((stat) => (
-              <motion.article
-                key={stat.description}
-                variants={revealVariants}
-                className="group min-h-32 cursor-pointer rounded-md border border-transparent border-l-4 bg-[#F0F1F0] p-4 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:border-[#1F7A3F] hover:shadow-lg active:scale-[0.98]"
-                style={{ borderLeftColor: stat.color }}
-              >
-                <span
-                  className="inline-block rounded-full px-3 py-1 text-[9px] font-medium text-white transition-transform duration-300 group-hover:scale-105"
-                  style={{ backgroundColor: stat.color }}
-                >
-                  {stat.label}
-                </span>
-
-                <p className="mt-2 text-xl font-bold text-[#20272B]">
-                  {stat.value}
-                </p>
-
-                <p className="mt-1 text-xs leading-5 text-[#20272B]">
-                  {stat.description}
-                </p>
-
-                <div className="my-3 border-t border-dashed border-gray-400" />
-
-                <p className="text-[10px] text-gray-600">
-                  {stat.reportingYear
-                    ? `State average · ${stat.reportingYear}`
-                    : "No state data available"}
-                </p>
-
-                <p className="mt-1 text-[9px] text-gray-500">
-                  {stat.reportingStates > 0
-                    ? `Based on ${stat.reportingStates} state records`
-                    : ""}
-                </p>
-              </motion.article>
-            ))}
-          </motion.div>
-        </motion.div>
-      </section>
-
       {/* HEALTH FILTERS */}
       <section className="bg-[#EAF2EC] px-5 py-8 sm:px-8 lg:px-12">
         <motion.div
@@ -1416,12 +1375,70 @@ const handleSaveIndicator = async () => {
         </motion.div>
       </section>
 
+      {/* NATIONAL HEALTH OVERVIEW */}
+      <section className="bg-[#0B3C5D] px-5 py-8 sm:px-8 lg:px-12">
+        <motion.div
+          {...motionSettings}
+          variants={staggerContainer}
+          className="mx-auto max-w-5xl"
+        >
+          <SectionHeading dark>
+            NATIONAL HEALTH OVERVIEW
+          </SectionHeading>
+
+          <motion.div
+            variants={staggerContainer}
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
+          >
+            {overviewStats.map((stat) => (
+              <motion.article
+                key={stat.description}
+                variants={revealVariants}
+                className="group min-h-32 cursor-pointer rounded-md border border-transparent border-l-4 bg-[#F0F1F0] p-4 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:border-[#1F7A3F] hover:shadow-lg active:scale-[0.98]"
+                style={{ borderLeftColor: stat.color }}
+              >
+                <span
+                  className="inline-block rounded-full px-3 py-1 text-[9px] font-medium text-white transition-transform duration-300 group-hover:scale-105"
+                  style={{ backgroundColor: stat.color }}
+                >
+                  {stat.label}
+                </span>
+
+                <p className="mt-2 text-xl font-bold text-[#20272B]">
+                  {stat.value}
+                </p>
+
+                <p className="mt-1 text-xs leading-5 text-[#20272B]">
+                  {stat.description}
+                </p>
+
+                <div className="my-3 border-t border-dashed border-gray-400" />
+
+                <p className="text-[10px] text-gray-600">
+                  {stat.reportingYear
+                    ? `State average · ${stat.reportingYear}`
+                    : "No state data available"}
+                </p>
+
+                <p className="mt-1 text-[9px] text-gray-500">
+                  {stat.reportingStates > 0
+                    ? `Based on ${stat.reportingStates} state records`
+                    : ""}
+                </p>
+              </motion.article>
+            ))}
+          </motion.div>
+        </motion.div>
+      </section>
+
+      
+
       {/* CHART AND ANALYSIS */}
       <section className="bg-[#082C40] px-4 py-10 text-white sm:px-6 lg:px-10">
         <motion.div
           {...motionSettings}
           variants={revealVariants}
-          className="mx-auto max-w-7xl"
+          className="mx-auto max-w-5xl"
         >
           {!isLoggedIn ? (
             <div className="mx-auto max-w-2xl rounded-2xl border border-white/20 bg-white/10 p-8 text-center sm:p-10">
@@ -1535,134 +1552,108 @@ const handleSaveIndicator = async () => {
                   </div>
                 ) : chartRows.length > 0 ? (
                   <>
-                    <div className="relative mt-12">
+                    
 
-                      {/* NATIONAL BENCHMARK LINE */}
-                      {benchmarkPosition !== null && (
-                        <>
-                          <div
-                            className="pointer-events-none absolute -top-7 z-20 -translate-x-1/2"
-                            style={{
-                              left: `${benchmarkPosition}%`,
-                            }}
+                    {/* CHART AXIS */}
+                    
+                    <div className="mt-10 w-full overflow-x-auto pb-3 ">
+                      <div
+                        className="h-90"
+                        style={{
+                          width: `${Math.max(chartRows.length * 34, 600)}px`,
+                        }}
+                      >
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={chartRows}
+                            margin={{ top: 30, right: 20, left: 5, bottom: 55 }}
                           >
-                            <span className="whitespace-nowrap rounded-sm bg-red-700 px-2 py-1 text-[10px] font-semibold text-white">
-                              National: {formatValue(benchmarkValue)}
-                              {nationalBenchmark.unit}
-                            </span>
-                          </div>
+                            <CartesianGrid
+                              strokeDasharray="3 3"
+                              vertical={false}
+                              stroke="#E2E8F0"
+                            />
 
-                          <div
-                            className="pointer-events-none absolute bottom-0 top-0 z-10 w-px bg-red-500"
-                            style={{
-                              left: `${benchmarkPosition}%`,
-                            }}
-                          />
-                        </>
-                      )}
+                            <XAxis
+                              dataKey="state"
+                              angle={-35}
+                              textAnchor="end"
+                              interval={0}
+                              height={65}
+                              tick={{ fontSize: 10, fill: "#64748B" }}
+                              axisLine={{ stroke: "#CBD5E1" }}
+                              tickLine={false}
+                            />
 
-                      {/* STATE CHART ROWS */}
-                      <div className="space-y-2">
-                        {chartRows.map((item, index) => {
-                          const rowKey = `${item.state}-${item.indicator_key}-${item.year}`;
+                            <YAxis
+                              domain={[0, "auto"]}
+                              tick={{ fontSize: 10, fill: "#64748B" }}
+                              axisLine={false}
+                              tickLine={false}
+                              tickFormatter={(value) =>
+                                isPercentageIndicator ? `${value}%` : value
+                              }
+                            />
 
-                          const difference =
-                            benchmarkValue === null
-                              ? null
-                              : item.numericValue - benchmarkValue;
-
-                          const atOrAbove =
-                            difference !== null && difference >= 0;
-
-                          const barColor = nationalBenchmark
-                            ? atOrAbove
-                              ? "bg-[#16512F]"
-                              : "bg-[#0B3048]"
-                            : "bg-[#16512F]";
-
-                          return (
-                            <motion.div
-                              key={rowKey}
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{
-                                duration: 0.4,
-                                delay: index * 0.045,
+                            <Tooltip
+                              formatter={(value, name, props) => [
+                                `${formatValue(value)} ${props.payload.unit || indicatorUnit || ""}`,
+                                "Value",
+                              ]}
+                              labelFormatter={(label) => `State: ${label}`}
+                              contentStyle={{
+                                borderRadius: "10px",
+                                border: "1px solid #E2E8F0",
+                                fontSize: "12px",
                               }}
-                              className="grid grid-cols-[68px_25px_minmax(0,1fr)_55px_48px] items-center gap-2 sm:grid-cols-[78px_25px_minmax(0,1fr)_65px_62px] sm:gap-2.5"
-                            >
-                              <span className="truncate text-[11px] font-medium">
-                                {item.state}
-                              </span>
+                            />
 
-                              <span className="rounded-sm bg-[#E9EDEF] px-1 py-0.5 text-center text-[9px] text-gray-500">
-                                {item.zone}
-                              </span>
-
-                              {/* BAR */}
-                              <div className="relative h-8 min-w-0 overflow-hidden rounded-md bg-[#E6EBEE]">
-                                <motion.div
-                                  className={`absolute inset-y-0 left-0 rounded-md ${barColor}`}
-                                  initial={{ width: 0 }}
-                                  animate={{
-                                    width: `${item.barWidth}%`,
-                                  }}
-                                  transition={{
-                                    duration: 1,
-                                    delay: index * 0.07,
-                                    ease: [0.22, 1, 0.36, 1],
+                            {benchmarkValue !== null &&
+                              Number.isFinite(benchmarkValue) && (
+                                <ReferenceLine
+                                  y={benchmarkValue}
+                                  stroke="#DC2626"
+                                  strokeDasharray="6 4"
+                                  strokeWidth={2}
+                                  label={{
+                                    value: `National: ${formatValue(benchmarkValue)}`,
+                                    position: "insideTopRight",
+                                    fill: "#DC2626",
+                                    fontSize: 10,
                                   }}
                                 />
+                              )}
 
-                                <span
-                                  className={`absolute inset-y-0 flex items-center whitespace-nowrap px-2 text-[9px] font-bold sm:text-[10px] ${
-                                    item.barWidth > 25
-                                      ? "text-white"
-                                      : "text-[#0B3048]"
-                                  }`}
-                                  style={{
-                                    left:
-                                      item.barWidth > 25
-                                        ? `${Math.max(item.barWidth - 2, 1)}%`
-                                        : `${Math.min(item.barWidth + 1, 75)}%`,
-                                    transform:
-                                      item.barWidth > 25
-                                        ? "translateX(-100%)"
-                                        : "none",
-                                  }}
-                                >
-                                  {formatValue(item.numericValue)} {item.unit}
-                                </span>
-                              </div>
+                            <Bar
+                              dataKey="numericValue"
+                              name="Value"
+                              radius={[5, 5, 0, 0]}
+                              maxBarSize={42}
+                            >
+                              {chartRows.map((item) => {
+                                const aboveBenchmark =
+                                  benchmarkValue !== null &&
+                                  item.numericValue >= benchmarkValue;
 
-                              {/* DIFFERENCE FROM NATIONAL */}
-                              <span
-                                className={`text-right text-[10px] font-medium ${
-                                  difference === null
-                                    ? "text-gray-400"
-                                    : difference >= 0
-                                      ? "text-[#16512F]"
-                                      : "text-red-600"
-                                }`}
-                              >
-                                {difference === null
-                                  ? "—"
-                                  : `${
-                                      difference > 0 ? "+" : ""
-                                    }${formatValue(difference)}${item.unit}`}
-                              </span>
-                            </motion.div>
-                          );
-                        })}
+                                return (
+                                  <Cell
+                                    key={`${item.state}-${item.indicator_key}-${item.year}`}
+                                    fill={
+                                      benchmarkValue === null
+                                        ? "#16512F"
+                                        : aboveBenchmark
+                                          ? "#16512F"
+                                          : "#0B3048"
+                                    }
+                                  />
+                                );
+                              })}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
                       </div>
                     </div>
 
-                    {/* CHART AXIS */}
-                    <div className="ml-26.25 mt-4 flex justify-between text-[10px] text-gray-500 sm:ml-29.5">
-                      {axisLabels.map((label) => (
-                        <span key={label}>{label}</span>
-                      ))}
-                    </div>
 
                     {!nationalBenchmark && (
                       <p className="mt-3 text-[10px] leading-4 text-gray-400">
@@ -1900,72 +1891,72 @@ const handleSaveIndicator = async () => {
                   </div>
 
                   {/* SAVE INDICATOR */}
-<div className="flex flex-col gap-3">
-  <button
-    type="button"
-    onClick={handleSaveIndicator}
-    disabled={savingIndicator || chartRows.length === 0}
-    className="flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-  >
-    <span>
-      {savingIndicator ? "Saving..." : "Save indicator"}
-    </span>
+                  <div className="flex flex-col gap-3">
+                    <button
+                      type="button"
+                      onClick={handleSaveIndicator}
+                      disabled={savingIndicator || chartRows.length === 0}
+                      className="flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span>
+                        {savingIndicator ? "Saving..." : "Save indicator"}
+                      </span>
 
-    {savingIndicator ? (
-      <svg
-        className="h-5 w-5 animate-spin"
-        viewBox="0 0 24 24"
-        fill="none"
-        aria-hidden="true"
-      >
-        <circle
-          cx="12"
-          cy="12"
-          r="9"
-          stroke="currentColor"
-          strokeWidth="3"
-          className="opacity-25"
-        />
-        <path
-          d="M21 12a9 9 0 0 0-9-9"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-        />
-      </svg>
-    ) : (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="19"
-        height="19"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-        <path d="m7 10 5 5 5-5" />
-        <path d="M12 15V3" />
-      </svg>
-    )}
-  </button>
+                      {savingIndicator ? (
+                        <svg
+                          className="h-5 w-5 animate-spin"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          aria-hidden="true"
+                        >
+                          <circle
+                            cx="12"
+                            cy="12"
+                            r="9"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            className="opacity-25"
+                          />
+                          <path
+                            d="M21 12a9 9 0 0 0-9-9"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      ) : (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="19"
+                          height="19"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <path d="m7 10 5 5 5-5" />
+                          <path d="M12 15V3" />
+                        </svg>
+                      )}
+                    </button>
 
-  {saveNotice && (
-    <p
-      role="status"
-      aria-live="polite"
-      className={`rounded-lg px-3 py-2 text-xs leading-5 ${
-        saveNoticeType === "success"
-          ? "border border-green-400/30 bg-green-500/10 text-green-200"
-          : "border border-red-400/30 bg-red-500/10 text-red-200"
-      }`}
-    >
-      {saveNotice}
-    </p>
-  )}
+                    {saveNotice && (
+                      <p
+                        role="status"
+                        aria-live="polite"
+                        className={`rounded-lg px-3 py-2 text-xs leading-5 ${
+                          saveNoticeType === "success"
+                            ? "border border-green-400/30 bg-green-500/10 text-green-200"
+                            : "border border-red-400/30 bg-red-500/10 text-red-200"
+                        }`}
+                      >
+                        {saveNotice}
+                      </p>
+                    )}
 </div>
                 </div>
 

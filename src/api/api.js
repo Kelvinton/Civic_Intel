@@ -101,7 +101,12 @@ export async function apiRequest(path, options = {}) {
       (typeof data?.detail === "string" ? data.detail : null) ||
       `Request failed (${response.status}). Please try again.`;
 
-    throw new Error(errorMessage);
+    const error = new Error(errorMessage);
+
+    // Preserve the HTTP status for authentication handling.
+    error.status = response.status;
+
+    throw error;
   }
 
   return data;

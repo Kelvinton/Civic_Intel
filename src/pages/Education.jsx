@@ -1,11 +1,24 @@
 
 import { useEffect, useMemo, useState } from "react";
-import { getStates } from "../api/referenceData.js";
+import {
+  getStates,
+  getIndicators,
+} from "../api/referenceData.js";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { motion, useReducedMotion } from "framer-motion";
 import { exportData } from "../utility/exportData.js";
 import { getPublishedRecords } from "../api/publishedData.js";
+import {
+  BarChart,
+  Bar,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
 
 import EducationHero from "../assets/Education.hero.png";
 import civicIntelLogo from "../assets/civicintellogo1.png";
@@ -13,9 +26,9 @@ import Education1 from "../assets/education1.png";
 import Education2 from "../assets/education2.png";
 import Education3 from "../assets/education3.png";
 
+
+
 // NATIONAL OVERVIEW INDICATORS
-
-
 
 const releases = [
   {
@@ -126,6 +139,10 @@ function Education() {
   const [statesLoading, setStatesLoading] = useState(true);
   const [statesError, setStatesError] = useState("");
 
+  const [indicators, setIndicators] = useState([]);
+  const [indicatorsLoading, setIndicatorsLoading] = useState(true);
+  const [indicatorsError, setIndicatorsError] = useState("");
+
   // National overview data
   // All published education records, including state-level records
   const [publishedEducationRecords, setPublishedEducationRecords] =
@@ -209,6 +226,47 @@ function Education() {
     };
   }, []);
 
+  // LOAD EDUCATION INDICATORS FROM BACKEND
+useEffect(() => {
+  let isMounted = true;
+
+  async function loadIndicators() {
+    try {
+      const data = await getIndicators();
+
+      if (!isMounted) return;
+
+      const educationIndicators = (Array.isArray(data) ? data : [])
+        .filter(
+          (item) =>
+            String(item.sector ?? "").toLowerCase() === "education"
+        )
+        .sort((a, b) =>
+          (a.name || "").localeCompare(b.name || "")
+        );
+
+      setIndicators(educationIndicators);
+      setIndicatorsError("");
+    } catch (error) {
+      if (isMounted) {
+        setIndicatorsError(
+          error.message || "Unable to load education indicators."
+        );
+      }
+    } finally {
+      if (isMounted) {
+        setIndicatorsLoading(false);
+      }
+    }
+  }
+
+  loadIndicators();
+
+  return () => {
+    isMounted = false;
+  };
+}, []);
+
   // LOAD ALL PUBLISHED EDUCATION RECORDS
   // Public request: no login is required to view these summaries.
   useEffect(() => {
@@ -280,23 +338,11 @@ function Education() {
 
   // INDICATORS PROVIDED BY THE BACKEND
   const availableIndicators = useMemo(() => {
-    const indicators = new Map();
-
-    publishedEducationRecords.forEach((record) => {
-      if (!record.indicator_key) return;
-
-      if (!indicators.has(record.indicator_key)) {
-        indicators.set(record.indicator_key, {
-          key: record.indicator_key,
-          label: record.indicator || record.indicator_key,
-        });
-      }
-    });
-
-    return [...indicators.values()].sort((a, b) =>
-      a.label.localeCompare(b.label)
-    );
-  }, [publishedEducationRecords]);
+    return indicators.map((item) => ({
+      key: item.key,
+      label: item.name || item.key,
+    }));
+  }, [indicators]);
 
   // YEARS PROVIDED BY THE BACKEND
   const availableYears = useMemo(() => {
@@ -812,6 +858,115 @@ function Education() {
         </motion.div>
       </motion.section>
 
+      <motion.section
+        {...motionSettings}
+        variants={revealVariants}
+        className="px-5 py-8 sm:px-8 lg:px-12"
+      >
+        <div className="mx-auto max-w-5xl">
+          <SectionHeading>EDUCATION INDICATOR</SectionHeading>
+
+          <form onSubmit={handleApplyFilters}>
+            <div className="grid gap-4 md:grid-cols-3">
+              <label className="flex flex-col gap-2 text-xs">
+                Indicator
+
+                <select
+                  value={indicator}
+                  onChange={(event) => setIndicator(event.target.value)}
+                  disabled={indicatorsLoading}
+                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-wait disabled:opacity-60"
+                >
+                  <option value="all">All Education Indicators</option>
+
+                  {indicatorsLoading ? (
+                    <option value="" disabled>
+                      Loading indicators...
+                    </option>
+                  ) : indicators.length > 0 ? (
+                    indicators.map((item) => (
+                      <option key={item.key} value={item.key}>
+                        {item.name || item.key}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>
+                      No education indicators available
+                    </option>
+                  )}
+                </select>
+
+                {indicatorsError && (
+                  <p className="mt-1 text-xs text-red-600">
+                    Unable to load indicators: {indicatorsError}
+                  </p>
+                )}
+              </label>
+
+              <label className="flex flex-col gap-2 text-xs">
+                State
+
+                <select
+                  value={state}
+                  onChange={(event) =>
+                    setState(event.target.value)
+                  }
+                  disabled={statesLoading}
+                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-wait disabled:opacity-60"
+                >
+                  <option value="all">All states</option>
+
+                  {statesLoading && (
+                    <option value="" disabled>
+                      Loading states...
+                    </option>
+                  )}
+
+                  {!statesLoading &&
+                    states.map((item) => (
+                      <option key={item.id} value={item.name}>
+                        {item.name}
+                      </option>
+                    ))}
+                </select>
+
+                {statesError && (
+                  <p className="mt-1 text-xs text-red-600">
+                    Unable to load states: {statesError}
+                  </p>
+                )}
+              </label>
+
+              <label className="flex flex-col gap-2 text-xs">
+                Year
+
+                <select
+                  value={year}
+                  onChange={(event) =>
+                    setYear(event.target.value)
+                  }
+                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
+                >
+                  <option value="all">All available years</option>
+                  {availableYears.map((availableYear) => (
+                    <option key={availableYear} value={String(availableYear)}>
+                      {availableYear}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              className="mx-auto mt-5 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B3C5D] md:w-1/2"
+            >
+              Apply <span aria-hidden="true">→</span>
+            </button>
+          </form>
+        </div>
+      </motion.section>
+
       {/* NATIONAL EDUCATION OVERVIEW - LIVE BACKEND DATA */}
       <motion.section
         {...motionSettings}
@@ -928,84 +1083,81 @@ function Education() {
               </div>
 
               {nationalOverviewLoading ? (
-                <div className="space-y-5 py-6">
-                  {[1, 2, 3, 4, 5].map((item) => (
-                    <div
-                      key={item}
-                      className="grid grid-cols-[90px_1fr_42px] items-center gap-3"
-                    >
-                      <div className="h-3 animate-pulse rounded bg-gray-200" />
-                      <div className="h-2 animate-pulse rounded-full bg-gray-200" />
-                      <div className="h-3 animate-pulse rounded bg-gray-200" />
-                    </div>
-                  ))}
-                </div>
-              ) : topSsceStates.length > 0 ? (
-                <>
-                  <div className="mt-5 space-y-5">
-                    {topSsceStates.map((item, index) => (
-                      <div
-                        key={`${item.state}-${item.year}`}
-                        className="grid grid-cols-[90px_1fr_48px] items-center gap-3"
-                      >
-                        <div className="min-w-0">
-                          <span
-                            className="block truncate text-[10px] font-semibold text-[#20272B]"
-                            title={item.state}
-                          >
-                            {item.state}
-                          </span>
+            <div className="py-10 text-center text-xs text-gray-500">
+              Loading SSCE performance data...
+            </div>
+          ) : topSsceStates.length > 0 ? (
+            <>
+              <div className="mt-5 h-85 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={topSsceStates}
+                    layout="vertical"
+                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      horizontal={false}
+                    />
 
-                          <span className="text-[9px] text-gray-400">
-                            {item.year}
-                          </span>
-                        </div>
+                    <XAxis
+                      type="number"
+                      domain={[0, 100]}
+                      tickFormatter={(value) => `${value}%`}
+                      tick={{ fontSize: 10 }}
+                    />
 
-                        <div
-                          className="h-2 overflow-hidden rounded-full bg-gray-200"
-                          role="progressbar"
-                          aria-label={`${item.state} SSCE performance`}
-                          aria-valuenow={item.value}
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                        >
-                          <div
-                            className={`h-full rounded-full transition-all duration-700 ${
-                              index === 0
-                                ? "bg-[#0B3C5D]"
-                                : "bg-[#1F7A3F]"
-                            }`}
-                            style={{
-                              width: `${item.value}%`,
-                            }}
-                          />
-                        </div>
+                    <YAxis
+                      type="category"
+                      dataKey="state"
+                      width={85}
+                      tick={{ fontSize: 10 }}
+                    />
 
-                        <span className="text-right text-[10px] font-bold tabular-nums text-[#1F7A3F]">
-                          {item.value.toFixed(1)}%
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                    <Tooltip
+                      formatter={(value) => [
+                        `${Number(value).toFixed(1)}%`,
+                        "SSCE performance",
+                      ]}
+                      labelFormatter={(label) => {
+                        const record = topSsceStates.find(
+                          (item) => item.state === label
+                        );
 
-                  <p className="mt-5 border-t border-gray-200 pt-3 text-[10px] leading-5 text-gray-500">
-                    Showing the top 10 states ranked by their latest available
-                    published SSCE performance records. The reporting year is
-                    displayed beside each state.
-                  </p>
-                </>
-              ) : (
-                <div className="py-10 text-center">
-                  <p className="text-sm font-semibold text-[#0B3C5D]">
-                    No SSCE records available
-                  </p>
+                        return record
+                          ? `${label} (${record.year})`
+                          : label;
+                      }}
+                    />
 
-                  <p className="mt-2 text-xs leading-5 text-gray-500">
-                    There is no return published records
-                    matching the SSCE 5+ credits indicator.
-                  </p>
-                </div>
-              )}
+                    <Bar
+                      dataKey="value"
+                      name="SSCE performance"
+                      fill="#1F7A3F"
+                      radius={[0, 5, 5, 0]}
+                      barSize={18}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <p className="mt-5 border-t border-gray-200 pt-3 text-[10px] leading-5 text-gray-500">
+                Showing the top 10 states ranked by their latest available
+                published SSCE performance records. Hover over a bar to view
+                the value and reporting year.
+              </p>
+            </>
+          ) : (
+            <div className="py-10 text-center">
+              <p className="text-sm font-semibold text-[#0B3C5D]">
+                No SSCE records available
+              </p>
+
+              <p className="mt-2 text-xs leading-5 text-gray-500">
+                There are no published records matching the SSCE 5+ credits indicator.
+              </p>
+            </div>
+          )}
             </div>
 
             {/* SSCE DATA METADATA */}
@@ -1087,134 +1239,7 @@ function Education() {
       </motion.section>
 
       {/* EDUCATION INDICATOR FILTERS */}
-      <motion.section
-        {...motionSettings}
-        variants={revealVariants}
-        className="px-5 py-8 sm:px-8 lg:px-12"
-      >
-        <div className="mx-auto max-w-5xl">
-          <SectionHeading>EDUCATION INDICATOR</SectionHeading>
-
-          <form onSubmit={handleApplyFilters}>
-            <div className="grid gap-4 md:grid-cols-3">
-              <label className="flex flex-col gap-2 text-xs">
-                Indicator
-
-                <select
-                  value={indicator}
-                  onChange={(event) =>
-                    setIndicator(event.target.value)
-                  }
-                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
-                >
-                  <option value="all">
-                    All Education Indicators
-                  </option>
-                  <option value="adult_literacy_pct">
-                    Adult Literacy Rate
-                  </option>
-                  <option value="education_allocation">
-                    Education Allocation
-                  </option>
-                  <option value="education_allocation_pct">
-                    Education Allocation (% of Budget)
-                  </option>
-                  <option value="gender_parity_index_primary">
-                    Gender Parity Index (Primary)
-                  </option>
-                  <option value="out_of_school_children_pct">
-                    Out-of-School Children
-                  </option>
-                  <option value="primary_completion_pct">
-                    Primary Completion Rate
-                  </option>
-                  <option value="primary_net_enrolment_pct">
-                    Primary Net Enrolment Rate
-                  </option>
-                  <option value="primary_pupil_teacher_ratio">
-                    Primary Pupil-Teacher Ratio
-                  </option>
-                  <option value="public_primary_schools">
-                    Public Primary Schools
-                  </option>
-                  <option value="public_secondary_schools">
-                    Public Secondary Schools
-                  </option>
-                  <option value="secondary_completion_pct">
-                    Secondary Completion Rate
-                  </option>
-                  <option value="secondary_net_enrolment_pct">
-                    Secondary Net Enrolment Rate
-                  </option>
-                  <option value="ssce_5_credits_pct">
-                    SSCE 5+ Credits
-                  </option>
-                </select>
-              </label>
-
-              <label className="flex flex-col gap-2 text-xs">
-                State
-
-                <select
-                  value={state}
-                  onChange={(event) =>
-                    setState(event.target.value)
-                  }
-                  disabled={statesLoading}
-                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-wait disabled:opacity-60"
-                >
-                  <option value="all">All states</option>
-
-                  {statesLoading && (
-                    <option value="" disabled>
-                      Loading states...
-                    </option>
-                  )}
-
-                  {!statesLoading &&
-                    states.map((item) => (
-                      <option key={item.id} value={item.name}>
-                        {item.name}
-                      </option>
-                    ))}
-                </select>
-
-                {statesError && (
-                  <p className="mt-1 text-xs text-red-600">
-                    Unable to load states: {statesError}
-                  </p>
-                )}
-              </label>
-
-              <label className="flex flex-col gap-2 text-xs">
-                Year
-
-                <select
-                  value={year}
-                  onChange={(event) =>
-                    setYear(event.target.value)
-                  }
-                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
-                >
-                  <option value="all">All available years</option>
-                  {availableYears.map((availableYear) => (
-                    <option key={availableYear} value={String(availableYear)}>
-                      {availableYear}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <button
-              type="submit"
-              className="mx-auto mt-5 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B3C5D] md:w-1/2"
-            >
-              Apply <span aria-hidden="true">→</span>
-            </button>
-          </form>
-        </div>
-      </motion.section>
+      
 
       {/* PROTECTED EDUCATION DASHBOARD */}
       <motion.section

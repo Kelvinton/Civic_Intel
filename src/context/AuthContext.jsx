@@ -57,10 +57,12 @@ export function AuthProvider({ children }) {
       setUser(currentUser);
 
       return currentUser;
-    } catch {
-      clearAccessToken();
-      setUser(null);
+    } catch (error) {
+      if (error.status === 401) {
+        clearAccessToken();
+      }
 
+      setUser(null);
       return null;
     }
   }, []);
@@ -94,12 +96,12 @@ export function AuthProvider({ children }) {
         if (active) {
           setUser(currentUser);
         }
-      } catch {
-        clearAccessToken();
-
-        if (active) {
-          setUser(null);
+      } catch (error) {
+        if (error.status === 401) {
+          clearAccessToken();
         }
+
+        if (active) setUser(null);
       } finally {
         if (active) {
           setLoading(false);
@@ -162,9 +164,11 @@ export function AuthProvider({ children }) {
         user: currentUser,
       };
     } catch (error) {
-      clearAccessToken();
-      setUser(null);
+      if (error.status === 401) {
+        clearAccessToken();
+      }
 
+      setUser(null);
       throw error;
     }
   }, []);
