@@ -20,3 +20,8 @@ export function getMediaOptions() {
 export function getFeaturedMedia() {
   return apiRequest("/media/featured");
 }
+
+// Fetch one media report, including its full article content
+export function getMediaById(mediaId) {
+  return apiRequest(`/media/${encodeURIComponent(mediaId)}`);
+}

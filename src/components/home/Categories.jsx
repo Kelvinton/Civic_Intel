@@ -282,7 +282,7 @@ function CategoryRow({
             className="inline-flex items-center gap-2  px-5 py-2.5 text-sm font-semibold  transition-colors duration-300 hover:text-[#1F7A3F] text-black"
           >
             See More
-            <span aria-hidden="true">→</span>
+            
           </Link>
         </div>
       </motion.div>

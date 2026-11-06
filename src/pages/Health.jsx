@@ -1,6 +1,6 @@
 import { apiRequest } from "../api/api.js";
 import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { exportData } from "../utility/exportData.js";
 import { motion } from "framer-motion";
 
@@ -25,8 +25,9 @@ import {
 import { useAuth } from "../context/AuthContext.jsx";
 import { getStates } from "../api/referenceData.js";
 import { getPublishedRecords } from "../api/publishedData.js";
+import { getMedia } from "../api/media.js";
 
-import civicIntel from "../assets/civicintel.hero.logo.png";
+import HealthHero from "../assets/health.hero.jpg";
 import civicIntelLogo from "../assets/civicintellogo1.png";
 import HealthPic1 from "../assets/health/Health1.png";
 import HealthPic2 from "../assets/health/Health2.png";
@@ -157,7 +158,10 @@ function Health() {
   );
 
   const [state, setState] = useState(
-    restoredFilters?.state ?? "all"
+    restoredFilters?.states ??
+      (restoredFilters?.state && restoredFilters.state !== "all"
+        ? [restoredFilters.state]
+        : [])
   );
 
   const [year, setYear] = useState(
@@ -179,6 +183,10 @@ function Health() {
   const [healthRecords, setHealthRecords] = useState([]);
   const [recordsLoading, setRecordsLoading] = useState(true);
   const [recordsError, setRecordsError] = useState("");
+
+  const [healthMedia, setHealthMedia] = useState([]);
+  const [mediaLoading, setMediaLoading] = useState(true);
+  const [mediaError, setMediaError] = useState("");
 
   // --------------------------------------------------
   // APPLIED FILTER STATES
@@ -247,16 +255,18 @@ function Health() {
   // LOAD ALL PUBLISHED HEALTH RECORDS
   // --------------------------------------------------
 
+  
   useEffect(() => {
     let isMounted = true;
 
     async function loadHealthRecords() {
-      try {
-        const allRecords = [];
-        const limit = 100;
-        let offset = 0;
-        let total = Infinity;
+      const allRecords = [];
+      const limit = 50;
+      let offset = 0;
+      let total = Infinity;
+      let isFirstPage = true;
 
+      try {
         while (offset < total) {
           const response = await getPublishedRecords({
             sector: "health",
@@ -275,16 +285,30 @@ function Health() {
           total = Number(response.total ?? allRecords.length);
           offset += response.items.length;
 
+          if (isMounted) {
+            // Update the page after every batch.
+            setHealthRecords([...allRecords]);
+          }
+
+          // Allow the overview cards and filters to display
+          // as soon as the first batch arrives.
+          if (isFirstPage) {
+            isFirstPage = false;
+
+            if (isMounted) {
+              setRecordsLoading(false);
+            }
+          }
+
           if (
             response.items.length === 0 ||
-            response.items.length < limit
+            offset >= total
           ) {
             break;
           }
         }
 
         if (isMounted) {
-          setHealthRecords(allRecords);
           setRecordsError("");
         }
       } catch (error) {
@@ -309,8 +333,58 @@ function Health() {
     };
   }, []);
 
+  // --------------------------------------------------
+  // LOAD MEDIA REPORTS
+  // --------------------------------------------------
 
- 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadHealthMedia() {
+      try {
+        const response = await getMedia({
+          limit: 50,
+          offset: 0,
+        });
+
+        if (!response || !Array.isArray(response.items)) {
+          throw new Error(
+            "The Media response was not in the expected format."
+          );
+        }
+
+        if (isMounted) {
+          setHealthMedia(response.items);
+          setMediaError("");
+        }
+      } catch (error) {
+        if (isMounted) {
+          setMediaError(
+            error instanceof Error
+              ? error.message
+              : "Could not load Media reports."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setMediaLoading(false);
+        }
+      }
+    }
+
+    loadHealthMedia();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const healthReleases = healthMedia
+  .filter((release) =>
+    release.category?.toLowerCase().includes("health")
+  )
+  .slice(0, 3);
+
   // --------------------------------------------------
   // STATE AVERAGE HEALTH OVERVIEW
   // --------------------------------------------------
@@ -346,6 +420,7 @@ function Health() {
       "#145C3B",
       "#0B3C5D",
       "#D6A400",
+      "#C73284"
     ];
 
     return Object.entries(groupedIndicators)
@@ -442,7 +517,6 @@ function Health() {
     );
   }, [healthRecords]);
 
-
   // --------------------------------------------------
   // AVAILABLE YEARS
   // --------------------------------------------------
@@ -507,11 +581,11 @@ function Health() {
     return healthRecords
       .filter((record) => {
         const matchesIndicator =
-          record.indicator_key === appliedFilters.indicator;
+        record.indicator_key === appliedFilters.indicator;
 
         const matchesState =
-          appliedFilters.state === "all" ||
-          record.state === appliedFilters.state;
+        appliedFilters.states.length === 0 ||
+        appliedFilters.states.includes(record.state);
 
         const matchesYear =
           appliedFilters.year === "all" ||
@@ -674,9 +748,9 @@ function Health() {
   const handleApplyFilters = (event) => {
     event.preventDefault();
 
-    const filters = {
+    const filters ={
       indicator: effectiveIndicator,
-      state,
+      states: state,
       year: effectiveYear,
     };
 
@@ -713,9 +787,9 @@ function Health() {
           pathname: "/health",
           state: {
             healthFilters: {
-              indicator: effectiveIndicator,
-              state,
-              year: effectiveYear,
+              indicator,
+              states: state,
+              year,
             },
           },
         },
@@ -723,6 +797,8 @@ function Health() {
       },
     });
   };
+
+  
 
   // --------------------------------------------------
   // SIGNUP NAVIGATION
@@ -735,9 +811,9 @@ function Health() {
           pathname: "/health",
           state: {
             healthFilters: {
-              indicator: effectiveIndicator,
-              state,
-              year: effectiveYear,
+              indicator,
+              states: state,
+              year,
             },
           },
         },
@@ -756,7 +832,6 @@ function Health() {
     Year: record.year,
     Value: record.value,
     Unit: record.unit,
-    DatasetID: record.dataset_id,
   }));
 
   const exportFilename = `civicintel-health-${
@@ -779,17 +854,15 @@ const recordHealthExport = async (format) => {
     ),
   ];
 
-  const exportedYears = exportRows
-    .map((row) => Number(row.Year))
-    .filter(Number.isFinite);
-
-  const uniqueDatasetIds = [
+  const exportedYears = [
     ...new Set(
       exportRows
-        .map((row) => row.DatasetID)
-        .filter(Boolean)
+        .map((row) => Number(row.Year))
+        .filter(Number.isFinite)
     ),
-  ];
+  ].sort((a, b) => a - b);
+
+
 
   const yearFrom = exportedYears.length
     ? Math.min(...exportedYears)
@@ -818,11 +891,7 @@ const recordHealthExport = async (format) => {
     subtitle,
     indicator: appliedFilters.indicator,
     states: exportedStates,
-    ...(yearFrom !== null && { year_from: yearFrom }),
-    ...(yearTo !== null && { year_to: yearTo }),
-    ...(uniqueDatasetIds.length === 1 && {
-      dataset_id: uniqueDatasetIds[0],
-    }),
+    years: exportedYears,
   };
 
   try {
@@ -894,9 +963,9 @@ const recordHealthExport = async (format) => {
         subtitle: `Indicator: ${indicatorLabel}`,
         metadata: {
           State:
-            appliedFilters.state === "all"
-              ? "All states"
-              : appliedFilters.state,
+            appliedFilters.states.length === 0
+            ? "All available states"
+            : appliedFilters.states.join(", "),
           Year:
             appliedFilters.year === "all"
               ? "All years"
@@ -1003,9 +1072,9 @@ const recordHealthExport = async (format) => {
           <p class="subtitle">
             Indicator: ${escapeXML(indicatorLabel)} |
             State: ${escapeXML(
-              appliedFilters.state === "all"
-                ? "All states"
-                : appliedFilters.state
+              appliedFilters.states.length === 0
+              ? "All available states"
+              : appliedFilters.states.join(", ")
             )} |
             Year: ${escapeXML(
               appliedFilters.year === "all"
@@ -1076,27 +1145,28 @@ const handleSaveIndicator = async () => {
         .filter(Boolean)
     ),
   ];
+  if (selectedStates.length < 2) {
+    setSaveNotice("Select at least two states to save a comparison.");
+    setSaveNoticeType("error");
+    setSavingIndicator(false);
+    return;
+  }
 
-  // Get the reporting years represented by the selected filters.
-  const selectedYears = chartData
-    .map((record) => Number(record.year))
-    .filter(Number.isFinite);
-
-  const yearFrom = selectedYears.length
-    ? Math.min(...selectedYears)
-    : null;
-
-  const yearTo = selectedYears.length
-    ? Math.max(...selectedYears)
-    : null;
+  // Get the unique reporting years represented by the selected filters.
+  const selectedYears = [
+    ...new Set(
+      chartData
+        .map((record) => Number(record.year))
+        .filter(Number.isFinite)
+    ),
+  ].sort((a, b) => a - b);
 
   const payload = {
     id: crypto.randomUUID(),
     title: `Health — ${indicatorLabel}`,
     indicator: appliedFilters.indicator,
     states: selectedStates,
-    year_from: yearFrom,
-    year_to: yearTo,
+    years: selectedYears,
     saved_at: new Date().toISOString(),
   };
 
@@ -1203,7 +1273,7 @@ const handleSaveIndicator = async () => {
         >
           <div className="relative h-64 w-full max-w-xs rounded-bl-[80px] rounded-tr-[80px] bg-[#0B3C5D] sm:h-80 md:h-82.5 lg:h-120.25 lg:max-w-md">
             <img
-              src={civicIntel}
+              src={HealthHero}
               alt="Digital technology and data visualisation"
               className="h-full w-full rounded-bl-[80px] rounded-tr-[80px] object-cover opacity-80"
             />
@@ -1216,6 +1286,55 @@ const handleSaveIndicator = async () => {
           </div>
         </motion.div>
       </motion.section>
+      
+
+      {/* NATIONAL HEALTH OVERVIEW */}
+      <section className="bg-[#0B3C5D] px-5 py-8 sm:px-8 lg:px-12">
+        <div className="mx-auto max-w-5xl">
+          <SectionHeading dark>
+            NATIONAL HEALTH OVERVIEW
+          </SectionHeading>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {overviewStats.map((stat) => (
+              <article
+                key={stat.description}
+                className="group min-h-32 cursor-pointer rounded-md border border-transparent border-l-4 bg-[#F0F1F0] p-4 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:border-[#1F7A3F] hover:shadow-lg active:scale-[0.98]"
+                style={{ borderLeftColor: stat.color }}
+              >
+                <span
+                  className="inline-block rounded-full px-3 py-1 text-[9px] font-medium text-white"
+                  style={{ backgroundColor: stat.color }}
+                >
+                  {stat.label}
+                </span>
+
+                <p className="mt-2 text-xl font-bold text-[#20272B]">
+                  {stat.value}
+                </p>
+
+                <p className="mt-1 text-xs leading-5 text-[#20272B]">
+                  {stat.description}
+                </p>
+
+                <div className="my-3 border-t border-dashed border-gray-400" />
+
+                <p className="text-[10px] text-gray-600">
+                  {stat.reportingYear
+                    ? `State average · ${stat.reportingYear}`
+                    : "No state data available"}
+                </p>
+
+                <p className="mt-1 text-[9px] text-gray-500">
+                  {stat.reportingStates > 0
+                    ? `Based on ${stat.reportingStates} state records`
+                    : ""}
+                </p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* HEALTH FILTERS */}
       <section className="bg-[#EAF2EC] px-5 py-8 sm:px-8 lg:px-12">
@@ -1271,40 +1390,57 @@ const handleSaveIndicator = async () => {
               <label className="flex flex-col gap-2 text-xs">
                 State
 
-                <select
-                  value={state}
-                  onChange={(event) =>
-                    setState(event.target.value)
-                  }
-                  disabled={
-                    statesLoading || states.length === 0
-                  }
-                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  <option value="all">
-                    All states
-                  </option>
+                <details className="relative">
+                  <summary className="cursor-pointer list-none rounded-xl border border-gray-300  px-4 py-3 text-sm bg-[#C5D2D9]">
+                    {state.length === 0
+                      ? "All states"
+                      : `${state.length} state${state.length > 1 ? "s" : ""} selected`}
+                    <span className="float-right">▾</span>
+                  </summary>
 
-                  {statesLoading && (
-                    <option value="loading" disabled>
-                      Loading states...
-                    </option>
-                  )}
+                  <div className="absolute left-0 z-30 mt-2 max-h-64 w-full min-w-48 overflow-y-auto rounded-xl border border-gray-200 bg-white p-3 shadow-lg">
+                    <label className="flex cursor-pointer items-center gap-2 border-b border-gray-100 pb-2 text-sm ">
+                      <input
+                        type="checkbox"
+                        checked={state.length === 0}
+                        onChange={() => setState([])}
+                      />
+                      All states
+                    </label>
 
-                  {statesError && (
-                    <option value="error" disabled>
-                      Could not load states
-                    </option>
-                  )}
-
-                  {!statesLoading &&
-                    !statesError &&
-                    states.map((item) => (
-                      <option key={item.id} value={item.name}>
+                    {states.map((item) => (
+                      <label
+                        key={item.id ?? item.name}
+                        className="flex cursor-pointer items-center gap-2 py-2 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={state.includes(item.name)}
+                          onChange={(event) => {
+                            setState((previous) =>
+                              event.target.checked
+                                ? [...previous, item.name]
+                                : previous.filter((name) => name !== item.name)
+                            );
+                          }}
+                        />
                         {item.name}
-                      </option>
+                      </label>
                     ))}
-                </select>
+                  </div>
+                </details>
+
+                {statesLoading && (
+                  <p className="text-xs text-gray-500">
+                    Loading available states...
+                  </p>
+                )}
+
+                {!statesLoading && states.length === 0 && !statesError && (
+                  <p className="text-xs text-gray-500">
+                    No states available.
+                  </p>
+                )}
 
                 {statesError && (
                   <button
@@ -1374,64 +1510,6 @@ const handleSaveIndicator = async () => {
           </form>
         </motion.div>
       </section>
-
-      {/* NATIONAL HEALTH OVERVIEW */}
-      <section className="bg-[#0B3C5D] px-5 py-8 sm:px-8 lg:px-12">
-        <motion.div
-          {...motionSettings}
-          variants={staggerContainer}
-          className="mx-auto max-w-5xl"
-        >
-          <SectionHeading dark>
-            NATIONAL HEALTH OVERVIEW
-          </SectionHeading>
-
-          <motion.div
-            variants={staggerContainer}
-            className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5"
-          >
-            {overviewStats.map((stat) => (
-              <motion.article
-                key={stat.description}
-                variants={revealVariants}
-                className="group min-h-32 cursor-pointer rounded-md border border-transparent border-l-4 bg-[#F0F1F0] p-4 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:border-[#1F7A3F] hover:shadow-lg active:scale-[0.98]"
-                style={{ borderLeftColor: stat.color }}
-              >
-                <span
-                  className="inline-block rounded-full px-3 py-1 text-[9px] font-medium text-white transition-transform duration-300 group-hover:scale-105"
-                  style={{ backgroundColor: stat.color }}
-                >
-                  {stat.label}
-                </span>
-
-                <p className="mt-2 text-xl font-bold text-[#20272B]">
-                  {stat.value}
-                </p>
-
-                <p className="mt-1 text-xs leading-5 text-[#20272B]">
-                  {stat.description}
-                </p>
-
-                <div className="my-3 border-t border-dashed border-gray-400" />
-
-                <p className="text-[10px] text-gray-600">
-                  {stat.reportingYear
-                    ? `State average · ${stat.reportingYear}`
-                    : "No state data available"}
-                </p>
-
-                <p className="mt-1 text-[9px] text-gray-500">
-                  {stat.reportingStates > 0
-                    ? `Based on ${stat.reportingStates} state records`
-                    : ""}
-                </p>
-              </motion.article>
-            ))}
-          </motion.div>
-        </motion.div>
-      </section>
-
-      
 
       {/* CHART AND ANALYSIS */}
       <section className="bg-[#082C40] px-4 py-10 text-white sm:px-6 lg:px-10">
@@ -1767,9 +1845,9 @@ const handleSaveIndicator = async () => {
                     {chartRows.length} state record
                     {chartRows.length === 1 ? "" : "s"} displayed
                     {" · "}
-                    {appliedFilters.state === "all"
-                      ? "All available states"
-                      : appliedFilters.state}
+                    {appliedFilters.states.length === 0
+                    ? "All available states"
+                    : appliedFilters.states.join(", ")}
                   </p>
                 </div>
 
@@ -1957,7 +2035,7 @@ const handleSaveIndicator = async () => {
                         {saveNotice}
                       </p>
                     )}
-</div>
+                  </div>
                 </div>
 
                 {/* FACILITY SPOT CHECK */}
@@ -2046,7 +2124,7 @@ const handleSaveIndicator = async () => {
           )}
         </motion.div>
       </section>
-
+      
       {/* LATEST HEALTH RELEASES */}
       <section className="px-5 py-10 sm:px-8 lg:px-12">
         <div className="mx-auto max-w-5xl">
@@ -2065,43 +2143,63 @@ const handleSaveIndicator = async () => {
           </div>
 
           <div id="health-releases">
-            <motion.div
-              {...motionSettings}
-              variants={staggerContainer}
-              className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
-            >
-              {releases.map((release) => (
-                <motion.article
-                  key={release.title}
-                  variants={revealVariants}
-                  className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg active:scale-[0.99] cursor-pointer"
-                >
-                  <div className="overflow-hidden">
-                    <img
-                      src={release.image}
-                      alt=""
-                      loading="lazy"
-                      className="h-48 w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
-                    />
-                  </div>
+            {mediaLoading ? (
+              <p className="py-6 text-center text-sm text-gray-500">
+                Loading health releases...
+              </p>
+            ) : mediaError ? (
+              <p className="py-6 text-center text-sm text-red-600">
+                {mediaError}
+              </p>
+            ) : (
+              <motion.div
+                variants={staggerContainer}
+                className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+              >
+                {(healthReleases.length > 0
+                  ? healthReleases
+                  : releases
+                ).map((release) => (
+                  <Link
+                    to={
+                      release.id
+                        ? `/media/${release.id}`
+                        : "/media"
+                    }
+                    key={release.id || release.title}
+                    className="block"
+                  >
+                    <motion.article
+                      variants={revealVariants}
+                      className="group h-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg active:scale-[0.99]"
+                    >
+                      <div className="overflow-hidden">
+                        <img
+                          src={release.image_url || release.image}
+                          alt={release.title || ""}
+                          loading="lazy"
+                          className="h-48 w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+                        />
+                      </div>
 
-                  <div className="p-4">
-                    <p className="text-[10px] text-gray-500">
-                      {release.category}
-                    </p>
+                      <div className="p-4">
+                        <p className="text-[10px] text-gray-500">
+                          {release.category}
+                        </p>
 
-                    <h3 className="mt-3 text-sm font-semibold leading-6">
-                      {release.title}
-                    </h3>
-
-                    
-                  </div>
-                </motion.article>
-              ))}
-            </motion.div>
+                        <h3 className="mt-3 text-sm font-semibold leading-6">
+                          {release.title}
+                        </h3>
+                      </div>
+                    </motion.article>
+                  </Link>
+                ))}
+              </motion.div>
+            )}
           </div>
         </div>
       </section>
+
     </main>
   );
 }

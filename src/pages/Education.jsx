@@ -4,6 +4,7 @@ import {
   getStates,
   getIndicators,
 } from "../api/referenceData.js";
+import { apiRequest } from "../api/api.js";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { motion, useReducedMotion } from "framer-motion";
@@ -145,17 +146,14 @@ function Education() {
 
   // National overview data
   // All published education records, including state-level records
-  const [publishedEducationRecords, setPublishedEducationRecords] =
-    useState([]);
+  const [publishedEducationRecords, setPublishedEducationRecords] = useState([]);
 
-  const [nationalOverviewLoading, setNationalOverviewLoading] =
-    useState(true);
+  const [nationalOverviewLoading, setNationalOverviewLoading] = useState(true);
 
-  const [nationalOverviewError, setNationalOverviewError] =
-    useState("");
+  const [nationalOverviewError, setNationalOverviewError] = useState("");
     
   const [indicator, setIndicator] = useState("all");
-  const [state, setState] = useState("all");
+  const [state, setState] = useState([]);
   const [year, setYear] = useState("all");
   const [search, setSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -559,6 +557,61 @@ useEffect(() => {
     (item) => item.key === appliedFilters?.indicator
   )?.label ?? "Education Records";
 
+  const recordEducationExport = async (format, exportedRecords) => {
+    if (!isLoggedIn || !appliedFilters || exportedRecords.length === 0) {
+      return false;
+    }
+
+    const exportedStates = [
+      ...new Set(
+        exportedRecords
+          .map((record) => record.state)
+          .filter(Boolean)
+      ),
+    ];
+
+    const exportedYears = [
+      ...new Set(
+        exportedRecords
+          .map((record) => Number(record.year))
+          .filter(Number.isFinite)
+      ),
+    ].sort((a, b) => a - b);
+
+    const yearLabel =
+      exportedYears.length === 0
+        ? "Year unavailable"
+        : exportedYears.length === 1
+          ? String(exportedYears[0])
+          : `${exportedYears[0]}–${exportedYears[exportedYears.length - 1]}`;
+
+    const payload = {
+      format,
+      title: `Education — ${selectedIndicatorLabel}`,
+      subtitle: `${exportedStates.length === 0 ? "No state specified" : exportedStates.length === 1 ? exportedStates[0] : "Selected states"} · ${yearLabel}`,
+      indicator: appliedFilters.indicator,
+      states: exportedStates,
+      years: exportedYears,
+    };
+
+    try {
+      await apiRequest("/exports", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      return true;
+    } catch (error) {
+      console.error("Could not record Education export:", error);
+
+      window.alert(
+        "Your file was exported, but CivicIntel could not save it to Recent Exports."
+      );
+
+      return false;
+    }
+  };
+
   // LOAD FILTERED EDUCATION RECORDS AFTER LOGIN AND APPLY
   useEffect(() => {
     if (!isLoggedIn || !appliedFilters) return;
@@ -571,7 +624,6 @@ useEffect(() => {
 
         const firstResponse = await getPublishedRecords({
           sector: "education",
-          state: appliedFilters.state,
           indicator: appliedFilters.indicator,
           year: appliedFilters.year,
           limit: batchSize,
@@ -591,7 +643,6 @@ useEffect(() => {
         ) {
           const response = await getPublishedRecords({
             sector: "education",
-            state: appliedFilters.state,
             indicator: appliedFilters.indicator,
             year: appliedFilters.year,
             limit: batchSize,
@@ -608,7 +659,12 @@ useEffect(() => {
         if (!isMounted) return;
 
         const educationOnly = allRecords.filter(
-          (item) => item.sector === "education"
+          (item) =>
+            item.sector === "education" &&
+            (
+              appliedFilters.states.length === 0 ||
+              appliedFilters.states.includes(item.state)
+            )
         );
 
         setEducationRecords(educationOnly);
@@ -681,7 +737,7 @@ useEffect(() => {
 
     setAppliedFilters({
       indicator,
-      state,
+      states: state,
       year,
     });
   };
@@ -697,7 +753,6 @@ useEffect(() => {
     try {
       const firstResponse = await getPublishedRecords({
         sector: "education",
-        state: appliedFilters.state,
         indicator: appliedFilters.indicator,
         year: appliedFilters.year,
         limit: 100,
@@ -716,7 +771,6 @@ useEffect(() => {
       for (let offset = 100; offset < total; offset += 100) {
         const response = await getPublishedRecords({
           sector: "education",
-          state: appliedFilters.state,
           indicator: appliedFilters.indicator,
           year: appliedFilters.year,
           limit: 100,
@@ -734,11 +788,17 @@ useEffect(() => {
 
       const query = search.trim().toLowerCase();
 
-      const matchingRecords = allRecords.filter((record) =>
-        String(record.state ?? "")
-          .toLowerCase()
-          .includes(query)
-      );
+      const matchingRecords = allRecords.filter((record) => {
+        const matchesState =
+          appliedFilters.states.length === 0 ||
+          appliedFilters.states.includes(record.state);
+
+        const matchesSearch = Object.values(record).some((value) =>
+          String(value ?? "").toLowerCase().includes(query)
+        );
+
+        return matchesState && matchesSearch;
+      });
 
       if (matchingRecords.length === 0) {
         alert("There are no matching records to export.");
@@ -752,7 +812,6 @@ useEffect(() => {
         "Value",
         "Unit",
         "Year",
-        "Dataset ID",
       ];
 
       const rows = matchingRecords.map((record) => ({
@@ -775,13 +834,15 @@ useEffect(() => {
         metadata: {
           Year: appliedFilters.year,
           State:
-            appliedFilters.state === "all"
-              ? "All states"
-              : appliedFilters.state,
+          appliedFilters.states.length === 0
+            ? "All states"
+            : appliedFilters.states.join(", "),
           "Data status": "Published backend records",
         },
         landscape: true,
       });
+      await recordEducationExport(format, matchingRecords);
+      
     } catch (error) {
       alert(
         error.message || "Unable to export education data."
@@ -858,114 +919,7 @@ useEffect(() => {
         </motion.div>
       </motion.section>
 
-      <motion.section
-        {...motionSettings}
-        variants={revealVariants}
-        className="px-5 py-8 sm:px-8 lg:px-12"
-      >
-        <div className="mx-auto max-w-5xl">
-          <SectionHeading>EDUCATION INDICATOR</SectionHeading>
-
-          <form onSubmit={handleApplyFilters}>
-            <div className="grid gap-4 md:grid-cols-3">
-              <label className="flex flex-col gap-2 text-xs">
-                Indicator
-
-                <select
-                  value={indicator}
-                  onChange={(event) => setIndicator(event.target.value)}
-                  disabled={indicatorsLoading}
-                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-wait disabled:opacity-60"
-                >
-                  <option value="all">All Education Indicators</option>
-
-                  {indicatorsLoading ? (
-                    <option value="" disabled>
-                      Loading indicators...
-                    </option>
-                  ) : indicators.length > 0 ? (
-                    indicators.map((item) => (
-                      <option key={item.key} value={item.key}>
-                        {item.name || item.key}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="" disabled>
-                      No education indicators available
-                    </option>
-                  )}
-                </select>
-
-                {indicatorsError && (
-                  <p className="mt-1 text-xs text-red-600">
-                    Unable to load indicators: {indicatorsError}
-                  </p>
-                )}
-              </label>
-
-              <label className="flex flex-col gap-2 text-xs">
-                State
-
-                <select
-                  value={state}
-                  onChange={(event) =>
-                    setState(event.target.value)
-                  }
-                  disabled={statesLoading}
-                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-wait disabled:opacity-60"
-                >
-                  <option value="all">All states</option>
-
-                  {statesLoading && (
-                    <option value="" disabled>
-                      Loading states...
-                    </option>
-                  )}
-
-                  {!statesLoading &&
-                    states.map((item) => (
-                      <option key={item.id} value={item.name}>
-                        {item.name}
-                      </option>
-                    ))}
-                </select>
-
-                {statesError && (
-                  <p className="mt-1 text-xs text-red-600">
-                    Unable to load states: {statesError}
-                  </p>
-                )}
-              </label>
-
-              <label className="flex flex-col gap-2 text-xs">
-                Year
-
-                <select
-                  value={year}
-                  onChange={(event) =>
-                    setYear(event.target.value)
-                  }
-                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
-                >
-                  <option value="all">All available years</option>
-                  {availableYears.map((availableYear) => (
-                    <option key={availableYear} value={String(availableYear)}>
-                      {availableYear}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <button
-              type="submit"
-              className="mx-auto mt-5 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B3C5D] md:w-1/2"
-            >
-              Apply <span aria-hidden="true">→</span>
-            </button>
-          </form>
-        </div>
-      </motion.section>
+      
 
       {/* NATIONAL EDUCATION OVERVIEW - LIVE BACKEND DATA */}
       <motion.section
@@ -1051,194 +1005,143 @@ useEffect(() => {
         </div>
       </motion.section>
 
-      {/* LIVE SSCE PERFORMANCE OVERVIEW */}
+      {/* EDUCATION INDICATOR FILTERS */}
       <motion.section
         {...motionSettings}
         variants={revealVariants}
         className="px-5 py-8 sm:px-8 lg:px-12"
       >
         <div className="mx-auto max-w-5xl">
-          <SectionHeading>
-            EXAMINATION PERFORMANCE OVERVIEW
-          </SectionHeading>
+          <SectionHeading>EDUCATION INDICATOR</SectionHeading>
 
-          <div className="grid gap-5 lg:grid-cols-[2.2fr_0.8fr]">
-            {/* SSCE STATE PERFORMANCE */}
-            <div className="rounded-lg bg-white p-4 shadow-sm sm:p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 pb-4">
-                <div>
-                  <h3 className="text-sm font-bold text-[#0B3C5D]">
-                    SSCE Performance by State
-                  </h3>
+          <form onSubmit={handleApplyFilters}>
+            <div className="grid gap-4 md:grid-cols-3">
+              <label className="flex flex-col gap-2 text-xs">
+                Indicator
 
-                  <p className="mt-1 text-xs leading-5 text-gray-500">
-                    Candidates with five or more credits, including
-                    English and Mathematics.
+                <select
+                  value={indicator}
+                  onChange={(event) => setIndicator(event.target.value)}
+                  disabled={indicatorsLoading}
+                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-wait disabled:opacity-60"
+                >
+                  <option value="all">All Education Indicators</option>
+
+                  {indicatorsLoading ? (
+                    <option value="" disabled>
+                      Loading indicators...
+                    </option>
+                  ) : indicators.length > 0 ? (
+                    indicators.map((item) => (
+                      <option key={item.key} value={item.key}>
+                        {item.name || item.key}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>
+                      No education indicators available
+                    </option>
+                  )}
+                </select>
+
+                {indicatorsError && (
+                  <p className="mt-1 text-xs text-red-600">
+                    Unable to load indicators: {indicatorsError}
                   </p>
-                </div>
+                )}
+              </label>
 
-                <span className="rounded-full bg-[#E8F2EB] px-3 py-1 text-[10px] font-semibold text-[#1F7A3F]">
-                  Live published data
-                </span>
-              </div>
+              <label className="flex flex-col gap-2 text-xs">
+                States
 
-              {nationalOverviewLoading ? (
-            <div className="py-10 text-center text-xs text-gray-500">
-              Loading SSCE performance data...
+                <details className="relative">
+                  <summary className="cursor-pointer list-none rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm">
+                    {state.length === 0
+                      ? "All states"
+                      : `${state.length} state${state.length > 1 ? "s" : ""} selected`}
+                    <span className="float-right">▾</span>
+                  </summary>
+
+                  <div className="absolute left-0 z-30 mt-2 max-h-64 w-full min-w-48 overflow-y-auto rounded-xl border border-gray-200 bg-white p-3 text-[#20272B] shadow-xl">
+                    <label className="flex cursor-pointer items-center gap-2 border-b border-gray-100 pb-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={state.length === 0}
+                        onChange={() => setState([])}
+                      />
+                      All states
+                    </label>
+
+                    {states.map((item) => (
+                      <label
+                        key={item.id ?? item.name}
+                        className="flex cursor-pointer items-center gap-2 py-2 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={state.includes(item.name)}
+                          onChange={(event) =>
+                            setState((previous) =>
+                              event.target.checked
+                                ? [...previous, item.name]
+                                : previous.filter((name) => name !== item.name)
+                            )
+                          }
+                        />
+                        {item.name}
+                      </label>
+                    ))}
+                  </div>
+                </details>
+
+                {statesLoading && (
+                  <p className="text-xs text-gray-500">
+                    Loading available states...
+                  </p>
+                )}
+
+                {!statesLoading && states.length === 0 && !statesError && (
+                  <p className="text-xs text-gray-500">
+                    No states available.
+                  </p>
+                )}
+
+                {statesError && (
+                  <p className="mt-1 text-xs text-red-600">
+                    Unable to load states: {statesError}
+                  </p>
+                )}
+              </label>
+
+              <label className="flex flex-col gap-2 text-xs">
+                Year
+
+                <select
+                  value={year}
+                  onChange={(event) =>
+                    setYear(event.target.value)
+                  }
+                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
+                >
+                  <option value="all">All available years</option>
+                  {availableYears.map((availableYear) => (
+                    <option key={availableYear} value={String(availableYear)}>
+                      {availableYear}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
-          ) : topSsceStates.length > 0 ? (
-            <>
-              <div className="mt-5 h-85 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={topSsceStates}
-                    layout="vertical"
-                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      horizontal={false}
-                    />
 
-                    <XAxis
-                      type="number"
-                      domain={[0, 100]}
-                      tickFormatter={(value) => `${value}%`}
-                      tick={{ fontSize: 10 }}
-                    />
-
-                    <YAxis
-                      type="category"
-                      dataKey="state"
-                      width={85}
-                      tick={{ fontSize: 10 }}
-                    />
-
-                    <Tooltip
-                      formatter={(value) => [
-                        `${Number(value).toFixed(1)}%`,
-                        "SSCE performance",
-                      ]}
-                      labelFormatter={(label) => {
-                        const record = topSsceStates.find(
-                          (item) => item.state === label
-                        );
-
-                        return record
-                          ? `${label} (${record.year})`
-                          : label;
-                      }}
-                    />
-
-                    <Bar
-                      dataKey="value"
-                      name="SSCE performance"
-                      fill="#1F7A3F"
-                      radius={[0, 5, 5, 0]}
-                      barSize={18}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <p className="mt-5 border-t border-gray-200 pt-3 text-[10px] leading-5 text-gray-500">
-                Showing the top 10 states ranked by their latest available
-                published SSCE performance records. Hover over a bar to view
-                the value and reporting year.
-              </p>
-            </>
-          ) : (
-            <div className="py-10 text-center">
-              <p className="text-sm font-semibold text-[#0B3C5D]">
-                No SSCE records available
-              </p>
-
-              <p className="mt-2 text-xs leading-5 text-gray-500">
-                There are no published records matching the SSCE 5+ credits indicator.
-              </p>
-            </div>
-          )}
-            </div>
-
-            {/* SSCE DATA METADATA */}
-            <aside className="rounded-lg bg-white p-5 shadow-sm">
-              <p className="text-sm font-bold text-[#0B3C5D]">
-                Dataset Metadata &amp; Audit
-              </p>
-
-              <div className="mt-5 space-y-5 text-xs">
-                <div className="flex items-start justify-between gap-3">
-                  <span className="text-gray-500">
-                    Indicator
-                  </span>
-
-                  <span className="max-w-[55%] text-right font-semibold">
-                    SSCE 5+ credits
-                  </span>
-                </div>
-
-                <div className="flex items-start justify-between gap-3">
-                  <span className="text-gray-500">
-                    Reporting year
-                  </span>
-
-                  <span className="text-right font-semibold">
-                    {nationalOverviewLoading
-                      ? "Loading..."
-                      : ssceLatestYear ?? "Not available"}
-                  </span>
-                </div>
-
-                <div className="flex items-start justify-between gap-3">
-                  <span className="text-gray-500">
-                    States with records
-                  </span>
-
-                  <span className="text-right font-semibold">
-                    {nationalOverviewLoading
-                      ? "..."
-                      : ssceStateRecords.length}
-                  </span>
-                </div>
-
-                <div className="flex items-start justify-between gap-3">
-                  <span className="text-gray-500">
-                    Dataset IDs
-                  </span>
-
-                  <span className="text-right font-semibold">
-                    {nationalOverviewLoading
-                      ? "..."
-                      : ssceDatasetCount}
-                  </span>
-                </div>
-
-                <div className="flex items-start justify-between gap-3">
-                  <span className="text-gray-500">
-                    Data source
-                  </span>
-
-                  <span className="max-w-[55%] text-right font-semibold">
-                    Published CivicIntel records
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-5 border-t border-gray-200 pt-4">
-                <p className="text-[10px] leading-5 text-gray-500">
-                  Indicator definition: percentage of candidates
-                  achieving at least five SSCE credits, including
-                  English and Mathematics.
-                </p>
-
-                
-              </div>
-            </aside>
-          </div>
+            <button
+              type="submit"
+              className="mx-auto mt-5 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B3C5D] md:w-1/2"
+            >
+              Apply <span aria-hidden="true">→</span>
+            </button>
+          </form>
         </div>
       </motion.section>
-
-      {/* EDUCATION INDICATOR FILTERS */}
       
 
       {/* PROTECTED EDUCATION DASHBOARD */}
@@ -1301,10 +1204,10 @@ useEffect(() => {
                   </h2>
 
                   <p className="mt-2 text-xs text-white/70">
-                    Selected state:{" "}
-                    {appliedFilters.state === "all"
+                    Selected states:{" "}
+                    {appliedFilters.states.length === 0
                       ? "All states"
-                      : appliedFilters.state}
+                      : appliedFilters.states.join(", ")}
                     {" · "}
                     Selected year: {appliedFilters.year}
                   </p>
@@ -1573,6 +1476,193 @@ useEffect(() => {
               )}
             </div>
           )}
+        </div>
+      </motion.section>
+
+       {/* LIVE SSCE PERFORMANCE OVERVIEW */}
+      <motion.section
+        {...motionSettings}
+        variants={revealVariants}
+        className="px-5 py-8 sm:px-8 lg:px-12"
+      >
+        <div className="mx-auto max-w-5xl">
+          <SectionHeading>
+            EXAMINATION PERFORMANCE OVERVIEW
+          </SectionHeading>
+
+          <div className="grid gap-5 lg:grid-cols-[2.2fr_0.8fr]">
+            {/* SSCE STATE PERFORMANCE */}
+            <div className="rounded-lg bg-white p-4 shadow-sm sm:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 pb-4">
+                <div>
+                  <h3 className="text-sm font-bold text-[#0B3C5D]">
+                    SSCE Performance by State
+                  </h3>
+
+                  <p className="mt-1 text-xs leading-5 text-gray-500">
+                    Candidates with five or more credits, including
+                    English and Mathematics.
+                  </p>
+                </div>
+
+                <span className="rounded-full bg-[#E8F2EB] px-3 py-1 text-[10px] font-semibold text-[#1F7A3F]">
+                  Live published data
+                </span>
+              </div>
+
+              {nationalOverviewLoading ? (
+            <div className="py-10 text-center text-xs text-gray-500">
+              Loading SSCE performance data...
+            </div>
+          ) : topSsceStates.length > 0 ? (
+            <>
+              <div className="mt-5 h-85 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={topSsceStates}
+                    layout="vertical"
+                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      horizontal={false}
+                    />
+
+                    <XAxis
+                      type="number"
+                      domain={[0, 100]}
+                      tickFormatter={(value) => `${value}%`}
+                      tick={{ fontSize: 10 }}
+                    />
+
+                    <YAxis
+                      type="category"
+                      dataKey="state"
+                      width={85}
+                      tick={{ fontSize: 10 }}
+                    />
+
+                    <Tooltip
+                      formatter={(value) => [
+                        `${Number(value).toFixed(1)}%`,
+                        "SSCE performance",
+                      ]}
+                      labelFormatter={(label) => {
+                        const record = topSsceStates.find(
+                          (item) => item.state === label
+                        );
+
+                        return record
+                          ? `${label} (${record.year})`
+                          : label;
+                      }}
+                    />
+
+                    <Bar
+                      dataKey="value"
+                      name="SSCE performance"
+                      fill="#1F7A3F"
+                      radius={[0, 5, 5, 0]}
+                      barSize={18}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <p className="mt-5 border-t border-gray-200 pt-3 text-[10px] leading-5 text-gray-500">
+                Showing the top 10 states ranked by their latest available
+                published SSCE performance records. Hover over a bar to view
+                the value and reporting year.
+              </p>
+            </>
+          ) : (
+            <div className="py-10 text-center">
+              <p className="text-sm font-semibold text-[#0B3C5D]">
+                No SSCE records available
+              </p>
+
+              <p className="mt-2 text-xs leading-5 text-gray-500">
+                There are no published records matching the SSCE 5+ credits indicator.
+              </p>
+            </div>
+          )}
+            </div>
+
+            {/* SSCE DATA METADATA */}
+            <aside className="rounded-lg bg-white p-5 shadow-sm">
+              <p className="text-sm font-bold text-[#0B3C5D]">
+                Dataset Metadata &amp; Audit
+              </p>
+
+              <div className="mt-5 space-y-5 text-xs">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-gray-500">
+                    Indicator
+                  </span>
+
+                  <span className="max-w-[55%] text-right font-semibold">
+                    SSCE 5+ credits
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-gray-500">
+                    Reporting year
+                  </span>
+
+                  <span className="text-right font-semibold">
+                    {nationalOverviewLoading
+                      ? "Loading..."
+                      : ssceLatestYear ?? "Not available"}
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-gray-500">
+                    States with records
+                  </span>
+
+                  <span className="text-right font-semibold">
+                    {nationalOverviewLoading
+                      ? "..."
+                      : ssceStateRecords.length}
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-gray-500">
+                    Dataset IDs
+                  </span>
+
+                  <span className="text-right font-semibold">
+                    {nationalOverviewLoading
+                      ? "..."
+                      : ssceDatasetCount}
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-gray-500">
+                    Data source
+                  </span>
+
+                  <span className="max-w-[55%] text-right font-semibold">
+                    Published CivicIntel records
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-5 border-t border-gray-200 pt-4">
+                <p className="text-[10px] leading-5 text-gray-500">
+                  Indicator definition: percentage of candidates
+                  achieving at least five SSCE credits, including
+                  English and Mathematics.
+                </p>
+
+                
+              </div>
+            </aside>
+          </div>
         </div>
       </motion.section>
 

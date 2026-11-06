@@ -142,7 +142,7 @@ function Media() {
 
         const [mediaResult, optionsResult] =
         await Promise.allSettled([
-          getMedia({ limit: 100, offset: 0 }),
+          getMedia({ limit: 50, offset: 0 }),
           getMediaOptions(),
         ]);
 

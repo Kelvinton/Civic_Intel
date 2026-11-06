@@ -89,6 +89,31 @@ function getValidComparison(value) {
   };
 }
 
+// Get the years to send to the backend.
+function getComparisonYears(comparison) {
+  if (comparison.selectedYears?.length > 0) {
+    return comparison.selectedYears;
+  }
+
+  const from = Number(comparison.fromYear);
+  const to = Number(comparison.toYear);
+
+  if (
+    comparison.fromYear &&
+    comparison.toYear &&
+    Number.isInteger(from) &&
+    Number.isInteger(to) &&
+    from <= to
+  ) {
+    return Array.from(
+      { length: to - from + 1 },
+      (_, index) => from + index
+    );
+  }
+
+  return [];
+}
+
 // --------------------------------------------------
 // Format missing values
 // --------------------------------------------------
@@ -109,16 +134,41 @@ function formatValue(value) {
 // Prepare export data
 // --------------------------------------------------
 
+
 function buildExportContent(comparison, records = null) {
   const hasRecords =
     Array.isArray(records) && records.length > 0;
 
+  // Fields that must never appear in exported records.
+  const isExcludedField = (field) => {
+    const normalized = String(field)
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+
+    return [
+      "sourceid",
+      "datasetid",
+      "assessment",
+    ].includes(normalized);
+  };
+
+  // Clean backend records before preparing the export.
+  const cleanRecords = hasRecords
+    ? records.map((record) =>
+        Object.fromEntries(
+          Object.entries(record).filter(
+            ([key]) => !isExcludedField(key)
+          )
+        )
+      )
+    : [];
+
   const headers = hasRecords
-    ? Object.keys(records[0])
+    ? Object.keys(cleanRecords[0])
     : ["Field", "Value"];
 
   const rows = hasRecords
-    ? records
+    ? cleanRecords
     : [
         {
           Field: "Report type",
@@ -167,6 +217,7 @@ function buildExportContent(comparison, records = null) {
     hasRecords,
   };
 }
+
 
 // --------------------------------------------------
 // Export comparison
@@ -365,7 +416,13 @@ function ChartPlaceholder({result, loading, error, selectedStates = [], unit = "
                   tick={{ fontSize: 11 }}
                   axisLine={false}
                   tickLine={false}
-                  width={40}
+                  width={65}
+                  tickFormatter={(value) =>
+                    new Intl.NumberFormat("en", {
+                      notation: "compact",
+                      maximumFractionDigits: 1,
+                    }).format(value)
+                  }
                 />
 
                 <Tooltip
@@ -936,12 +993,7 @@ function CompareResults() {
           subtitle: `${comparison.indicatorName} | ${comparison.selectedStates.join(" vs ")}`,
           indicator: comparison.indicator,
           states: comparison.selectedStates,
-          ...(comparison.fromYear && {
-            year_from: Number(comparison.fromYear),
-          }),
-          ...(comparison.toYear && {
-            year_to: Number(comparison.toYear),
-          }),
+          years: getComparisonYears(comparison),
         }),
       });
 
@@ -987,7 +1039,7 @@ function CompareResults() {
       states: comparison.selectedStates,
 
       // Preserve the exact years selected by the user.
-      selected_years: comparison.selectedYears || [],
+      years: getComparisonYears(comparison),
 
       // Keep the year range as well.
       ...(comparison.fromYear && {
@@ -1184,18 +1236,18 @@ function CompareResults() {
               aria-hidden="true"
             >
               <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                className="size-4"
-                aria-hidden="true"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M12.97 3.97a.75.75 0 0 1 1.06 0l7.5 7.5a.75.75 0 0 1 0 1.06l-6.22 6.22H3a.75.75 0 0 1 0-1.5h16.19l-6.22-6.22a.75.75 0 0 1 0-1.06Z"
-                  clipRule="evenodd"
-                />
-              </svg>
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  className="size-4"
+                  aria-hidden="true"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M12.97 3.97a.75.75 0 0 1 1.06 0l7.5 7.5a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 1 1-1.06-1.06l6.22-6.22H3a.75.75 0 0 1 0-1.5h16.19l-6.22-6.22a.75.75 0 0 1 0-1.06Z"
+                    clipRule="evenodd"
+                  />
+                </svg>
             </motion.span>
           </Link>
         </div>
