@@ -50,6 +50,32 @@ function formatDisplayDate(date, prefix = "") {
   })}`;
 }
 
+// Display years from saved comparisons and export records.
+function formatYearDisplay(item) {
+  if (item.year != null) {
+    return item.year;
+  }
+
+  if (Array.isArray(item.years) && item.years.length > 0) {
+    return [...new Set(item.years)]
+      .sort((a, b) => Number(a) - Number(b))
+      .join(", ");
+  }
+
+  if (item.year_from != null || item.year_to != null) {
+    if (
+      item.year_from != null &&
+      item.year_from === item.year_to
+    ) {
+      return item.year_from;
+    }
+
+    return `${item.year_from ?? "—"} - ${item.year_to ?? "—"}`;
+  }
+
+  return "—";
+}
+
 // Normalize paginated API responses.
 // Supports:
 // { items: [] }
@@ -110,12 +136,15 @@ function Account() {
   const [loadingSaved, setLoadingSaved] = useState(true);
   const [savedError, setSavedError] = useState("");
   const [deletingSavedId, setDeletingSavedId] = useState(null);
+  // Custom delete confirmation popup
+  const [deleteConfirmation, setDeleteConfirmation] = useState(null);
 
   // Export history from the backend
   const [exportItems, setExportItems] = useState([]);
   const [exportTotal, setExportTotal] = useState(0);
   const [loadingExports, setLoadingExports] = useState(true);
   const [exportError, setExportError] = useState("");
+  const [deletingExportId, setDeletingExportId] = useState(null);
 
   // Profile fields
   const [name, setName] = useState(() => getUserName(user));
@@ -227,12 +256,6 @@ function Account() {
   async function handleDeleteSaved(savedId) {
     if (savedId == null || deletingSavedId !== null) return;
 
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this saved comparison?"
-    );
-
-    if (!confirmed) return;
-
     try {
       setDeletingSavedId(savedId);
 
@@ -266,6 +289,41 @@ function Account() {
       );
     } finally {
       setDeletingSavedId(null);
+    }
+  }
+
+  // Delete an export from the history.
+  async function handleDeleteExport(exportId) {
+    if (exportId == null || deletingExportId !== null) return;
+
+    try {
+      setDeletingExportId(exportId);
+
+      await apiRequest(
+        `/exports/${encodeURIComponent(exportId)}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      setExportItems((previousItems) =>
+        previousItems.filter(
+          (item) => String(item.id) !== String(exportId)
+        )
+      );
+
+      setExportTotal((previousTotal) =>
+        Math.max(0, previousTotal - 1)
+      );
+
+      showNotice("Export record deleted successfully.", "success");
+    } catch (error) {
+      showNotice(
+        error?.message || "Unable to delete this export record.",
+        "error"
+      );
+    } finally {
+      setDeletingExportId(null);
     }
   }
 
@@ -817,8 +875,7 @@ function Account() {
                     </p>
 
                     <p className="mt-1 text-xs text-gray-500">
-                      {item.year_from ?? "—"} -{" "}
-                      {item.year_to ?? "—"}
+                      {formatYearDisplay(item)}
                     </p>
 
                     <div className="mt-auto flex items-center justify-between gap-2 border-t border-gray-100 pt-3">
@@ -832,7 +889,11 @@ function Account() {
                       <button
                         type="button"
                         onClick={() =>
-                          handleDeleteSaved(item.id)
+                          setDeleteConfirmation({
+                            type: "saved",
+                            id: item.id,
+                            title: item.title || "this saved comparison",
+                          })
                         }
                         disabled={
                           deletingSavedId !== null
@@ -944,16 +1005,31 @@ function Account() {
                         </p>
                       )}
 
-                    <p className="mt-1 text-xs text-gray-500">
-                      {item.year_from ?? "—"} -{" "}
-                      {item.year_to ?? "—"}
-                    </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {formatYearDisplay(item)}
+                      </p>
 
-                    <div className="mt-auto border-t border-dashed border-gray-200 pt-4 text-[11px] text-gray-500">
-                      {formatDisplayDate(
-                        item.exported_at,
-                        "Exported "
-                      )}
+                    <div className="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-gray-200 pt-4">
+                      <span className="text-[11px] text-gray-500">
+                        {formatDisplayDate(item.exported_at, "Exported ")}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDeleteConfirmation({
+                            type: "export",
+                            id: item.id,
+                            title: item.title || item.dataset?.title || "this export",
+                          })
+                        }
+                        disabled={deletingExportId !== null}
+                        className="text-xs font-medium text-red-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {String(deletingExportId) === String(item.id)
+                          ? "Deleting..."
+                          : "Delete"}
+                      </button>
                     </div>
                   </article>
                 ))}
@@ -962,6 +1038,77 @@ function Account() {
           </div>
         </div>
       </section>
+
+      {deleteConfirmation && (
+        <div
+          className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 px-4"
+          role="presentation"
+          onClick={() => setDeleteConfirmation(null)}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-dialog-title"
+            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-red-100 text-red-600">
+              <span className="text-xl">!</span>
+            </div>
+
+            <h2
+              id="delete-dialog-title"
+              className="mt-4 text-lg font-bold text-gray-900"
+            >
+              Delete this{" "}
+              {deleteConfirmation.type === "saved"
+                ? "comparison"
+                : "export"}?
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-gray-600">
+              Are you sure you want to delete{" "}
+              <span className="font-semibold text-gray-800">
+                {deleteConfirmation.title}
+              </span>
+              ? This action cannot be undone.
+            </p>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmation(null)}
+                className="rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={
+                  deletingSavedId !== null ||
+                  deletingExportId !== null
+                }
+                onClick={async () => {
+                  const confirmation = deleteConfirmation;
+                  if (!confirmation) return;
+
+                  setDeleteConfirmation(null);
+
+                  if (confirmation.type === "saved") {
+                    await handleDeleteSaved(confirmation.id);
+                  } else {
+                    await handleDeleteExport(confirmation.id);
+                  }
+                }}
+                className="rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

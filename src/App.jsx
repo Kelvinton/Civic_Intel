@@ -22,6 +22,7 @@ import CompareResults from "./pages/CompareResults.jsx";
 import SourcesAndMethods from "./pages/SourceAndMethods.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
 import Media from "./pages/Media.jsx";
+import MediaDetails from "./pages/MediaDetails.jsx";
 import Account from "./pages/Account.jsx";
 
 // Protect only routes that require authentication.
@@ -122,6 +123,11 @@ function AppContent() {
         <Route
           path="/media"
           element={<Media />}
+        />
+
+        <Route
+          path="/media/:mediaId"
+          element={<MediaDetails />}
         />
         
       </Route>

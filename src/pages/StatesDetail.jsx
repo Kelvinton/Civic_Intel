@@ -429,13 +429,13 @@ function StateDetails() {
             </div>
           </div>
 
-          <Link
+          {/* <Link
             to="/sources-and-methods"
             className="mt-8 inline-flex items-center gap-4 rounded-full bg-white px-4 py-3 text-xs font-medium text-[#1F7A3F] transition hover:bg-gray-100"
           >
             View revision history
             <span className="text-lg">→</span>
-          </Link>
+          </Link> */}
         </section>
       </div>
     </main>
