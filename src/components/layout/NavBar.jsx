@@ -1,10 +1,11 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { NavLink, Link, useLocation } from "react-router-dom";
+import { NavLink, Link, useLocation} from "react-router-dom";
 
 
 import { useAuth } from "../../context/AuthContext.jsx";
+import { apiRequest } from "../../api/api.js";
 import civicIntelLogo from "../../assets/signup.logo.png";
 
 const navLinks = [
@@ -38,8 +39,12 @@ function Navbar() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [governanceOpen, setGovernanceOpen] = useState(false);
-  const [mobileGovernanceOpen, setMobileGovernanceOpen] =
-    useState(false);
+  const [mobileGovernanceOpen, setMobileGovernanceOpen] = useState(false);
+  // Notification data
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationError, setNotificationError] = useState("");
 
   const linkClass = ({ isActive }) =>
     `whitespace-nowrap text-sm transition-colors duration-200 ${
@@ -58,6 +63,91 @@ function Navbar() {
     setMenuOpen(false);
     setMobileGovernanceOpen(false);
   }
+
+  async function fetchNotifications() {
+    setNotificationsLoading(true);
+    setNotificationError("");
+
+    try {
+      const data = await apiRequest(
+        "/notifications?limit=20&offset=0"
+    );
+
+    setNotificationError("");
+
+      setNotifications(
+        Array.isArray(data?.items) ? data.items : []
+      );
+
+      setUnreadCount(
+        Number(data?.unread_count) || 0
+      );
+    } catch (error) {
+      setNotificationError(
+        error.message || "Unable to load notifications."
+      );
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }
+
+  async function markNotificationAsRead(notificationId) {
+    try {
+      await apiRequest(
+        `/notifications/${notificationId}/read`,
+        {
+          method: "POST",
+        }
+      );
+
+      setNotifications((previousNotifications) =>
+        previousNotifications.map((notification) =>
+          notification.id === notificationId
+            ? { ...notification, read: true }
+            : notification
+        )
+      );
+
+      setUnreadCount((previousCount) =>
+        Math.max(0, previousCount - 1)
+      );
+    } catch (error) {
+      setNotificationError(
+        error.message || "Unable to mark notification as read."
+      );
+    }
+  }
+
+  async function markAllNotificationsAsRead() {
+    try {
+      await apiRequest("/notifications/read-all", {
+        method: "POST",
+      });
+
+      setNotifications((previousNotifications) =>
+        previousNotifications.map((notification) => ({
+          ...notification,
+          read: true,
+        }))
+      );
+
+      setUnreadCount(0);
+    } catch (error) {
+      setNotificationError(
+        error.message || "Unable to mark notifications as read."
+      );
+    }
+  }
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    const timeoutId = setTimeout(() => {
+      fetchNotifications();
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
+  }, [isLoggedIn]);
 
   return (
     <motion.header
@@ -213,16 +303,131 @@ function Navbar() {
                     d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"
                   />
                 </svg>
+
+                {unreadCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
               </button>
 
               {notificationsOpen && (
-                <div className="absolute right-0 top-12 z-50 w-64 rounded-xl bg-white p-4 text-sm text-gray-700 shadow-xl">
-                  <p className="font-semibold text-[#0B3C5D]">
-                    Notifications
-                  </p>
-                  <p className="mt-2 text-gray-500">
-                    You’re all caught up.
-                  </p>
+                <div className="absolute right-0 top-12 z-50 w-80 overflow-hidden rounded-xl border border-gray-100 bg-white text-sm text-gray-700 shadow-xl sm:w-96">
+                  {/* Header */}
+                  <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+                    <div>
+                      <p className="font-semibold text-[#0B3C5D]">
+                        Notifications
+                      </p>
+
+                      <p className="mt-1 text-xs text-gray-500">
+                        {unreadCount} unread messages
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      {unreadCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={markAllNotificationsAsRead}
+                          className="whitespace-nowrap text-xs font-medium text-[#1F7A3F] hover:underline"
+                        >
+                          Mark all as read
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={fetchNotifications}
+                        disabled={notificationsLoading}
+                        className="text-xs font-medium text-[#0B3C5D] hover:underline disabled:opacity-50 cursor-pointer"
+                      >
+                        Refresh
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Notification list */}
+                  <div className="max-h-96 overflow-y-auto">
+                    {notificationsLoading ? (
+                      <p className="p-6 text-center text-gray-500">
+                        Loading notifications...
+                      </p>
+                    ) : notificationError ? (
+                      <div className="p-5 text-center">
+                        <p className="text-sm text-red-600">
+                          {notificationError}
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={fetchNotifications}
+                          className="mt-3 text-xs font-semibold text-[#1F7A3F] hover:underline"
+                        >
+                          Try again
+                        </button>
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <p className="p-6 text-center text-gray-500">
+                        You’re all caught up.
+                      </p>
+                    ) : (
+                      notifications.map((notification) => (
+                        <div
+                          key={notification.id}
+                          onClick={() => {
+                            if (!notification.read) {
+                              markNotificationAsRead(notification.id);
+                            }
+                          }}
+                          className={`border-b border-gray-100 px-4 py-3 last:border-b-0 ${
+                            notification.read ? "bg-white" : "bg-blue-50/60"
+                          } ${
+                            notification.link ? "cursor-pointer hover:bg-gray-50" : ""
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <span
+                              className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                                notification.read
+                                  ? "bg-gray-300"
+                                  : "bg-[#1F7A3F]"
+                              }`}
+                            />
+
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-[#0B3C5D]">
+                                {notification.title}
+                              </p>
+
+                              <p className="mt-1 text-xs leading-5 text-gray-600">
+                                {notification.body}
+                              </p>
+
+                              {!notification.read && (
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    markNotificationAsRead(notification.id);
+                                  }}
+                                  className="mt-2 text-xs font-semibold text-[#1F7A3F] "
+                                >
+                                  Mark as read
+                                </button>
+                              )}
+
+                              <p className="mt-2 text-[11px] text-gray-400">
+                                {new Date(
+                                  notification.created_at
+                                ).toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               )}
             </div>

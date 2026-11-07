@@ -5,7 +5,7 @@ import {
   getIndicators,
 } from "../api/referenceData.js";
 import { apiRequest } from "../api/api.js";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { motion, useReducedMotion } from "framer-motion";
 import { exportData } from "../utility/exportData.js";
@@ -1692,31 +1692,36 @@ useEffect(() => {
             className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
           >
             {releases.map((release) => (
-              <article
-                key={release.title}
-                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-md cursor-pointer"
+              <Link
+                to={
+                  release.id
+                    ? `/media/${release.id}`
+                    : "/media"
+                }
+                key={release.id || release.title}
+                className="block"
               >
-                <img
-                  src={release.image}
-                  alt=""
-                  loading="lazy"
-                  className="h-48 w-full object-cover"
-                />
+                <article className="group h-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg active:scale-[0.99]">
+                  <div className="overflow-hidden">
+                    <img
+                      src={release.image_url || release.image}
+                      alt={release.title || ""}
+                      loading="lazy"
+                      className="h-48 w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+                    />
+                  </div>
 
-                <div className="p-4">
-                  <p className="text-[10px] text-gray-500">
-                    {release.category}
-                  </p>
+                  <div className="p-4">
+                    <p className="text-[10px] text-gray-500">
+                      {release.category}
+                    </p>
 
-                  <h3 className="mt-3 text-sm font-semibold leading-6">
-                    {release.title}
-                  </h3>
-
-                  {/* <p className="mt-3 text-xs text-[#1F7A3F]">
-                    
-                  </p> */}
-                </div>
-              </article>
+                    <h3 className="mt-3 text-sm font-semibold leading-6">
+                      {release.title}
+                    </h3>
+                  </div>
+                </article>
+              </Link>
             ))}
           </div>
         </div>

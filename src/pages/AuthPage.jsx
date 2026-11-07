@@ -434,7 +434,9 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
                           "South Africa",
                           "United States",
                           "United Kingdom",
+                          "Austraila",
                           "Canada",
+                          "Europe",
                           "Other",
                         ].map((country) => (
                           <option key={country} value={country}>

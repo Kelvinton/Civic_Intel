@@ -184,19 +184,11 @@ export function AuthProvider({ children }) {
         formData.lastName || ""
       ).trim(),
 
-      phone_number: String(
-        formData.phone || ""
+      country: String(
+        formData.country || ""
       ).trim(),
 
       email: normalizeEmail(formData.email),
-
-      address: String(
-        formData.address || ""
-      ).trim(),
-
-      state: String(
-        formData.state || ""
-      ).trim(),
 
       password: formData.password,
 

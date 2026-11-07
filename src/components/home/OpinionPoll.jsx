@@ -9,6 +9,7 @@ import {
 } from "../../animation.js";
 
 import { apiRequest } from "../../api/api.js";
+import { useAuth } from "../../context/AuthContext.jsx";
 
 // Dedicated animation for poll options.
 const pollOptionVariants = {
@@ -45,6 +46,7 @@ function formatClosingDate(date) {
 function OpinionPoll() {
   const motionSettings = useMotionSettings();
   const shouldReduceMotion = useReducedMotion();
+  const { isLoggedIn } = useAuth();
 
   const [poll, setPoll] = useState(null);
   const [selectedOption, setSelectedOption] = useState("");
@@ -313,7 +315,7 @@ function OpinionPoll() {
 
             {/* Poll form */}
             <form onSubmit={handleSubmit} className="mt-6">
-              <fieldset disabled={!isPollOpen || hasVoted || submitting}>
+              <fieldset disabled={!isLoggedIn || !isPollOpen || hasVoted || submitting}>
                 <legend className="sr-only">
                   Select your preferred poll option
                 </legend>
@@ -355,39 +357,59 @@ function OpinionPoll() {
                 </motion.div>
               </fieldset>
 
-              {/* Submit button */}
+              {/* Voting access */}
               {isPollOpen && !hasVoted && (
-                <motion.button
-                  type="submit"
-                  disabled={!selectedOption || submitting}
-                  whileHover={
-                    shouldReduceMotion || !selectedOption || submitting
-                      ? undefined
-                      : { scale: 1.03 }
-                  }
-                  whileTap={
-                    shouldReduceMotion || !selectedOption || submitting
-                      ? undefined
-                      : { scale: 0.97 }
-                  }
-                  transition={{ duration: 0.2, ease: "easeOut" }}
-                  className="mt-6 inline-flex min-h-12 items-center justify-center gap-4 rounded-full bg-white px-4 py-3 text-sm font-medium text-[#1F7A3F] transition hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <span>
-                    {submitting ? "Submitting..." : "Submit Feedback"}
-                  </span>
-
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                    className="h-6 w-6"
-                    aria-hidden="true"
+                isLoggedIn ? (
+                  <motion.button
+                    type="submit"
+                    disabled={!selectedOption || submitting}
+                    whileHover={
+                      shouldReduceMotion || !selectedOption || submitting
+                        ? undefined
+                        : { scale: 1.03 }
+                    }
+                    whileTap={
+                      shouldReduceMotion || !selectedOption || submitting
+                        ? undefined
+                        : { scale: 0.97 }
+                    }
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className="mt-6 inline-flex min-h-12 items-center justify-center gap-4 rounded-full bg-white px-4 py-3 text-sm font-medium text-[#1F7A3F] transition hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <path d="M4 12h16M13 5l7 7-7 7" />
-                  </svg>
-                </motion.button>
+                    <span>
+                      {submitting ? "Submitting..." : "Submit Feedback"}
+                    </span>
+
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                      className="h-6 w-6"
+                      aria-hidden="true"
+                    >
+                      <path d="M4 12h16M13 5l7 7-7 7" />
+                    </svg>
+                  </motion.button>
+                ) : (
+                  <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-5">
+                    <h4 className="text-sm font-semibold text-white">
+                      Want to have your say?
+                    </h4>
+
+                    <p className="mt-2 text-sm leading-6 text-[#B8C2C9]">
+                      Log in to your CivicIntel account to participate in this
+                      opinion poll and share your perspective.
+                    </p>
+
+                    <a
+                      href="/login"
+                      className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#1F7A3F] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#176331]"
+                    >
+                      Log In to Vote
+                    </a>
+                  </div>
+                )
               )}
 
               {/* Already voted */}
