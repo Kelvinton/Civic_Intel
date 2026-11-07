@@ -85,30 +85,6 @@ function isValidNumericValue(value) {
   );
 }
 
-function escapeXML(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
-function downloadFile(content, filename, mimeType) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download = filename;
-
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
 function SectionHeading({ children, dark = false }) {
   return (
     <h2
@@ -843,77 +819,78 @@ function Health() {
   // --------------------------------------------------
 
   
-const recordHealthExport = async (format) => {
-  if (!isLoggedIn || exportRows.length === 0 || !appliedFilters) {
-    return false;
-  }
+  const recordHealthExport = async (format) => {
+    if (!isLoggedIn || exportRows.length === 0 || !appliedFilters) {
+      return false;
+    }
 
-  const exportedStates = [
-    ...new Set(
-      exportRows.map((row) => row.State).filter(Boolean)
-    ),
-  ];
+    const exportedStates = [
+      ...new Set(
+        exportRows.map((row) => row.State).filter(Boolean)
+      ),
+    ];
 
-  const exportedYears = [
-    ...new Set(
-      exportRows
-        .map((row) => Number(row.Year))
-        .filter(Number.isFinite)
-    ),
-  ].sort((a, b) => a - b);
+    const exportedYears = [
+      ...new Set(
+        exportRows
+          .map((row) => Number(row.Year))
+          .filter(Number.isFinite)
+      ),
+    ].sort((a, b) => a - b);
 
 
 
-  const yearFrom = exportedYears.length
-    ? Math.min(...exportedYears)
-    : null;
+    const yearFrom = exportedYears.length
+      ? Math.min(...exportedYears)
+      : null;
 
-  const yearTo = exportedYears.length
-    ? Math.max(...exportedYears)
-    : null;
+    const yearTo = exportedYears.length
+      ? Math.max(...exportedYears)
+      : null;
 
-  const subtitle = [
-    exportedStates.length === 1
-      ? exportedStates[0]
-      : exportedStates.length === 0
-        ? "No state specified"
-        : "All selected states",
-    yearFrom === null
-      ? "Year unavailable"
-      : yearFrom === yearTo
-        ? String(yearFrom)
-        : `${yearFrom}–${yearTo}`,
-  ].join(" · ");
+    const subtitle = [
+      exportedStates.length === 1
+        ? exportedStates[0]
+        : exportedStates.length === 0
+          ? "No state specified"
+          : "All selected states",
+      yearFrom === null
+        ? "Year unavailable"
+        : yearFrom === yearTo
+          ? String(yearFrom)
+          : `${yearFrom}–${yearTo}`,
+    ].join(" · ");
 
-  const payload = {
-    format,
-    title: `Health — ${indicatorLabel}`,
-    subtitle,
-    indicator: appliedFilters.indicator,
-    states: exportedStates,
-    years: exportedYears,
+    const payload = {
+      format,
+      title: `Health — ${indicatorLabel}`,
+      subtitle,
+      indicator: appliedFilters.indicator,
+      states: exportedStates,
+      years: exportedYears,
+    };
+
+    try {
+      await apiRequest("/exports", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      return true;
+    } catch (error) {
+      console.error("Could not record Health export:", error);
+
+      window.alert(
+        "Your file was exported, but CivicIntel could not save it to Recent Exports."
+      );
+
+      return false;
+    }
   };
 
-  try {
-    await apiRequest("/exports", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
 
-    return true;
-  } catch (error) {
-    console.error("Could not record Health export:", error);
-
-    window.alert(
-      "Your file was exported, but CivicIntel could not save it to Recent Exports."
-    );
-
-    return false;
-  }
-};
-
-
-    // CSV EXPORT
+  // CSV EXPORT
+  
   const handleExportCSV = async () => {
     if (exportRows.length === 0) {
       window.alert("There are no records to export.");
@@ -922,30 +899,33 @@ const recordHealthExport = async (format) => {
 
     const headers = Object.keys(exportRows[0]);
 
-    const csvContent = [
-      headers.join(","),
-      ...exportRows.map((row) =>
-        headers
-          .map((header) => {
-            const value = String(row[header] ?? "");
-            return `"${value.replace(/"/g, '""')}"`;
-          })
-          .join(",")
-      ),
-    ].join("\n");
-
-    downloadFile(
-      csvContent,
-      `${exportFilename}.csv`,
-      "text/csv;charset=utf-8;"
-    );
+    exportData({
+      format: "csv",
+      headers,
+      rows: exportRows,
+      fileName: exportFilename,
+      title: "CivicIntel Health Data Report",
+      subtitle: `Indicator: ${indicatorLabel}`,
+      metadata: {
+        State:
+          appliedFilters.states.length === 0
+            ? "All available states"
+            : appliedFilters.states.join(", "),
+        Year:
+          appliedFilters.year === "all"
+            ? "All years"
+            : appliedFilters.year,
+        Source: "CivicIntel published Health records",
+      },
+    });
 
     setExportOpen(false);
 
     await recordHealthExport("csv");
   };
 
-    // XLSX EXPORT
+
+  // XLSX EXPORT
     const handleExportXLSX = async () => {
       if (exportRows.length === 0) {
         window.alert("There are no records to export.");
@@ -960,6 +940,7 @@ const recordHealthExport = async (format) => {
         rows: exportRows,
         fileName: exportFilename,
         title: "CivicIntel Health Data Report",
+        
         subtitle: `Indicator: ${indicatorLabel}`,
         metadata: {
           State:
@@ -976,227 +957,121 @@ const recordHealthExport = async (format) => {
       setExportOpen(false);
 
       await recordHealthExport("xlsx");
-    };
+  };
 
-  // PDF / PRINT EXPORT
+
   const handleExportPDF = async () => {
     if (exportRows.length === 0) {
       window.alert("There are no records to export.");
       return;
     }
 
-    const printWindow = window.open("", "_blank");
+    const headers = Object.keys(exportRows[0]);
 
-    if (!printWindow) {
-      window.alert(
-        "Your browser blocked the print window. Please allow pop-ups and try again."
-      );
-      return;
-    }
+    exportData({
+      format: "pdf",
+      headers,
+      rows: exportRows,
+      fileName: exportFilename,
+      title: "CivicIntel Health Data Report",
+      subtitle: `Indicator: ${indicatorLabel}`,
+      metadata: {
+        State:
+          appliedFilters.states.length === 0
+            ? "All available states"
+            : appliedFilters.states.join(", "),
+        Year:
+          appliedFilters.year === "all"
+            ? "All years"
+            : appliedFilters.year,
+        Source: "CivicIntel published Health records",
+      },
+      landscape: true,
+    });
 
-    const tableRows = exportRows
-      .map(
-        (row) => `
-          <tr>
-            <td>${escapeXML(row.State)}</td>
-            <td>${escapeXML(row.Indicator)}</td>
-            <td>${escapeXML(row.Year)}</td>
-            <td>${escapeXML(row.Value)}</td>
-            <td>${escapeXML(row.Unit)}</td>
-          </tr>
-        `
-      )
-      .join("");
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>CivicIntel Health Data Report</title>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              padding: 30px;
-              color: #20272B;
-            }
-
-            h1 {
-              color: #0B3C5D;
-              margin-bottom: 8px;
-            }
-
-            .subtitle {
-              color: #64748b;
-              font-size: 13px;
-              margin-bottom: 24px;
-            }
-
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              font-size: 12px;
-            }
-
-            th, td {
-              border: 1px solid #d5dde1;
-              padding: 10px;
-              text-align: left;
-            }
-
-            th {
-              background: #0B3C5D;
-              color: white;
-            }
-
-            tr:nth-child(even) {
-              background: #f1f5f6;
-            }
-
-            .footer {
-              margin-top: 24px;
-              font-size: 11px;
-              color: #64748b;
-            }
-
-            @media print {
-              body {
-                padding: 0;
-              }
-            }
-          </style>
-        </head>
-
-        <body>
-          <h1>CivicIntel — Health Data Report</h1>
-
-          <p class="subtitle">
-            Indicator: ${escapeXML(indicatorLabel)} |
-            State: ${escapeXML(
-              appliedFilters.states.length === 0
-              ? "All available states"
-              : appliedFilters.states.join(", ")
-            )} |
-            Year: ${escapeXML(
-              appliedFilters.year === "all"
-                ? "All years"
-                : appliedFilters.year
-            )}
-          </p>
-
-          <table>
-            <thead>
-              <tr>
-                <th>State</th>
-                <th>Indicator</th>
-                <th>Year</th>
-                <th>Value</th>
-                <th>Unit</th>
-              </tr>
-            </thead>
-
-            <tbody>${tableRows}</tbody>
-          </table>
-
-          <p class="footer">
-            Source: CivicIntel published Health records.
-            This report contains the records returned by the connected dataset.
-          </p>
-
-          <script>
-            window.onload = function () {
-              window.print();
-            };
-          </script>
-        </body>
-      </html>
-    `);
-
-        printWindow.document.close();
     setExportOpen(false);
 
     await recordHealthExport("pdf");
   };
 
   // --------------------------------------------------
-// SAVE INDICATOR
-// --------------------------------------------------
+  // SAVE INDICATOR
+  // --------------------------------------------------
+  const handleSaveIndicator = async () => {
+    if (!isLoggedIn) {
+      handleLogin();
+      return;
+    }
 
-const handleSaveIndicator = async () => {
-  if (!isLoggedIn) {
-    handleLogin();
-    return;
-  }
+    if (!appliedFilters || chartRows.length === 0 || chartData.length === 0) {
+      setSaveNotice("There are no Health records available to save.");
+      setSaveNoticeType("error");
+      return;
+    }
 
-  if (!appliedFilters || chartRows.length === 0 || chartData.length === 0) {
-    setSaveNotice("There are no Health records available to save.");
-    setSaveNoticeType("error");
-    return;
-  }
+    setSavingIndicator(true);
+    setSaveNotice("");
+    setSaveNoticeType("");
 
-  setSavingIndicator(true);
-  setSaveNotice("");
-  setSaveNoticeType("");
+    // Get all states represented by the selected filters.
+    const selectedStates = [
+      ...new Set(
+        chartData
+          .map((record) => record.state)
+          .filter(Boolean)
+      ),
+    ];
+    if (selectedStates.length < 2) {
+      setSaveNotice("Select at least two states to save a comparison.");
+      setSaveNoticeType("error");
+      setSavingIndicator(false);
+      return;
+    }
 
-  // Get all states represented by the selected filters.
-  const selectedStates = [
-    ...new Set(
-      chartData
-        .map((record) => record.state)
-        .filter(Boolean)
-    ),
-  ];
-  if (selectedStates.length < 2) {
-    setSaveNotice("Select at least two states to save a comparison.");
-    setSaveNoticeType("error");
-    setSavingIndicator(false);
-    return;
-  }
+    // Get the unique reporting years represented by the selected filters.
+    const selectedYears = [
+      ...new Set(
+        chartData
+          .map((record) => Number(record.year))
+          .filter(Number.isFinite)
+      ),
+    ].sort((a, b) => a - b);
 
-  // Get the unique reporting years represented by the selected filters.
-  const selectedYears = [
-    ...new Set(
-      chartData
-        .map((record) => Number(record.year))
-        .filter(Number.isFinite)
-    ),
-  ].sort((a, b) => a - b);
+    const payload = {
+      id: crypto.randomUUID(),
+      title: `Health — ${indicatorLabel}`,
+      indicator: appliedFilters.indicator,
+      states: selectedStates,
+      years: selectedYears,
+      saved_at: new Date().toISOString(),
+    };
 
-  const payload = {
-    id: crypto.randomUUID(),
-    title: `Health — ${indicatorLabel}`,
-    indicator: appliedFilters.indicator,
-    states: selectedStates,
-    years: selectedYears,
-    saved_at: new Date().toISOString(),
+    try {
+      await apiRequest("/saved-comparisons", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      setSaveNotice("Health indicator saved successfully to your account.");
+      setSaveNoticeType("success");
+    } catch (error) {
+      console.error("Could not save Health indicator:", error);
+
+      setSaveNotice(
+        error instanceof Error
+          ? error.message
+          : "Could not save this indicator. Please try again."
+      );
+
+      setSaveNoticeType("error");
+    } finally {
+      setSavingIndicator(false);
+    }
   };
-
-  try {
-    await apiRequest("/saved-comparisons", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-
-    setSaveNotice("Health indicator saved successfully to your account.");
-    setSaveNoticeType("success");
-  } catch (error) {
-    console.error("Could not save Health indicator:", error);
-
-    setSaveNotice(
-      error instanceof Error
-        ? error.message
-        : "Could not save this indicator. Please try again."
-    );
-
-    setSaveNoticeType("error");
-  } finally {
-    setSavingIndicator(false);
-  }
-};
 
   // --------------------------------------------------
   // RETRY LOADING STATES
   // --------------------------------------------------
-
   const retryLoadStates = async () => {
     setStatesLoading(true);
     setStatesError("");
