@@ -27,9 +27,60 @@ function escapeCSV(value) {
   return `"${safeValue.replace(/"/g, '""')}"`;
 }
 
+function addPDFWatermark(doc) {
+  const pageCount = doc.internal.getNumberOfPages();
 
-function formatCSV({ headers, rows, fileName }) {
+  for (let page = 1; page <= pageCount; page++) {
+    doc.setPage(page);
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(150, 165, 175);
+
+    // Top branding
+    doc.text(
+      "CIVICINTEL | NIGERIA DATA PLATFORM",
+      pageWidth / 2,
+      8,
+      { align: "center" }
+    );
+
+    // Bottom branding
+    doc.text(
+      "CIVICINTEL | NIGERIA DATA PLATFORM",
+      pageWidth / 2,
+      pageHeight - 8,
+      { align: "center" }
+    );
+  }
+}
+
+
+
+function formatCSV({
+  headers,
+  rows,
+  fileName,
+  title,
+  subtitle = "",
+  metadata = {},
+}) {
+  const reportDetails = [
+    ["Report", title],
+    ["Description", subtitle],
+    ["Exported at (UTC)", new Date().toISOString()],
+    ["Record count", rows.length],
+    ...Object.entries(metadata),
+  ];
+
   const content = [
+    ["CIVICINTEL — NIGERIA DATA PLATFORM"],
+    [],
+    ...reportDetails,
+    [],
     headers,
     ...rows.map((row) =>
       headers.map((header) => row[header] ?? "")
@@ -45,6 +96,7 @@ function formatCSV({ headers, rows, fileName }) {
   );
 }
 
+
 function formatExcel({
   headers,
   rows,
@@ -57,6 +109,8 @@ function formatExcel({
 
   // Main worksheet containing the exported records.
   const dataSheet = XLSX.utils.aoa_to_sheet([
+    ["CIVICINTEL — NIGERIA DATA PLATFORM"],
+    [],
     headers,
     ...rows.map((row) =>
       headers.map((header) => row[header] ?? "")
@@ -71,11 +125,19 @@ function formatExcel({
         String(row[header] ?? "").length
       )
     );
+    
 
     return {
       wch: Math.min(Math.max(longestValue + 2, 12), 40),
     };
   });
+
+  dataSheet["!merges"] = [
+      {
+        s: { r: 0, c: 0 },
+        e: { r: 0, c: headers.length - 1 },
+      },
+  ];
 
   XLSX.utils.book_append_sheet(
     workbook,
@@ -93,6 +155,8 @@ function formatExcel({
   ];
 
   const metadataSheet = XLSX.utils.aoa_to_sheet([
+    ["CIVICINTEL — NIGERIA DATA PLATFORM"],
+    [],
     ["Property", "Value"],
     ...metadataRows,
   ]);
@@ -189,6 +253,8 @@ function formatPDF({
       fillColor: [240, 245, 247],
     },
   });
+
+  addPDFWatermark(doc);
 
   doc.save(`${fileName}.pdf`);
 }
