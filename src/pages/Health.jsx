@@ -1,7 +1,10 @@
 import { apiRequest } from "../api/api.js";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { exportData } from "../utility/exportData.js";
+import {
+  exportData,
+  formatDisplayValue,
+} from "../utility/exportData.js";
 import { motion } from "framer-motion";
 
 import {
@@ -56,25 +59,8 @@ const releases = [
 
 // Safely formats API values.
 // Empty or missing values are not converted to zero.
-function formatValue(value) {
-  if (
-    value === null ||
-    value === undefined ||
-    String(value).trim() === ""
-  ) {
-    return "—";
-  }
 
-  const number = Number(value);
 
-  if (!Number.isFinite(number)) {
-    return "—";
-  }
-
-  return new Intl.NumberFormat("en-NG", {
-    maximumFractionDigits: 2,
-  }).format(number);
-}
 
 function isValidNumericValue(value) {
   return (
@@ -116,11 +102,39 @@ function SectionHeading({ children, dark = false }) {
 }
 
 function Health() {
+  const stateDropdownRef = useRef(null);
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        stateDropdownRef.current &&
+        !stateDropdownRef.current.contains(event.target)
+      ) {
+        stateDropdownRef.current.removeAttribute("open");
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
   const navigate = useNavigate();
   const location = useLocation();
   const { isLoggedIn } = useAuth();
   const motionSettings = useMotionSettings();
+  useEffect(() => {
+    if (location.hash !== "#health-filters") return;
 
+    const filtersSection = document.getElementById("health-filters");
+
+    if (filtersSection) {
+      filtersSection.scrollIntoView({
+        behavior: "auto",
+        block: "start",
+      });
+    }
+  }, [location.hash]);
   const restoredFilters = location.state?.healthFilters;
 
   // --------------------------------------------------
@@ -169,7 +183,7 @@ function Health() {
   // --------------------------------------------------
 
   const [appliedFilters, setAppliedFilters] = useState(
-    isLoggedIn && restoredFilters
+    restoredFilters
       ? {
           ...restoredFilters,
           indicator:
@@ -181,8 +195,10 @@ function Health() {
   );
 
   const [hasAppliedFilters, setHasAppliedFilters] = useState(
-    Boolean(isLoggedIn && restoredFilters)
+    Boolean(restoredFilters)
   );
+
+  
 
   const [exportOpen, setExportOpen] = useState(false);
   const [savingIndicator, setSavingIndicator] = useState(false);
@@ -434,18 +450,14 @@ function Health() {
           uniqueStateRecords[0]?.indicator ||
           indicatorKey;
 
-        const formattedValue = formatValue(average);
+        const formattedValue = formatDisplayValue(average, unit);
 
         return {
           indicatorKey,
           label: "HEALTH DATA",
           description: indicatorName,
           color: "",
-          value: unit.includes("%")
-            ? `${formattedValue}%`
-            : unit
-              ? `${formattedValue} ${unit}`
-              : formattedValue,
+          value: formattedValue,
           reportingYear: latestYear,
           reportingStates: uniqueStateRecords.length,
         };
@@ -735,12 +747,12 @@ function Health() {
         state: {
           from: {
             pathname: "/health",
+            hash: "#health-filters",
             state: {
               healthFilters: filters,
             },
           },
-          message:
-            "Please log in to view health charts and analysis.",
+          message: "Please log in to view health charts and analysis.",
         },
       });
 
@@ -804,10 +816,9 @@ function Health() {
   const exportRows = chartRows.map((record) => ({
     State: record.state,
     Indicator: record.indicator,
-    IndicatorKey: record.indicator_key,
+    
     Year: record.year,
-    Value: record.value,
-    Unit: record.unit,
+    Value: formatDisplayValue(record.value, record.unit),
   }));
 
   const exportFilename = `civicintel-health-${
@@ -1212,7 +1223,7 @@ function Health() {
       </section>
 
       {/* HEALTH FILTERS */}
-      <section className="bg-[#EAF2EC] px-5 py-8 sm:px-8 lg:px-12">
+      <section className="bg-[#EAF2EC] px-5 py-8 sm:px-8 lg:px-12" id="health-filters">
         <motion.div
           {...motionSettings}
           variants={revealVariants}
@@ -1265,7 +1276,7 @@ function Health() {
               <label className="flex flex-col gap-2 text-xs">
                 State
 
-                <details className="relative">
+                <details ref={stateDropdownRef} className="relative">
                   <summary className="cursor-pointer list-none rounded-xl border border-gray-300  px-4 py-3 text-sm bg-[#C5D2D9]">
                     {state.length === 0
                       ? "All states"
@@ -1550,7 +1561,10 @@ function Health() {
 
                             <Tooltip
                               formatter={(value, name, props) => [
-                                `${formatValue(value)} ${props.payload.unit || indicatorUnit || ""}`,
+                                formatDisplayValue(
+                                  value,
+                                  props.payload.unit || indicatorUnit
+                                ),
                                 "Value",
                               ]}
                               labelFormatter={(label) => `State: ${label}`}
@@ -1569,7 +1583,10 @@ function Health() {
                                   strokeDasharray="6 4"
                                   strokeWidth={2}
                                   label={{
-                                    value: `National: ${formatValue(benchmarkValue)}`,
+                                    value: `National: ${formatDisplayValue(
+                                      benchmarkValue,
+                                      nationalBenchmark.unit
+                                    )}`,
                                     position: "insideTopRight",
                                     fill: "#DC2626",
                                     fontSize: 10,
@@ -1735,8 +1752,10 @@ function Health() {
 
                     {nationalBenchmark ? (
                       <span className="text-[10px] text-white/50">
-                        {formatValue(benchmarkValue)}
-                        {nationalBenchmark.unit}
+                        {formatDisplayValue(
+                          benchmarkValue,
+                          nationalBenchmark.unit
+                        )}
                       </span>
                     ) : (
                       <span className="text-[10px] text-white/40">
@@ -1761,8 +1780,10 @@ function Health() {
 
                       <p className="mt-2 text-[10px] leading-5 text-white/50">
                         National value for {appliedFilters.year}:{" "}
-                        {formatValue(benchmarkValue)}
-                        {nationalBenchmark.unit}
+                        {formatDisplayValue(
+                          benchmarkValue,
+                          nationalBenchmark.unit
+                        )}
                       </p>
                     </>
                   ) : (

@@ -1,24 +1,13 @@
 
-import { useEffect, useMemo, useState } from "react";
-import {
-  getStates,
-  getIndicators,
-} from "../api/referenceData.js";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getStates, getIndicators,} from "../api/referenceData.js";
 import { apiRequest } from "../api/api.js";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { motion, useReducedMotion } from "framer-motion";
-import { exportData } from "../utility/exportData.js";
+import { exportData, formatDisplayValue,} from "../utility/exportData.js";
 import { getPublishedRecords } from "../api/publishedData.js";
-import {
-  BarChart,
-  Bar,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { BarChart, Bar, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, } from "recharts";
 
 
 import EducationHero from "../assets/Education.hero.png";
@@ -49,8 +38,8 @@ const releases = [
   },
 ];
 
-const formatNumber = (number) =>
-  new Intl.NumberFormat("en-NG").format(number);
+// const formatNumber = (number) =>
+//   new Intl.NumberFormat("en-NG").format(number);
 
 const formatOverviewValue = (record) => {
   if (
@@ -65,15 +54,18 @@ const formatOverviewValue = (record) => {
 
   if (!Number.isFinite(value)) return "—";
 
-  const formattedValue = new Intl.NumberFormat("en-NG", {
-    maximumFractionDigits: 2,
-  }).format(value);
+  const formattedValue = formatDisplayValue(
+    value,
+    record.unit
+  );
 
   if (
     record.unit === "%" ||
     String(record.indicator_key ?? "").endsWith("_pct")
   ) {
-    return `${formattedValue}%`;
+    return formattedValue.endsWith("%")
+      ? formattedValue
+      : `${formattedValue}%`;
   }
 
   if (record.indicator_key === "primary_pupil_teacher_ratio") {
@@ -81,7 +73,7 @@ const formatOverviewValue = (record) => {
   }
 
   if (record.unit === "NGN") {
-    return `₦${formattedValue}`;
+    return `₦${formatDisplayValue(value)}`;
   }
 
   return formattedValue;
@@ -134,7 +126,40 @@ function SectionHeading({ children, dark = false }) {
 function Education() {
   const { isLoggedIn } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const restoredFilters = location.state?.educationFilters;
+  
   const shouldReduceMotion = useReducedMotion();
+  const stateDropdownRef = useRef(null);
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        stateDropdownRef.current &&
+        !stateDropdownRef.current.contains(event.target)
+      ) {
+        stateDropdownRef.current.removeAttribute("open");
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (location.hash !== "#education-filters") return;
+
+    const filtersSection = document.getElementById("education-filters");
+
+    if (filtersSection) {
+      filtersSection.scrollIntoView({
+        behavior: "auto",
+        block: "start",
+      });
+    }
+  }, [location.hash]);
 
   const [states, setStates] = useState([]);
   const [statesLoading, setStatesLoading] = useState(true);
@@ -152,13 +177,21 @@ function Education() {
 
   const [nationalOverviewError, setNationalOverviewError] = useState("");
     
-  const [indicator, setIndicator] = useState("all");
-  const [state, setState] = useState([]);
-  const [year, setYear] = useState("all");
+ const [indicator, setIndicator] = useState(
+   restoredFilters?.indicator ?? "all"
+  );
+
+  const [state, setState] = useState(
+    restoredFilters?.states ?? []
+  );
+
+  const [year, setYear] = useState(
+    restoredFilters?.year ?? "all"
+  );
   const [search, setSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [showExportOptions, setShowExportOptions] = useState(false);
-  const [appliedFilters, setAppliedFilters] = useState(null);
+  const [appliedFilters, setAppliedFilters] = useState( restoredFilters ?? null);
 
   const [educationRecords, setEducationRecords] = useState([]);
   const [recordsLoading, setRecordsLoading] = useState(false);
@@ -547,6 +580,14 @@ useEffect(() => {
       state: {
         from: {
           pathname: "/education",
+          hash: "#education-filters",
+          state: {
+            educationFilters: {
+              indicator,
+              states: state,
+              year,
+            },
+          },
         },
       },
     });
@@ -726,7 +767,26 @@ useEffect(() => {
   const handleApplyFilters = (event) => {
     event.preventDefault();
 
-    if (!requireLogin("apply education indicators")) return;
+    if (!isLoggedIn) {
+      navigate("/login", {
+        state: {
+          from: {
+            pathname: "/education",
+            hash: "#education-filters",
+            state: {
+              educationFilters: {
+                indicator,
+                states: state,
+                year,
+              },
+            },
+          },
+          message: "Please log in to apply education indicators.",
+        },
+      });
+
+      return;
+    }
 
     setSearch("");
     setCurrentPage(0);
@@ -808,20 +868,18 @@ useEffect(() => {
       const headers = [
         "State",
         "Indicator",
-        "Indicator Key",
         "Value",
-        "Unit",
         "Year",
       ];
 
       const rows = matchingRecords.map((record) => ({
         State: record.state,
         Indicator: record.indicator,
-        "Indicator Key": record.indicator_key,
-        Value: record.value,
-        Unit: record.unit,
+        Value:
+          record.unit === "NGN"
+            ? `₦${formatDisplayValue(record.value)}`
+            : formatDisplayValue(record.value, record.unit),
         Year: record.year,
-        "Dataset ID": record.dataset_id,
       }));
 
       exportData({
@@ -1007,6 +1065,7 @@ useEffect(() => {
 
       {/* EDUCATION INDICATOR FILTERS */}
       <motion.section
+        id="education-filters"
         {...motionSettings}
         variants={revealVariants}
         className="px-5 py-8 sm:px-8 lg:px-12"
@@ -1054,7 +1113,7 @@ useEffect(() => {
               <label className="flex flex-col gap-2 text-xs">
                 States
 
-                <details className="relative">
+                <details ref={stateDropdownRef} className="relative">
                   <summary className="cursor-pointer list-none rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm">
                     {state.length === 0
                       ? "All states"
@@ -1359,7 +1418,6 @@ useEffect(() => {
                           <th className="px-4 py-4 text-right">
                             Value
                           </th>
-                          <th className="px-4 py-4">Unit</th>
                           <th className="px-4 py-4 text-right">
                             Year
                           </th>
@@ -1383,12 +1441,8 @@ useEffect(() => {
 
                             <td className="px-4 py-4 text-right font-semibold tabular-nums">
                               {record.unit === "NGN"
-                                ? `₦${formatNumber(record.value)}`
-                                : formatNumber(record.value)}
-                            </td>
-
-                            <td className="px-4 py-4">
-                              {record.unit}
+                                ? `₦${formatDisplayValue(record.value)}`
+                                : formatDisplayValue(record.value, record.unit)}
                             </td>
 
                             <td className="px-4 py-4 text-right">
@@ -1544,18 +1598,9 @@ useEffect(() => {
 
                     <Tooltip
                       formatter={(value) => [
-                        `${Number(value).toFixed(1)}%`,
+                        formatDisplayValue(value, "%"),
                         "SSCE performance",
                       ]}
-                      labelFormatter={(label) => {
-                        const record = topSsceStates.find(
-                          (item) => item.state === label
-                        );
-
-                        return record
-                          ? `${label} (${record.year})`
-                          : label;
-                      }}
                     />
 
                     <Bar

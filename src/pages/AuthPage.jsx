@@ -117,10 +117,16 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
 
   useEffect(() => {
     if (isLoggedIn) {
-      navigate(destination?.pathname || "/", {
-        replace: true,
-        state: destination?.state,
-      });
+      navigate(
+        {
+          pathname: destination?.pathname || "/",
+          hash: destination?.hash || "",
+        },
+        {
+          replace: true,
+          state: destination?.state,
+        }
+      );
     }
   }, [isLoggedIn, navigate, destination]);
 
@@ -224,10 +230,16 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
         });
 
         if (result?.user) {
-          navigate(destination?.pathname || "/", {
-            replace: true,
-            state: destination?.state,
-          });
+          navigate(
+            {
+              pathname: destination?.pathname || "/",
+              hash: destination?.hash || "",
+            },
+            {
+              replace: true,
+              state: destination?.state,
+            }
+          );
         } else {
           navigate("/login", {
             replace: true,
@@ -246,10 +258,16 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
           remember: login.remember,
         });
 
-        navigate(destination?.pathname || "/", {
-          replace: true,
-          state: destination?.state,
-        });
+        navigate(
+          {
+            pathname: destination?.pathname || "/",
+            hash: destination?.hash || "",
+          },
+          {
+            replace: true,
+            state: destination?.state,
+          }
+        );
       }
     } catch (error) {
       setErrors({

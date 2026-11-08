@@ -15,7 +15,10 @@ import {
 } from "recharts";
 
 import { apiRequest } from "../api/api.js";
-import { exportData } from "../utility/exportData.js";
+import {
+  exportData,
+  formatDisplayValue,
+} from "../utility/exportData.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getComparison } from "../api/referenceData.js";
 import SurveyCoverageChart from "../components/SurveyCoverageChart.jsx";
@@ -154,14 +157,32 @@ function buildExportContent(comparison, records = null) {
 
   // Clean backend records before preparing the export.
   const cleanRecords = hasRecords
-    ? records.map((record) =>
-        Object.fromEntries(
-          Object.entries(record).filter(
-            ([key]) => !isExcludedField(key)
-          )
+  ? records.map((record) => {
+      const cleanedRecord = Object.fromEntries(
+        Object.entries(record).filter(
+          ([key]) =>
+            !isExcludedField(key) &&
+            key.toLowerCase() !== "unit"
         )
-      )
-    : [];
+      );
+
+      if ("value" in cleanedRecord) {
+        cleanedRecord.value = formatDisplayValue(
+          cleanedRecord.value,
+          record.unit || comparison.unit || ""
+        );
+      }
+
+      if ("National_average" in cleanedRecord) {
+        cleanedRecord.National_average = formatDisplayValue(
+          cleanedRecord.National_average,
+          record.unit || comparison.unit || ""
+        );
+      }
+
+      return cleanedRecord;
+    })
+  : [];
 
   const headers = hasRecords
     ? Object.keys(cleanRecords[0])
@@ -223,56 +244,31 @@ function buildExportContent(comparison, records = null) {
 // Export comparison
 // --------------------------------------------------
 
-function exportComparison(
-  comparison,
-  format,
-  records = null,
-  sourceMetadata = {}
-) {
-  if (!comparison) {
-    throw new Error(
-      "No valid comparison is available to export."
-    );
-  }
+function exportComparison(comparison, format, records = null) {
+  const { headers, rows, hasRecords } = buildExportContent(
+    comparison,
+    records
+  );
 
-  const { headers, rows, hasRecords } =
-    buildExportContent(comparison, records);
-
-  const normalizedFormat =
-    format.toLowerCase() === "excel"
-      ? "xlsx"
-      : format.toLowerCase();
-
-  const metadata = {
-    "Report type": "CivicIntel comparison",
-    Indicator: comparison.indicatorName,
-    "Indicator key": comparison.indicator,
-    "Selected states": comparison.selectedStates.join(", "),
-    "Selected years":
-      comparison.selectedYears?.join(", ") ||
-      "All available years",
-    "From year": comparison.fromYear || "Not specified",
-    "To year": comparison.toYear || "Not specified",
-    "Data status":
-      sourceMetadata.dataStatus ||
-      (hasRecords
-        ? "Data returned by CivicIntel comparison API"
-        : "No comparison records returned by the API"),
-    "Contains simulated data":
-      sourceMetadata.containsSimulatedData ?? "Not specified",
-    ...(sourceMetadata.notices
-      ? { "API notices": sourceMetadata.notices }
-      : {}),
-  };
+  const summary = [
+    ["Number of states compared", comparison.selectedStates.length],
+    ["Selected states", comparison.selectedStates.join(", ")],
+    [
+      "Selected years",
+      comparison.selectedYears?.length
+        ? comparison.selectedYears.join(", ")
+        : "All available years",
+    ],
+  ];
 
   exportData({
-    format: normalizedFormat,
+    format,
     headers,
     rows,
     fileName: "civicintel-comparison",
-    title: "CivicIntel - Comparison Report",
-    subtitle: `${comparison.indicatorName} | ${comparison.selectedStates.join(" vs ")}`,
-    metadata,
+    title: String(comparison.domain || "Comparison").toUpperCase(),
+    subtitle: `CivicIntel - ${comparison.indicatorName}`,
+    summary,
     landscape: true,
   });
 
@@ -427,9 +423,7 @@ function ChartPlaceholder({result, loading, error, selectedStates = [], unit = "
 
                 <Tooltip
                   formatter={(value, name) => [
-                    `${Number(value).toLocaleString(undefined, {
-                      maximumFractionDigits: 2,
-                    })}${unit ? ` ${unit}` : ""}`,
+                    formatDisplayValue(value, unit),
                     name,
                   ]}
                   contentStyle={{
@@ -503,7 +497,7 @@ function ChartPlaceholder({result, loading, error, selectedStates = [], unit = "
                   <p className="text-xs text-slate-600">
                     National average:{" "}
                     <span className="font-semibold text-slate-800">
-                      {formatValue(period.national_average)}
+                      {formatDisplayValue(period.national_average, unit)}
                     </span>
                   </p>
                 </div>
@@ -955,23 +949,7 @@ function CompareResults() {
         }))
       );
 
-      hasRecords = exportComparison(
-        comparison,
-        format,
-        records,
-        {
-          dataStatus: result
-            ? result.contains_simulated_data
-              ? "Contains simulated data"
-              : "Data returned by CivicIntel comparison API"
-            : "No comparison data returned",
-          containsSimulatedData:
-            result?.contains_simulated_data ?? "Not specified",
-          notices: Array.isArray(result?.notices)
-            ? result.notices.join("; ")
-            : "",
-        }
-      );
+      hasRecords = exportComparison(comparison, format, records);
     } catch (error) {
       console.error("Comparison export failed:", error);
 
