@@ -130,7 +130,10 @@ function Education() {
   const restoredFilters = location.state?.educationFilters;
   
   const shouldReduceMotion = useReducedMotion();
+
   const stateDropdownRef = useRef(null);
+  const yearDropdownRef = useRef(null);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -138,6 +141,13 @@ function Education() {
         !stateDropdownRef.current.contains(event.target)
       ) {
         stateDropdownRef.current.removeAttribute("open");
+      }
+
+      if (
+        yearDropdownRef.current &&
+        !yearDropdownRef.current.contains(event.target)
+      ) {
+        yearDropdownRef.current.removeAttribute("open");
       }
     };
 
@@ -147,6 +157,8 @@ function Education() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  
 
   useEffect(() => {
     if (location.hash !== "#education-filters") return;
@@ -186,12 +198,26 @@ function Education() {
   );
 
   const [year, setYear] = useState(
-    restoredFilters?.year ?? "all"
+    restoredFilters?.years?.map(String) ??
+      (restoredFilters?.year && restoredFilters.year !== "all"
+        ? [String(restoredFilters.year)]
+        : [])
   );
   const [search, setSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [showExportOptions, setShowExportOptions] = useState(false);
-  const [appliedFilters, setAppliedFilters] = useState( restoredFilters ?? null);
+  const [appliedFilters, setAppliedFilters] = useState(
+    restoredFilters
+      ? {
+          ...restoredFilters,
+          years:
+          restoredFilters.years?.map(String) ??
+          (restoredFilters.year && restoredFilters.year !== "all"
+            ? [String(restoredFilters.year)]
+            : []),
+        }
+      : null
+  );
 
   const [educationRecords, setEducationRecords] = useState([]);
   const [recordsLoading, setRecordsLoading] = useState(false);
@@ -585,7 +611,7 @@ useEffect(() => {
             educationFilters: {
               indicator,
               states: state,
-              year,
+              years: year,
             },
           },
         },
@@ -666,7 +692,6 @@ useEffect(() => {
         const firstResponse = await getPublishedRecords({
           sector: "education",
           indicator: appliedFilters.indicator,
-          year: appliedFilters.year,
           limit: batchSize,
           offset: 0,
         });
@@ -685,7 +710,6 @@ useEffect(() => {
           const response = await getPublishedRecords({
             sector: "education",
             indicator: appliedFilters.indicator,
-            year: appliedFilters.year,
             limit: batchSize,
             offset,
           });
@@ -699,14 +723,19 @@ useEffect(() => {
 
         if (!isMounted) return;
 
-        const educationOnly = allRecords.filter(
-          (item) =>
-            item.sector === "education" &&
-            (
-              appliedFilters.states.length === 0 ||
-              appliedFilters.states.includes(item.state)
-            )
-        );
+        const educationOnly = allRecords.filter((item) => {
+          const matchesSector = item.sector === "education";
+
+          const matchesState =
+            appliedFilters.states.length === 0 ||
+            appliedFilters.states.includes(item.state);
+
+          const matchesYear =
+            appliedFilters.years.length === 0 ||
+            appliedFilters.years.includes(String(item.year));
+
+          return matchesSector && matchesState && matchesYear;
+        });
 
         setEducationRecords(educationOnly);
         setCurrentPage(0);
@@ -751,6 +780,7 @@ useEffect(() => {
     );
   }, [educationRecords, search]);
 
+  // PAGINATE FILTERED EDUCATION RECORDS
   const totalPages = Math.ceil(
     filteredRecords.length / RECORDS_PER_PAGE
   );
@@ -763,6 +793,9 @@ useEffect(() => {
       startIndex + RECORDS_PER_PAGE
     );
   }, [filteredRecords, currentPage]);
+
+  
+  
 
   const handleApplyFilters = (event) => {
     event.preventDefault();
@@ -777,7 +810,7 @@ useEffect(() => {
               educationFilters: {
                 indicator,
                 states: state,
-                year,
+                years: year,
               },
             },
           },
@@ -798,7 +831,7 @@ useEffect(() => {
     setAppliedFilters({
       indicator,
       states: state,
-      year,
+      years: year,
     });
   };
 
@@ -814,7 +847,6 @@ useEffect(() => {
       const firstResponse = await getPublishedRecords({
         sector: "education",
         indicator: appliedFilters.indicator,
-        year: appliedFilters.year,
         limit: 100,
         offset: 0,
       });
@@ -832,7 +864,6 @@ useEffect(() => {
         const response = await getPublishedRecords({
           sector: "education",
           indicator: appliedFilters.indicator,
-          year: appliedFilters.year,
           limit: 100,
           offset,
         });
@@ -853,11 +884,15 @@ useEffect(() => {
           appliedFilters.states.length === 0 ||
           appliedFilters.states.includes(record.state);
 
+        const matchesYear =
+          appliedFilters.years.length === 0 ||
+          appliedFilters.years.includes(String(record.year));
+
         const matchesSearch = Object.values(record).some((value) =>
           String(value ?? "").toLowerCase().includes(query)
         );
 
-        return matchesState && matchesSearch;
+        return matchesState && matchesYear && matchesSearch;
       });
 
       if (matchingRecords.length === 0) {
@@ -882,19 +917,84 @@ useEffect(() => {
         Year: record.year,
       }));
 
+      // Prepare chart data for the PDF export.
+      // Skip the chart when all indicators are selected because
+      // different indicators may use different units.
+      const chartData =
+        appliedFilters.indicator === "all"
+          ? []
+          : [
+              ...new Set(
+                matchingRecords
+                  .map((record) => Number(record.year))
+                  .filter(Number.isFinite)
+              ),
+            ]
+              .sort((a, b) => a - b)
+              .map((year) => {
+                const recordsByState = new Map();
+
+                matchingRecords
+                  .filter(
+                    (record) => Number(record.year) === year
+                  )
+                  .forEach((record) => {
+                    const stateName = String(record.state ?? "").trim();
+                    const normalizedState = stateName.toLowerCase();
+                    const value = Number(record.value);
+
+                    if (
+                      !stateName ||
+                      ["national", "nigeria"].includes(normalizedState) ||
+                      !Number.isFinite(value)
+                    ) {
+                      return;
+                    }
+
+                    recordsByState.set(normalizedState, {
+                      state: stateName,
+                      value,
+                    });
+                  });
+
+                return {
+                  year,
+                  rows: [...recordsByState.values()],
+                };
+              })
+              .filter((period) => period.rows.length > 0);
+
       exportData({
         format,
         headers,
         rows,
-        fileName: `civic-intel-education-${appliedFilters.year}`,
+        fileName: `civic-intel-education-${
+          appliedFilters.years.length > 0
+            ? appliedFilters.years.join("-")
+            : "all-years"
+        }`,
         title: "CivicIntel - Education Data",
         subtitle: selectedIndicatorLabel,
-        metadata: {
-          Year: appliedFilters.year,
+
+          chartData,
+          chartTitle:
+            appliedFilters.indicator === "all"
+              ? ""
+              : `${selectedIndicatorLabel} by State and Year`,
+          chartUnit:
+            matchingRecords.find(
+              (record) => record.unit
+            )?.unit ?? "",
+
+          metadata: {
+          Year:
+            appliedFilters.years.length === 0
+              ? "All available years"
+              : appliedFilters.years.join(", "),
           State:
-          appliedFilters.states.length === 0
-            ? "All states"
-            : appliedFilters.states.join(", "),
+            appliedFilters.states.length === 0
+              ? "All states"
+              : appliedFilters.states.join(", "),
           "Data status": "Published backend records",
         },
         landscape: true,
@@ -1175,20 +1275,54 @@ useEffect(() => {
               <label className="flex flex-col gap-2 text-xs">
                 Year
 
-                <select
-                  value={year}
-                  onChange={(event) =>
-                    setYear(event.target.value)
-                  }
-                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F]"
-                >
-                  <option value="all">All available years</option>
-                  {availableYears.map((availableYear) => (
-                    <option key={availableYear} value={String(availableYear)}>
-                      {availableYear}
-                    </option>
-                  ))}
-                </select>
+                <details ref={yearDropdownRef} className="relative">
+                  <summary className="cursor-pointer list-none rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm">
+                    {year.length === 0
+                      ? "All available years"
+                      : `${year.length} year${year.length > 1 ? "s" : ""} selected`}
+
+                    <span className="float-right">▾</span>
+                  </summary>
+
+                  <div className="absolute left-0 z-30 mt-2 max-h-64 w-full min-w-48 overflow-y-auto rounded-xl border border-gray-200 bg-white p-3 text-[#20272B] shadow-xl">
+                    <label className="flex cursor-pointer items-center gap-2 border-b border-gray-100 pb-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={year.length === 0}
+                        onChange={() => setYear([])}
+                      />
+
+                      All available years
+                    </label>
+
+                    {availableYears.map((availableYear) => {
+                      const yearValue = String(availableYear);
+
+                      return (
+                        <label
+                          key={availableYear}
+                          className="flex cursor-pointer items-center gap-2 py-2 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={year.includes(yearValue)}
+                            onChange={(event) =>
+                              setYear((previous) =>
+                                event.target.checked
+                                  ? [...previous, yearValue]
+                                  : previous.filter(
+                                      (selectedYear) => selectedYear !== yearValue
+                                    )
+                              )
+                            }
+                          />
+
+                          {availableYear}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </details>
               </label>
             </div>
 
@@ -1268,7 +1402,10 @@ useEffect(() => {
                       ? "All states"
                       : appliedFilters.states.join(", ")}
                     {" · "}
-                    Selected year: {appliedFilters.year}
+                    Selected years:{" "}
+                    {appliedFilters.years.length === 0
+                      ? "All available years"
+                      : appliedFilters.years.join(", ")}
                   </p>
                 </div>
 
@@ -1415,54 +1552,48 @@ useEffect(() => {
                         <tr>
                           <th className="px-4 py-4">State</th>
                           <th className="px-4 py-4">Indicator</th>
-                          <th className="px-4 py-4 text-right">
-                            Value
-                          </th>
-                          <th className="px-4 py-4 text-right">
-                            Year
-                          </th>
-                          <th className="px-4 py-4">Dataset ID</th>
+                          <th className="px-4 py-4 text-right">Value</th>
+                          <th className="px-4 py-4 text-right">Year</th>
                         </tr>
                       </thead>
 
                       <tbody>
-                        {paginatedRecords.map((record, index) => (
-                          <tr
-                            key={`${record.state}-${record.indicator_key}-${record.year}-${index}`}
-                            className="border-b border-[#B7C7CF] text-xs transition-colors hover:bg-[#F4F0E3]"
-                          >
-                            <td className="px-4 py-4 font-semibold">
-                              {record.state}
-                            </td>
+                        {paginatedRecords.length > 0 ? (
+                          paginatedRecords.map((record, index) => (
+                            <tr
+                              key={`${record.state}-${record.indicator_key}-${record.year}-${index}`}
+                              className="border-b border-[#B7C7CF] text-xs transition-colors hover:bg-[#F4F0E3]"
+                            >
+                              <td className="px-4 py-4 font-semibold">
+                                {record.state}
+                              </td>
 
-                            <td className="px-4 py-4">
-                              {record.indicator}
-                            </td>
+                              <td className="px-4 py-4">
+                                {record.indicator ||
+                                  availableIndicators.find(
+                                    (item) => item.key === record.indicator_key
+                                  )?.label ||
+                                  record.indicator_key}
+                              </td>
 
-                            <td className="px-4 py-4 text-right font-semibold tabular-nums">
-                              {record.unit === "NGN"
-                                ? `₦${formatDisplayValue(record.value)}`
-                                : formatDisplayValue(record.value, record.unit)}
-                            </td>
+                              <td className="px-4 py-4 text-right font-semibold tabular-nums">
+                                {record.unit === "NGN"
+                                  ? `₦${formatDisplayValue(record.value)}`
+                                  : formatDisplayValue(record.value, record.unit)}
+                              </td>
 
-                            <td className="px-4 py-4 text-right">
-                              {record.year}
-                            </td>
-
-                            <td className="px-4 py-4 text-[10px] text-gray-500">
-                              {record.dataset_id}
-                            </td>
-                          </tr>
-                        ))}
-
-                        {filteredRecords.length === 0 && (
+                              <td className="px-4 py-4 text-right">
+                                {record.year}
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
                           <tr>
                             <td
-                              colSpan={6}
+                              colSpan={4}
                               className="px-4 py-8 text-center text-sm text-gray-500"
                             >
-                              No matching records found. Try another
-                              filter or search term.
+                              No matching records found. Try another filter or search term.
                             </td>
                           </tr>
                         )}
@@ -1512,7 +1643,7 @@ useEffect(() => {
 
                   <div className="mt-5 bg-[#E5EBEE] p-4 text-[#0B3C5D]">
                     <p className="text-xs font-bold">
-                      Dataset Provenance &amp; Rigour Declaration
+                      Dataset Transparency &amp; Rigour Declaration
                     </p>
 
                     <p className="mt-2 text-[10px] leading-5">

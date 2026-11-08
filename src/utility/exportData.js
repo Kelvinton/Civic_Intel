@@ -96,9 +96,6 @@ function addPDFWatermark(doc) {
   }
 }
 
-
-
-
 function formatCSV({
   headers,
   rows,
@@ -149,9 +146,6 @@ function formatCSV({
     `${fileName}.csv`
   );
 }
-
-
-
 
 function formatExcel({
   headers,
@@ -269,7 +263,253 @@ function formatExcel({
   XLSX.writeFile(workbook, `${fileName}.xlsx`);
 }
 
+function drawPDFChart(doc, chartData, chartTitle, chartUnit, startY) {
+  if (!Array.isArray(chartData) || chartData.length === 0) {
+    return startY;
+  }
 
+  const validPeriods = chartData.filter(
+    (period) => period.rows?.length > 0
+  );
+
+  if (validPeriods.length === 0) {
+    return startY;
+  }
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  const colors = [
+    [11, 60, 93],
+    [31, 122, 63],
+    [214, 166, 87],
+    [76, 110, 145],
+    [135, 91, 145],
+    [205, 112, 75],
+    [85, 135, 125],
+    [120, 120, 120],
+  ];
+
+  const states = [
+    ...new Set(
+      validPeriods.flatMap((period) =>
+        period.rows.map((row) => row.state)
+      )
+    ),
+  ];
+
+  const allValues = validPeriods.flatMap((period) =>
+    period.rows.map((row) => row.value)
+  );
+
+  const maxValue = Math.max(...allValues, 0);
+
+  if (maxValue <= 0) {
+    return startY;
+  }
+
+  const chartTop = startY + 23;
+  const chartBottom = startY + 90;
+  const chartLeft = 35;
+  const chartRight = pageWidth - 18;
+  const plotWidth = chartRight - chartLeft;
+  const plotHeight = chartBottom - chartTop;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(11, 60, 93);
+  doc.text(chartTitle || "State Comparison", 14, startY + 7);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(90, 100, 110);
+
+  if (chartUnit) {
+    doc.text(`Unit: ${chartUnit}`, 14, startY + 13);
+  }
+
+  // Horizontal grid lines and value labels.
+  for (let i = 0; i <= 4; i++) {
+    const value = (maxValue / 4) * i;
+    const y = chartBottom - (plotHeight / 4) * i;
+
+    doc.setDrawColor(220, 225, 230);
+    doc.line(chartLeft, y, chartRight, y);
+
+    doc.setFontSize(7);
+    doc.text(
+      formatValue(value),
+      chartLeft - 3,
+      y + 1,
+      { align: "right" }
+    );
+  }
+
+  const groupWidth = plotWidth / validPeriods.length;
+  const barWidth = Math.min(
+    8,
+    groupWidth / Math.max(states.length * 1.5, 2)
+  );
+
+  validPeriods.forEach((period, periodIndex) => {
+    const groupCenter =
+      chartLeft + groupWidth * (periodIndex + 0.5);
+
+    period.rows.forEach((row) => {
+      const stateIndex = states.indexOf(row.state);
+      const barHeight = (row.value / maxValue) * plotHeight;
+
+      const x =
+        groupCenter -
+        (states.length * barWidth) / 2 +
+        stateIndex * barWidth;
+
+      const y = chartBottom - barHeight;
+
+      doc.setFillColor(
+        ...colors[stateIndex % colors.length]
+      );
+
+      doc.rect(
+        x,
+        y,
+        Math.max(barWidth - 0.8, 1),
+        barHeight,
+        "F"
+      );
+    });
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(60, 70, 80);
+
+    doc.text(
+      String(period.year),
+      groupCenter,
+      chartBottom + 7,
+      { align: "center" }
+    );
+  });
+
+  // State legend.
+  let legendX = 14;
+  let legendY = chartBottom + 17;
+  doc.setFontSize(8);
+
+  states.forEach((state, index) => {
+    const color = colors[index % colors.length];
+
+    const labelWidth = doc.getTextWidth(state) + 12;
+
+    if (legendX + labelWidth > pageWidth - 14) {
+      legendX = 14;
+      legendY += 8;
+    }
+
+    doc.setFillColor(...color);
+    doc.rect(legendX, legendY - 3, 3, 3, "F");
+
+    doc.setTextColor(60, 70, 80);
+    doc.text(state, legendX + 5, legendY);
+
+    legendX += labelWidth;
+  });
+
+  return legendY + 5;
+}
+
+// Transform repeated state/year records into a comparison table.
+// Each state gets one row, with a separate column for each year.
+function createYearPivot(headers, rows) {
+  const findHeader = (name) =>
+    headers.find(
+      (header) =>
+        String(header).trim().toLowerCase() === name
+    );
+
+  const stateHeader = findHeader("state");
+  const yearHeader = findHeader("year");
+  const valueHeader = findHeader("value");
+  const indicatorHeader = findHeader("indicator");
+
+  // Only pivot data with the required columns.
+  if (!stateHeader || !yearHeader || !valueHeader) {
+    return null;
+  }
+
+  // Avoid combining different indicators into one table.
+  if (indicatorHeader) {
+    const indicators = new Set(
+      rows.map((row) =>
+        String(row[indicatorHeader] ?? "").trim()
+      )
+    );
+
+    if (indicators.size > 1) {
+      return null;
+    }
+  }
+
+  // Collect and sort the selected years.
+  const years = [
+    ...new Set(
+      rows
+        .map((row) =>
+          String(row[yearHeader] ?? "").trim()
+        )
+        .filter(Boolean)
+    ),
+  ].sort((a, b) => Number(a) - Number(b));
+
+  // Collect unique states.
+  const states = [
+    ...new Set(
+      rows
+        .map((row) =>
+          String(row[stateHeader] ?? "").trim()
+        )
+        .filter(Boolean)
+    ),
+  ];
+
+  const valuesByState = new Map();
+
+  for (const row of rows) {
+    const state = String(row[stateHeader] ?? "").trim();
+    const year = String(row[yearHeader] ?? "").trim();
+
+    if (!state || !year) continue;
+
+    if (!valuesByState.has(state)) {
+      valuesByState.set(state, {});
+    }
+
+    valuesByState.get(state)[year] =
+      row[valueHeader] ?? "—";
+  }
+
+  // Create the new table headers.
+  const pivotHeaders = ["State", ...years];
+
+  // Create one row per state.
+  const pivotRows = states.map((state) => {
+    const stateValues = valuesByState.get(state) ?? {};
+
+    return {
+      State: state,
+      ...Object.fromEntries(
+        years.map((year) => [
+          year,
+          stateValues[year] ?? "—",
+        ])
+      ),
+    };
+  });
+
+  return {
+    headers: pivotHeaders,
+    rows: pivotRows,
+  };
+}
 
 function formatPDF({
   headers,
@@ -279,6 +519,9 @@ function formatPDF({
   subtitle = "",
   metadata = {},
   summary = [],
+  chartData = [],
+  chartTitle = "",
+  chartUnit = "",
   landscape = true,
 }) {
   const doc = new jsPDF({
@@ -328,7 +571,7 @@ function formatPDF({
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(11, 60, 93);
-    doc.text("COMPARISON DATA", 14, y);
+    doc.text("VISUAL COMPARISON", 14, y);
 
     y += 3;
   } else {
@@ -354,10 +597,48 @@ function formatPDF({
     }
   }
 
+  // Add the visual comparison chart before the data table.
+  if (chartData.length > 0) {
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    // Move the chart to a fresh page if there isn't enough room.
+    if (y + 110 > pageHeight - 15) {
+      doc.addPage();
+      y = 20;
+    }
+
+    drawPDFChart(
+      doc,
+      chartData,
+      chartTitle,
+      chartUnit,
+      y
+    );
+
+    // Start the detailed table on a fresh page.
+    doc.addPage();
+    y = 20;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(11, 60, 93);
+    doc.text("COMPARISON DATA", 14, y);
+
+    y += 3;
+  }
+
+  // Prepare the year-grouped table where possible.
+  const pivotedData = createYearPivot(headers, rows);
+
+  const tableHeaders = pivotedData?.headers ?? headers;
+  const tableRows = pivotedData?.rows ?? rows;
+
+  // Generate the PDF data table.
   autoTable(doc, {
-    head: [headers],
-    body: rows.map((row) =>
-      headers.map((header) => {
+    head: [tableHeaders],
+    rowPageBreak: "avoid",
+    body: tableRows.map((row) =>
+      tableHeaders.map((header) => {
         const value = row[header];
 
         return value !== null && typeof value === "object"
@@ -385,7 +666,6 @@ function formatPDF({
   doc.save(`${fileName}.pdf`);
 }
 
-
 /**
  * Shared CivicIntel export utility.
  *
@@ -393,8 +673,6 @@ function formatPDF({
  * headers: array of column labels
  * rows: array of objects keyed by those labels
  * metadata: optional report and data provenance information
- *
- * This utility accepts data from either a demo dataset or an API.
  * The calling page is responsible for supplying accurate records
  * and truthful source/verification metadata.
  */
@@ -407,6 +685,9 @@ export function exportData({
   subtitle = "",
   metadata = {},
   summary = [],
+  chartData = [],
+  chartTitle = "",
+  chartUnit = "",
   landscape = true,
 }) {
   if (!Array.isArray(headers) || headers.length === 0) {
@@ -431,6 +712,9 @@ export function exportData({
     subtitle,
     metadata,
     summary,
+    chartData,
+    chartTitle,
+    chartUnit,
     landscape,
   };
 
