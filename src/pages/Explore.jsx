@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 
@@ -457,6 +457,24 @@ function Explore() {
       : [];
   });
   const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
+
+  const yearDropdownRef = useRef(null);
+    useEffect(() => {
+    function handleOutsideClick(event) {
+      if (
+        yearDropdownRef.current &&
+        !yearDropdownRef.current.contains(event.target)
+      ) {
+        setIsYearDropdownOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleOutsideClick);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, []);
 
   const [activeStep, setActiveStep] = useState(0);
   const [comparisonMessage, setComparisonMessage] = useState("");
@@ -920,7 +938,7 @@ if (activeStep === 3 && selectedYears.length === 0) {
                     No years are currently available for this indicator.
                   </p>
                 ) : (
-                  <div className="relative mt-5">
+                  <div ref={yearDropdownRef} className="relative mt-5">
                     {/* DROPDOWN TRIGGER */}
                     <button
                       type="button"

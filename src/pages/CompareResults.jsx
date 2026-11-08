@@ -261,6 +261,35 @@ function exportComparison(comparison, format, records = null) {
     ],
   ];
 
+  // Prepare chart data using the original API records.
+  const chartData = (records || []).reduce((periods, record) => {
+    const year = String(record.Year);
+
+    let period = periods.find((item) => item.year === year);
+
+    if (!period) {
+      period = { year, rows: [] };
+      periods.push(period);
+    }
+
+    const value = Number(record.value);
+
+    if (
+      record.state &&
+      record.value !== null &&
+      record.value !== undefined &&
+      String(record.value).trim() !== "" &&
+      Number.isFinite(value)
+    ) {
+      period.rows.push({
+        state: record.state,
+        value,
+      });
+    }
+
+    return periods;
+  }, []);
+
   exportData({
     format,
     headers,
@@ -269,6 +298,9 @@ function exportComparison(comparison, format, records = null) {
     title: String(comparison.domain || "Comparison").toUpperCase(),
     subtitle: `CivicIntel - ${comparison.indicatorName}`,
     summary,
+    chartData,
+    chartTitle: comparison.indicatorName,
+    chartUnit: comparison.unit || "",
     landscape: true,
   });
 
@@ -519,7 +551,7 @@ function ChartPlaceholder({result, loading, error, selectedStates = [], unit = "
 }
 
 // --------------------------------------------------
-// Data provenance
+// Data Transparency
 // --------------------------------------------------
 
 function ProvenancePlaceholder({ result }) {
@@ -531,7 +563,7 @@ function ProvenancePlaceholder({ result }) {
     <section className="mt-5 rounded-lg bg-[#E8EEF1] p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-xs font-bold text-[#0B3C5D] sm:text-sm">
-          DATA PROVENANCE RECORD
+          DATA TRANSPARENCY RECORD
         </h3>
 
         <span className="rounded-full bg-[#C6D6E0] px-2 py-1 text-[10px] text-[#0B3C5D]">

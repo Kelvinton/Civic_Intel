@@ -103,6 +103,8 @@ function SectionHeading({ children, dark = false }) {
 
 function Health() {
   const stateDropdownRef = useRef(null);
+  const yearDropdownRef = useRef(null);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -110,6 +112,13 @@ function Health() {
         !stateDropdownRef.current.contains(event.target)
       ) {
         stateDropdownRef.current.removeAttribute("open");
+      }
+
+      if (
+        yearDropdownRef.current &&
+        !yearDropdownRef.current.contains(event.target)
+      ) {
+        yearDropdownRef.current.removeAttribute("open");
       }
     };
 
@@ -155,7 +164,10 @@ function Health() {
   );
 
   const [year, setYear] = useState(
-    restoredFilters?.year ?? "all"
+    restoredFilters?.years ??
+      (restoredFilters?.year && restoredFilters.year !== "all"
+        ? [String(restoredFilters.year)]
+        : [])
   );
 
   // --------------------------------------------------
@@ -190,6 +202,11 @@ function Health() {
             restoredFilters.indicator === "anc"
               ? "anc4_pct"
               : restoredFilters.indicator,
+          years:
+            restoredFilters.years ??
+            (restoredFilters.year && restoredFilters.year !== "all"
+              ? [String(restoredFilters.year)]
+              : []),
         }
       : null
   );
@@ -543,18 +560,10 @@ function Health() {
     return indicatorOptions[0]?.key ?? "";
   }, [indicatorOptions, indicator]);
 
-  const effectiveYear = useMemo(() => {
-    if (year === "all") {
-      return "all";
-    }
-
-    const yearExists = yearOptions.includes(String(year));
-
-    if (yearExists) {
-      return String(year);
-    }
-
-    return yearOptions[0] ?? "all";
+  const effectiveYears = useMemo(() => {
+    return year
+      .map(String)
+      .filter((selectedYear) => yearOptions.includes(selectedYear));
   }, [yearOptions, year]);
 
   // --------------------------------------------------
@@ -576,8 +585,8 @@ function Health() {
         appliedFilters.states.includes(record.state);
 
         const matchesYear =
-          appliedFilters.year === "all" ||
-          String(record.year) === String(appliedFilters.year);
+        appliedFilters.years.length === 0 ||
+        appliedFilters.years.includes(String(record.year));
 
         const isNotNational =
           String(record.state).trim().toLowerCase() !== "national";
@@ -601,15 +610,17 @@ function Health() {
   // --------------------------------------------------
 
   const nationalBenchmark = useMemo(() => {
-    if (!appliedFilters || appliedFilters.year === "all") {
+    if (!appliedFilters || appliedFilters.years.length !== 1) {
       return null;
     }
+
+    const selectedYear = appliedFilters.years[0];
 
     return (
       healthRecords.find(
         (record) =>
           record.indicator_key === appliedFilters.indicator &&
-          String(record.year) === String(appliedFilters.year) &&
+          String(record.year) === String(selectedYear) &&
           String(record.state).trim().toLowerCase() === "national" &&
           isValidNumericValue(record.value)
       ) ?? null
@@ -621,7 +632,7 @@ function Health() {
   // --------------------------------------------------
 
   const stateChartData = useMemo(() => {
-    if (appliedFilters?.year !== "all") {
+    if (appliedFilters?.years?.length > 0) {
       return chartData;
     }
 
@@ -630,10 +641,7 @@ function Health() {
     chartData.forEach((record) => {
       const existing = latestByState.get(record.state);
 
-      if (
-        !existing ||
-        Number(record.year) > Number(existing.year)
-      ) {
+      if (!existing || Number(record.year) > Number(existing.year)) {
         latestByState.set(record.state, record);
       }
     });
@@ -695,6 +703,7 @@ function Health() {
 
         return {
           ...item,
+          chartLabel: `${item.state} (${item.year})`,
           barWidth,
           
         };
@@ -736,10 +745,10 @@ function Health() {
   const handleApplyFilters = (event) => {
     event.preventDefault();
 
-    const filters ={
+    const filters = {
       indicator: effectiveIndicator,
       states: state,
-      year: effectiveYear,
+      years: effectiveYears,
     };
 
     if (!isLoggedIn) {
@@ -777,7 +786,7 @@ function Health() {
             healthFilters: {
               indicator,
               states: state,
-              year,
+              years: year,
             },
           },
         },
@@ -801,7 +810,7 @@ function Health() {
             healthFilters: {
               indicator,
               states: state,
-              year,
+              years: year,
             },
           },
         },
@@ -821,11 +830,20 @@ function Health() {
     Value: formatDisplayValue(record.value, record.unit),
   }));
 
+  const exportYearLabel =
+  !appliedFilters || appliedFilters.years.length === 0
+    ? "All available years (latest record per state)"
+    : appliedFilters.years.join(", ");
+
   const exportFilename = `civicintel-health-${
     appliedFilters?.indicator ?? "data"
-  }-${appliedFilters?.year ?? "all"}`;
+  }-${
+    appliedFilters?.years?.length
+      ? appliedFilters.years.join("-")
+      : "all-years"
+  }`;
 
-    // --------------------------------------------------
+  // --------------------------------------------------
   // RECORD EXPORT IN BACKEND
   // --------------------------------------------------
 
@@ -922,10 +940,7 @@ function Health() {
           appliedFilters.states.length === 0
             ? "All available states"
             : appliedFilters.states.join(", "),
-        Year:
-          appliedFilters.year === "all"
-            ? "All years"
-            : appliedFilters.year,
+        Year: exportYearLabel,
         Source: "CivicIntel published Health records",
       },
     });
@@ -958,10 +973,7 @@ function Health() {
             appliedFilters.states.length === 0
             ? "All available states"
             : appliedFilters.states.join(", "),
-          Year:
-            appliedFilters.year === "all"
-              ? "All years"
-              : appliedFilters.year,
+          Year: exportYearLabel,
         },
       });
 
@@ -970,6 +982,23 @@ function Health() {
       await recordHealthExport("xlsx");
   };
 
+  const pdfChartData = chartRows.reduce((periods, record) => {
+    const year = String(record.year);
+
+    let period = periods.find((item) => item.year === year);
+
+    if (!period) {
+      period = { year, rows: [] };
+      periods.push(period);
+    }
+
+    period.rows.push({
+      state: record.state,
+      value: record.numericValue,
+    });
+
+    return periods;
+  }, []);
 
   const handleExportPDF = async () => {
     if (exportRows.length === 0) {
@@ -991,12 +1020,12 @@ function Health() {
           appliedFilters.states.length === 0
             ? "All available states"
             : appliedFilters.states.join(", "),
-        Year:
-          appliedFilters.year === "all"
-            ? "All years"
-            : appliedFilters.year,
+        Year: exportYearLabel,
         Source: "CivicIntel published Health records",
       },
+      chartData: pdfChartData,
+      chartTitle: indicatorLabel,
+      chartUnit: indicatorUnit,
       landscape: true,
     });
 
@@ -1340,30 +1369,67 @@ function Health() {
               </label>
 
               {/* YEAR FILTER */}
-              <label className="flex flex-col gap-2 text-xs">
-                Year
+              <div className="flex flex-col gap-2 text-xs ">
+                <span>Year</span>
 
-                <select
-                  value={effectiveYear}
-                  onChange={(event) =>
-                    setYear(event.target.value)
-                  }
-                  disabled={
-                    recordsLoading || yearOptions.length === 0
-                  }
-                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-not-allowed disabled:opacity-70"
+                <details
+                  ref={yearDropdownRef}
+                  className="relative"
                 >
-                  <option value="all">
-                    All available years
-                  </option>
+                  <summary
+                    className={`flex cursor-pointer list-none items-center justify-between rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-700 bg-[#C5D2D9] ${
+                      recordsLoading || yearOptions.length === 0
+                        ? "cursor-not-allowed opacity-50"
+                        : ""
+                    }`}
+                  >
+                    <span>
+                      {effectiveYears.length === 0
+                        ? "All available years"
+                        : `${effectiveYears.length} year(s) selected`}
+                    </span>
 
-                  {yearOptions.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                    <span aria-hidden="true">▾</span>
+                  </summary>
+
+                  <div className="absolute left-0 top-full z-30 mt-2 max-h-60 w-full min-w-48 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
+                    <label className="flex cursor-pointer items-center gap-2 border-b border-slate-100 pb-3 text-sm font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={effectiveYears.length === 0}
+                        onChange={() => setYear([])}
+                        disabled={recordsLoading || yearOptions.length === 0}
+                        className="accent-[#0B3C5D]"
+                      />
+                      All available years
+                    </label>
+
+                    <div className="space-y-3 pt-3">
+                      {yearOptions.map((item) => (
+                        <label
+                          key={item}
+                          className="flex cursor-pointer items-center gap-2 text-sm text-slate-700"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={effectiveYears.includes(item)}
+                            onChange={(event) => {
+                              setYear((previous) =>
+                                event.target.checked
+                                  ? [...previous, item]
+                                  : previous.filter((selectedYear) => selectedYear !== item)
+                              );
+                            }}
+                            disabled={recordsLoading}
+                            className="accent-[#0B3C5D]"
+                          />
+                          {item}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </details>
+              </div>
             </div>
 
             {/* API ERROR */}
@@ -1472,9 +1538,11 @@ function Health() {
 
                       {" · "}
 
-                      {appliedFilters.year === "all"
-                        ? "Latest available record per state"
-                        : `Reporting year ${appliedFilters.year}`}
+                      {appliedFilters.years.length === 0
+                      ? "Latest available record per state"
+                      : appliedFilters.years.length === 1
+                        ? `Reporting year ${appliedFilters.years[0]}`
+                        : `Reporting years ${appliedFilters.years.join(", ")}`}
                     </p>
                   </div>
 
@@ -1539,7 +1607,7 @@ function Health() {
                             />
 
                             <XAxis
-                              dataKey="state"
+                             dataKey="state"
                               angle={-35}
                               textAnchor="end"
                               interval={0}
@@ -1550,12 +1618,17 @@ function Health() {
                             />
 
                             <YAxis
-                              domain={[0, "auto"]}
-                              tick={{ fontSize: 10, fill: "#64748B" }}
+                              width={65}
+                              tick={{ fontSize: 11, fill: "#64748B" }}
                               axisLine={false}
                               tickLine={false}
                               tickFormatter={(value) =>
-                                isPercentageIndicator ? `${value}%` : value
+                                isPercentageIndicator
+                                  ? `${Number(value).toFixed(1)}%`
+                                  : new Intl.NumberFormat("en", {
+                                      notation: "compact",
+                                      maximumFractionDigits: 1,
+                                    }).format(value)
                               }
                             />
 
@@ -1567,7 +1640,13 @@ function Health() {
                                 ),
                                 "Value",
                               ]}
-                              labelFormatter={(label) => `State: ${label}`}
+                              labelFormatter={(label, payload) => {
+                                const record = payload?.[0]?.payload;
+
+                                return record
+                                  ? `State: ${record.state} | Year: ${record.year}`
+                                  : label;
+                              }}
                               contentStyle={{
                                 borderRadius: "10px",
                                 border: "1px solid #E2E8F0",
@@ -1626,10 +1705,10 @@ function Health() {
 
 
                     {!nationalBenchmark && (
-                      <p className="mt-3 text-[10px] leading-4 text-gray-400">
-                        No matching national benchmark was returned for this
-                        indicator and reporting year. Bars show state values
-                        only; no national comparison is inferred.
+                      <p>
+                        {appliedFilters.years.length > 1
+                          ? "A single national benchmark is not displayed when multiple reporting years are selected. Bars show state values only."
+                          : "No matching national benchmark was returned for this indicator and reporting year. Bars show state values only; no national comparison is inferred."}
                       </p>
                     )}
                   </>
@@ -1640,12 +1719,12 @@ function Health() {
                   </div>
                 )}
 
-                {/* PROVENANCE */}
+                {/* TRANSPARENCY */}
                 <div className="mt-8 rounded-lg bg-[#E7ECEF] p-4 sm:p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <h3 className="flex items-center gap-2 text-xs font-bold text-[#0B3C5D]">
                       <span className="text-[#1F7A3F]">✓</span>
-                      VERIFIED PROVENANCE RECORD
+                      VERIFIED TRANSPARENCY RECORD
                     </h3>
 
                     <span className="rounded-full bg-[#C5D2D9] px-2 py-1 text-[9px] text-[#0B3C5D]">
@@ -1665,9 +1744,9 @@ function Health() {
                       <strong className="text-[#0B3C5D]">
                         Data vintage:
                       </strong>{" "}
-                      {appliedFilters.year === "all"
-                        ? "Multiple available years"
-                        : appliedFilters.year}
+                     {appliedFilters.years.length === 0
+                      ? "Latest available record per state"
+                      : appliedFilters.years.join(", ")}
                     </p>
 
                     <p>
@@ -1712,9 +1791,11 @@ function Health() {
                     </span>
 
                     <span className="text-[10px] text-white/50">
-                      {appliedFilters.year === "all"
-                        ? "Multiple reporting years"
-                        : `${appliedFilters.year} data`}
+                      {appliedFilters.years.length === 0
+                      ? "Latest available records"
+                      : appliedFilters.years.length === 1
+                        ? `${appliedFilters.years[0]} data`
+                        : `${appliedFilters.years.join(", ")} data`}
                     </span>
                   </div>
 
@@ -1779,7 +1860,7 @@ function Health() {
                       </div>
 
                       <p className="mt-2 text-[10px] leading-5 text-white/50">
-                        National value for {appliedFilters.year}:{" "}
+                        National value for {appliedFilters.years[0]}:{" "}
                         {formatDisplayValue(
                           benchmarkValue,
                           nationalBenchmark.unit
@@ -1787,10 +1868,10 @@ function Health() {
                       </p>
                     </>
                   ) : (
-                    <p className="mt-3 text-xs leading-5 text-white/50">
-                      A comparable national value was not returned for this
-                      indicator and year. A regional or national gap cannot be
-                      calculated reliably yet.
+                    <p>
+                      {appliedFilters.years.length > 1
+                        ? "A single national comparison is not displayed when multiple reporting years are selected."
+                        : "A comparable national value was not returned for this indicator and year. A regional or national gap cannot be calculated reliably yet."}
                     </p>
                   )}
                 </div>

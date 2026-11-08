@@ -21,7 +21,7 @@ const initialCards = [
     value: null,
     title: "Audited Metrics Map",
     description: "Primary care density & bed capacity",
-    verification: "Provenance check complete",
+    verification: "Transparency check complete",
   },
   {
     label: "EDUCATION INDICATORS",
@@ -31,7 +31,7 @@ const initialCards = [
     verification: "Schedule alignment verified",
   },
   {
-    label: "PUBLIC PROVENANCE",
+    label: "SOURCE TRANSPARENCY",
     value: null,
     title: "Verified Citations",
     description: "No synthesized rankings or black-box metrics",
@@ -87,7 +87,7 @@ function NationalSnapshot() {
         ).length;
 
         // Keep the original card content.
-        // Public Provenance remains blank until a real metric exists.
+        // Public Transparency remains blank until a real metric exists.
         const updatedCards = [
           {
             ...initialCards[0],
