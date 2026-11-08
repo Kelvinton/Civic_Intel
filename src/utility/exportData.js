@@ -3,6 +3,44 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
+export function formatValue(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    String(value).trim() === ""
+  ) {
+    return "—";
+  }
+
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return "—";
+  }
+
+  return new Intl.NumberFormat("en-NG", {
+    maximumFractionDigits: 2,
+  }).format(number);
+}
+
+export function formatDisplayValue(value, unit = "") {
+  const formattedValue = formatValue(value);
+
+  if (formattedValue === "—") {
+    return formattedValue;
+  }
+
+  const normalizedUnit = String(unit).trim();
+
+  if (normalizedUnit === "%") {
+    return `${formattedValue}%`;
+  }
+
+  return normalizedUnit
+    ? `${formattedValue} ${normalizedUnit}`
+    : formattedValue;
+}
+
 function downloadFile(content, type, fileName) {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
@@ -60,6 +98,7 @@ function addPDFWatermark(doc) {
 
 
 
+
 function formatCSV({
   headers,
   rows,
@@ -67,34 +106,51 @@ function formatCSV({
   title,
   subtitle = "",
   metadata = {},
+  summary = [],
 }) {
-  const reportDetails = [
-    ["Report", title],
-    ["Description", subtitle],
-    ["Exported at (UTC)", new Date().toISOString()],
-    ["Record count", rows.length],
-    ...Object.entries(metadata),
-  ];
+  const hasSummary = summary.length > 0;
 
-  const content = [
-    ["CIVICINTEL — NIGERIA DATA PLATFORM"],
-    [],
-    ...reportDetails,
-    [],
-    headers,
-    ...rows.map((row) =>
-      headers.map((header) => row[header] ?? "")
-    ),
-  ]
+  const content = hasSummary
+    ? [
+        [title],
+        [subtitle],
+        [],
+        ["STATE SUMMARY"],
+        ...summary,
+        [],
+        ["COMPARISON DATA"],
+        headers,
+        ...rows.map((row) =>
+          headers.map((header) => row[header] ?? "")
+        ),
+      ]
+    : [
+        ["CIVICINTEL — NIGERIA DATA PLATFORM"],
+        [],
+        ["Report", title],
+        ["Description", subtitle],
+        ["Exported at (UTC)", new Date().toISOString()],
+        ["Record count", rows.length],
+        ...Object.entries(metadata),
+        [],
+        headers,
+        ...rows.map((row) =>
+          headers.map((header) => row[header] ?? "")
+        ),
+      ];
+
+  const csvContent = content
     .map((row) => row.map(escapeCSV).join(","))
     .join("\r\n");
 
   downloadFile(
-    "\uFEFF" + content,
+    "\uFEFF" + csvContent,
     "text/csv;charset=utf-8;",
     `${fileName}.csv`
   );
 }
+
+
 
 
 function formatExcel({
@@ -104,20 +160,37 @@ function formatExcel({
   title,
   subtitle = "",
   metadata = {},
+  summary = [],
 }) {
   const workbook = XLSX.utils.book_new();
 
-  // Main worksheet containing the exported records.
-  const dataSheet = XLSX.utils.aoa_to_sheet([
-    ["CIVICINTEL — NIGERIA DATA PLATFORM"],
-    [],
-    headers,
-    ...rows.map((row) =>
-      headers.map((header) => row[header] ?? "")
-    ),
-  ]);
+  const hasSummary = summary.length > 0;
 
-  // Make column widths readable.
+  const sheetRows = hasSummary
+    ? [
+        [title],
+        [subtitle],
+        [],
+        ["STATE SUMMARY"],
+        ...summary,
+        [],
+        ["COMPARISON DATA"],
+        headers,
+        ...rows.map((row) =>
+          headers.map((header) => row[header] ?? "")
+        ),
+      ]
+    : [
+        ["CIVICINTEL — NIGERIA DATA PLATFORM"],
+        [],
+        headers,
+        ...rows.map((row) =>
+          headers.map((header) => row[header] ?? "")
+        ),
+      ];
+
+  const dataSheet = XLSX.utils.aoa_to_sheet(sheetRows);
+
   dataSheet["!cols"] = headers.map((header) => {
     const longestValue = Math.max(
       String(header).length,
@@ -125,55 +198,78 @@ function formatExcel({
         String(row[header] ?? "").length
       )
     );
-    
 
     return {
       wch: Math.min(Math.max(longestValue + 2, 12), 40),
     };
   });
 
-  dataSheet["!merges"] = [
+  if (hasSummary) {
+    dataSheet["!merges"] = [
       {
         s: { r: 0, c: 0 },
         e: { r: 0, c: headers.length - 1 },
       },
-  ];
+      {
+        s: { r: 1, c: 0 },
+        e: { r: 1, c: headers.length - 1 },
+      },
+      {
+        s: { r: 3, c: 0 },
+        e: { r: 3, c: headers.length - 1 },
+      },
+      {
+        s: { r: 5 + summary.length, c: 0 },
+        e: { r: 5 + summary.length, c: headers.length - 1 },
+      },
+    ];
+  } else {
+    dataSheet["!merges"] = [
+      {
+        s: { r: 0, c: 0 },
+        e: { r: 0, c: headers.length - 1 },
+      },
+    ];
+  }
 
   XLSX.utils.book_append_sheet(
     workbook,
     dataSheet,
-    "Records"
+    hasSummary ? "Comparison Report" : "Records"
   );
 
-  // Separate worksheet for report details and provenance.
-  const metadataRows = [
-    ["Report", title],
-    ["Description", subtitle],
-    ["Exported at (UTC)", new Date().toISOString()],
-    ["Record count", rows.length],
-    ...Object.entries(metadata),
-  ];
+  if (!hasSummary) {
+    const metadataRows = [
+      ["Report", title],
+      ["Description", subtitle],
+      ["Exported at (UTC)", new Date().toISOString()],
+      ["Record count", rows.length],
+      ...Object.entries(metadata),
+    ];
 
-  const metadataSheet = XLSX.utils.aoa_to_sheet([
-    ["CIVICINTEL — NIGERIA DATA PLATFORM"],
-    [],
-    ["Property", "Value"],
-    ...metadataRows,
-  ]);
+    const metadataSheet = XLSX.utils.aoa_to_sheet([
+      ["CIVICINTEL — NIGERIA DATA PLATFORM"],
+      [],
+      ["Property", "Value"],
+      ...metadataRows,
+    ]);
 
-  metadataSheet["!cols"] = [
-    { wch: 25 },
-    { wch: 65 },
-  ];
+    metadataSheet["!cols"] = [
+      { wch: 25 },
+      { wch: 65 },
+    ];
 
-  XLSX.utils.book_append_sheet(
-    workbook,
-    metadataSheet,
-    "Report Details"
-  );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      metadataSheet,
+      "Report Details"
+    );
+  }
 
   XLSX.writeFile(workbook, `${fileName}.xlsx`);
 }
+
+
 
 function formatPDF({
   headers,
@@ -182,6 +278,7 @@ function formatPDF({
   title,
   subtitle = "",
   metadata = {},
+  summary = [],
   landscape = true,
 }) {
   const doc = new jsPDF({
@@ -190,42 +287,71 @@ function formatPDF({
     format: "a4",
   });
 
-  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
   doc.setTextColor(11, 60, 93);
-  doc.text(title, 14, 16);
+  doc.text(title, 14, 17);
 
-  let y = 24;
+  let y = 25;
 
-  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
   doc.setTextColor(60, 70, 80);
 
   if (subtitle) {
-    const subtitleLines = doc.splitTextToSize(
-      subtitle,
-      doc.internal.pageSize.getWidth() - 28
-    );
-
-    doc.text(subtitleLines, 14, y);
-    y += subtitleLines.length * 5 + 2;
+    doc.text(subtitle, 14, y);
+    y += 8;
   }
 
-  const metadataLines = Object.entries(metadata).map(
-    ([key, value]) => `${key}: ${value}`
-  );
+  if (summary.length > 0) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(11, 60, 93);
+    doc.text("STATE SUMMARY", 14, y);
 
-  metadataLines.push(
-    `Exported at (UTC): ${new Date().toISOString()}`,
-    `Record count: ${rows.length}`
-  );
+    autoTable(doc, {
+      body: summary,
+      startY: y + 3,
+      margin: { left: 14, right: 14 },
+      theme: "grid",
+      styles: {
+        fontSize: 9,
+        cellPadding: 3,
+      },
+      columnStyles: {
+        0: { fontStyle: "bold", cellWidth: 55 },
+      },
+    });
 
-  if (metadataLines.length) {
-    const lines = doc.splitTextToSize(
-      metadataLines.join(" | "),
-      doc.internal.pageSize.getWidth() - 28
+    y = doc.lastAutoTable.finalY + 10;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(11, 60, 93);
+    doc.text("COMPARISON DATA", 14, y);
+
+    y += 3;
+  } else {
+    const metadataLines = Object.entries(metadata).map(
+      ([key, value]) => `${key}: ${value}`
     );
 
-    doc.text(lines, 14, y);
-    y += lines.length * 5 + 2;
+    metadataLines.push(
+      `Exported at (UTC): ${new Date().toISOString()}`,
+      `Record count: ${rows.length}`
+    );
+
+    if (metadataLines.length > 0) {
+      doc.setFontSize(9);
+
+      const lines = doc.splitTextToSize(
+        metadataLines.join(" | "),
+        doc.internal.pageSize.getWidth() - 28
+      );
+
+      doc.text(lines, 14, y);
+      y += lines.length * 5 + 2;
+    }
   }
 
   autoTable(doc, {
@@ -259,6 +385,7 @@ function formatPDF({
   doc.save(`${fileName}.pdf`);
 }
 
+
 /**
  * Shared CivicIntel export utility.
  *
@@ -279,6 +406,7 @@ export function exportData({
   title = "CivicIntel Data Export",
   subtitle = "",
   metadata = {},
+  summary = [],
   landscape = true,
 }) {
   if (!Array.isArray(headers) || headers.length === 0) {
@@ -302,6 +430,7 @@ export function exportData({
     title,
     subtitle,
     metadata,
+    summary,
     landscape,
   };
 

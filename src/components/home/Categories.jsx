@@ -8,11 +8,11 @@ import StudentsInClass from "../../assets/category/students.inclass.png";
 
 import {
   revealVariants,
-  staggerContainer,
   useMotionSettings,
 } from "../../animation.js";
 
 import { getPublishedRecords } from "../../api/publishedData.js";
+import { getStates } from "../../api/referenceData.js";
 
 const imageSlideRight = {
   hidden: {
@@ -58,7 +58,7 @@ const categoryConfig = [
     indicators: [
       {
         key: "anc4_pct",
-        label: "ANC 4+ visits",
+        label: "Antenatal Care 4+ visits",
       },
       {
         key: "hiv_prevalence_pct",
@@ -143,12 +143,12 @@ async function fetchSectorRecords(sector) {
 }
 
 // Get the latest available Lagos record for each selected indicator.
-function getCategoryMetrics(records, indicators) {
+function getCategoryMetrics(records, indicators, selectedState) {
   return indicators.map((indicator) => {
     const matchingRecords = records
       .filter(
         (record) =>
-          record.state?.toLowerCase() === "lagos" &&
+          record.state?.toLowerCase() === selectedState.toLowerCase() &&
           record.indicator_key === indicator.key &&
           record.value !== null &&
           record.value !== undefined
@@ -162,6 +162,16 @@ function getCategoryMetrics(records, indicators) {
       record: record ?? null,
     };
   });
+}
+
+function getRandomItem(items) {
+  if (!items.length) return null;
+
+  const randomIndex = Math.floor(
+    Math.random() * items.length
+  );
+
+  return items[randomIndex];
 }
 
 function formatMetricValue(record) {
@@ -188,6 +198,9 @@ function CategoryRow({
   metrics,
   loading,
   error,
+  selectedState,
+  availableStates,
+  handleChangeState,
 }) {
   const motionSettings = useMotionSettings();
 
@@ -227,18 +240,65 @@ function CategoryRow({
           {category.title}
         </p>
 
-        <p className="max-w-xl text-sm leading-6 text-gray-700 sm:text-base sm:leading-7">
-          {category.description}
-        </p>
+        <div className="mt-5 flex flex-wrap items-center gap-3 justify-between">
+          <motion.div
+            {...motionSettings}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{
+              opacity: [0.7, 1, 0.7],
+              scale: [1, 1.08, 1],
+            }}
+            transition={{
+              opacity: {
+                duration: 2.5,
+                repeat: Infinity,
+                ease: "easeInOut",
+              },
+              scale: {
+                duration: 2.8,
+                repeat: Infinity,
+                ease: "easeInOut",
+              },
+            }}
+            className="inline-flex items-center gap-2 rounded-full bg-[#E8F1EB] px-3 py-1.5 justify-between"
+          >
+            <span className="h-2 w-2 rounded-full bg-[#1F7A3F]" />
+
+            <span className="text-xs font-bold uppercase tracking-wider text-[#1F7A3F]">
+              {selectedState}
+            </span>
+          </motion.div>
+
+          <motion.button
+            {...motionSettings}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{
+              opacity: [0.7, 1, 0.7],
+              scale: [1, 1.08, 1],
+            }}
+            transition={{
+              opacity: {
+                duration: 2.5,
+                repeat: Infinity,
+                ease: "easeInOut",
+              },
+              scale: {
+                duration: 2.8,
+                repeat: Infinity,
+                ease: "easeInOut",
+              },
+            }}
+            type="button"
+            onClick={handleChangeState}
+            disabled={availableStates.length <= 1}
+            className="rounded-full border border-[#1F7A3F] px-3 py-1.5 text-xs font-semibold text-[#1F7A3F] transition hover:bg-[#E8F1EB] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Change State
+          </motion.button>
+        </div>
 
         {/* Metrics animate one after another */}
-        <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: false, amount: 0.2 }}
-          className="mt-7 grid grid-cols-2 gap-5"
-        >
+        <div className="mt-7 grid grid-cols-2 gap-5">
           {loading ? (
             <p className="col-span-2 text-sm text-gray-500">
               Loading published indicators...
@@ -249,9 +309,8 @@ function CategoryRow({
             </p>
           ) : (
             metrics.map((metric) => (
-              <motion.div
+              <div
                 key={metric.key}
-                variants={revealVariants}
                 className="min-w-0"
               >
                 <p className="text-lg font-bold text-black sm:text-xl">
@@ -264,17 +323,17 @@ function CategoryRow({
 
                 <p className="mt-2 text-[10px] leading-4 text-gray-500">
                   {metric.record
-                    ? `Lagos • ${metric.record.year}`
-                    : "No published Lagos record"}
+                    ? `${selectedState} • ${metric.record.year}`
+                    : `No published ${selectedState} record`}
                 </p>
-              </motion.div>
+              </div>
             ))
           )}
-        </motion.div>
+        </div>
 
         <div className="mt-8 flex flex-col items-center gap-4">
           <p className="text-center text-xs text-gray-500">
-            Showing the latest available published figures for Lagos State.
+            Showing the latest available published figures for {selectedState} State.
           </p>
 
           <Link
@@ -292,11 +351,77 @@ function CategoryRow({
 
 function Categories() {
   const motionSettings = useMotionSettings();
-
-  const [categoryData, setCategoryData] = useState({
+  const [selectedState, setSelectedState] = useState("");
+  const [availableStates, setAvailableStates] = useState([]);
+  const [publishedRecords, setPublishedRecords] = useState({
     health: [],
     education: [],
   });
+
+  const [recordsLoaded, setRecordsLoaded] = useState(false);
+
+  function handleChangeState() {
+    const otherStates = availableStates.filter(
+      (state) => state.name !== selectedState
+    );
+
+    const nextState = getRandomItem(otherStates);
+
+    if (!nextState) return;
+
+    setSelectedState(nextState.name);
+  }
+  
+  useEffect(() => {
+    let isMounted = true;
+
+    async function selectRandomState() {
+      try {
+        const response = await getStates();
+
+        if (!Array.isArray(response) || response.length === 0) {
+          throw new Error("No states were returned by the API.");
+        }
+
+        const randomIndex = Math.floor(
+          Math.random() * response.length
+        );
+
+        if (isMounted) {
+          setAvailableStates(response);
+          setSelectedState(response[randomIndex].name);
+        }
+      } catch (error) {
+        console.error("Could not select a state:", error);
+      }
+    }
+
+    selectRandomState();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const categoryData = {
+    health:
+      selectedState && recordsLoaded
+        ? getCategoryMetrics(
+            publishedRecords.health,
+            categoryConfig[0].indicators,
+            selectedState
+          )
+        : [],
+
+    education:
+      selectedState && recordsLoaded
+        ? getCategoryMetrics(
+            publishedRecords.education,
+            categoryConfig[1].indicators,
+            selectedState
+          )
+        : [],
+  };
 
   const [loading, setLoading] = useState({
     health: true,
@@ -311,47 +436,52 @@ function Categories() {
   useEffect(() => {
     let isMounted = true;
 
-    async function loadCategoryData(category) {
+    async function loadPublishedRecords() {
       try {
-        const records = await fetchSectorRecords(category.sector);
+        const [healthRecords, educationRecords] = await Promise.all([
+          fetchSectorRecords("health"),
+          fetchSectorRecords("education"),
+        ]);
 
-        const metrics = getCategoryMetrics(
-          records,
-          category.indicators
-        );
+        setPublishedRecords({
+          health: healthRecords,
+          education: educationRecords,
+        });
 
-        if (isMounted) {
-          setCategoryData((previous) => ({
-            ...previous,
-            [category.id]: metrics,
-          }));
-        }
+        setRecordsLoaded(true);
+
+        setLoading({
+          health: false,
+          education: false,
+        });
       } catch (error) {
         if (isMounted) {
-          setErrors((previous) => ({
-            ...previous,
-            [category.id]:
-              error instanceof Error
-                ? error.message
-                : `Could not load ${category.title}.`,
-          }));
-        }
-      } finally {
-        if (isMounted) {
-          setLoading((previous) => ({
-            ...previous,
-            [category.id]: false,
-          }));
+          const errorMessage =
+            error instanceof Error
+              ? error.message
+              : "Could not load published records.";
+
+          setErrors({
+            health: errorMessage,
+            education: errorMessage,
+          });
+
+          setLoading({
+            health: false,
+            education: false,
+          });
         }
       }
     }
 
-    categoryConfig.forEach(loadCategoryData);
+    loadPublishedRecords();
 
     return () => {
       isMounted = false;
     };
   }, []);
+
+ 
 
   return (
     <section id="categories" className="bg-white text-black">
@@ -393,6 +523,9 @@ function Categories() {
           metrics={categoryData.health}
           loading={loading.health}
           error={errors.health}
+          selectedState={selectedState}
+          availableStates={availableStates}
+          handleChangeState={handleChangeState}
         />
 
         {/* Education: image left, text right, image slides in from the left */}
@@ -402,6 +535,9 @@ function Categories() {
           metrics={categoryData.education}
           loading={loading.education}
           error={errors.education}
+          selectedState={selectedState}
+          availableStates={availableStates}
+          handleChangeState={handleChangeState}
         />
       </div>
     </section>
