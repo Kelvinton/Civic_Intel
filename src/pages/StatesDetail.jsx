@@ -43,22 +43,6 @@ import CrossRiver from "../assets/states/CrossRiver.png";
 import { getStates } from "../api/referenceData.js";
 import { getAllPublishedRecords } from "../api/publishedData.js";
 
-const healthIndicators = [
-  { key: "anc4_pct", label: "ANC 4+ Coverage" },
-  { key: "health_allocation", label: "Health Allocation" },
-  { key: "health_allocation_pct", label: "Health Budget Share" },
-  { key: "hiv_prevalence_pct", label: "HIV Prevalence" },
-  { key: "hiv_prevalence_per_1000", label: "HIV Prevalence per 1,000" },
-];
-
-const educationIndicators = [
-  { key: "adult_literacy_pct", label: "Adult Literacy Rate" },
-  { key: "primary_completion_pct", label: "Primary Completion Rate" },
-  { key: "primary_net_enrolment_pct", label: "Primary Net Enrolment" },
-  { key: "out_of_school_children_pct", label: "Out-of-School Children" },
-  { key: "primary_pupil_teacher_ratio", label: "Primary Pupil-Teacher Ratio" },
-];
-
 function createSlug(name) {
   return name.toLowerCase().trim().replace(/\s+/g, "-");
 }
@@ -133,7 +117,32 @@ function formatValue(record) {
   return `${formatted} ${record.unit || ""}`.trim();
 }
 
-function IndicatorSection({ title, indicators, records }) {
+
+function IndicatorSection({ title, records }) {
+  const [showAll, setShowAll] = useState(false);
+
+  // Keep only the latest published record for each indicator.
+  const indicators = Object.values(
+    records.reduce((grouped, record) => {
+      const key = record.indicator_key;
+
+      if (!key) return grouped;
+
+      if (
+        !grouped[key] ||
+        Number(record.year) > Number(grouped[key].year)
+      ) {
+        grouped[key] = record;
+      }
+
+      return grouped;
+    }, {})
+  );
+
+  const visibleIndicators = showAll
+    ? indicators
+    : indicators.slice(0, 5);
+
   return (
     <section className="mb-20">
       <h2 className="mb-7 flex items-center gap-2 pt-30 text-2xl font-bold text-[#171D20] sm:pt-28 sm:text-3xl">
@@ -142,38 +151,41 @@ function IndicatorSection({ title, indicators, records }) {
       </h2>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 lg:gap-8">
-        {indicators.map((indicator) => {
-          const record = records.find(
-            (item) => item.indicator_key === indicator.key
-          );
+        {visibleIndicators.map((record) => (
+          <article
+            key={record.indicator_key}
+            className="flex min-h-37.5 flex-col rounded-lg bg-white p-3 sm:min-h-41 sm:p-4"
+          >
+            <p className="text-lg font-bold text-[#161616]">
+              {formatValue(record)}
+            </p>
 
-          return (
-            <article
-              key={indicator.key}
-              className="flex min-h-37.5 flex-col rounded-lg bg-white p-3 sm:min-h-41 sm:p-4"
-            >
-              <p className="text-lg font-bold text-[#161616]">
-                {formatValue(record)}
-              </p>
+            <p className="mt-2 text-xs leading-5 text-gray-500">
+              {record.indicator}
+            </p>
 
-              <p className="mt-2 text-xs leading-5 text-gray-500">
-                {indicator.label}
-              </p>
+            <div className="my-3 border-t border-dashed border-gray-200" />
 
-              <div className="my-3 border-t border-dashed border-gray-200" />
-
-              <p className="mt-auto text-[10px] text-gray-500">
-                {record
-                  ? `Published record • ${record.year}`
-                  : "No published record available"}
-              </p>
-            </article>
-          );
-        })}
+            <p className="mt-auto text-[10px] text-gray-500">
+              Published record • {record.year}
+            </p>
+          </article>
+        ))}
       </div>
+
+      {indicators.length > 5 && (
+        <button
+          type="button"
+          onClick={() => setShowAll((previous) => !previous)}
+          className="mt-6 text-sm font-semibold text-[#1F7A3F] hover:underline"
+        >
+          {showAll ? "See less" : "See more indicators"}
+        </button>
+      )}
     </section>
   );
 }
+
 
 function StateDetails() {
   const { stateSlug } = useParams();
@@ -202,6 +214,7 @@ function StateDetails() {
         if (!isMounted) return;
 
         setStates(Array.isArray(statesData) ? statesData : []);
+        
         setHealthRecords(healthData);
         setEducationRecords(educationData);
       } catch (err) {
@@ -315,7 +328,7 @@ function StateDetails() {
   return (
     <main className="bg-[#E7EDF0] text-[#0B3C5D]">
       {/* State hero */}
-      <section className="mx-auto max-w-7xl px-5 pb-16 pt-28 sm:px-10 sm:pt-32 lg:px-14 lg:pb-20 lg:pt-36">
+      <section className="mx-auto max-w-7xl px-5 pb-12 pt-28 sm:px-10 sm:pt-32 lg:px-14 lg:pb-20 lg:pt-36">
         <div className="grid items-center gap-10 md:grid-cols-2">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-[#1F7A3F]">
@@ -334,6 +347,7 @@ function StateDetails() {
 
             <Link
               to="/explore"
+              state={{ compareState: state.name }}
               className="mt-4 inline-flex items-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-2.5 text-xs font-medium text-white transition hover:bg-[#176331]"
             >
               Compare this state
@@ -367,17 +381,23 @@ function StateDetails() {
         </div>
       </section>
 
+      <Link
+        to="/states"
+        className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-[#0B3C5D] transition hover:text-[#1F7A3F] mx-16"
+      >
+        <span aria-hidden="true">←</span>
+        Back to States
+      </Link>
+
       {/* Health and education indicators */}
       <div className="mx-auto max-w-7xl px-5 pb-6 sm:px-10 lg:px-14">
         <IndicatorSection
           title="HEALTH"
-          indicators={healthIndicators}
           records={selectedHealthRecords}
         />
 
         <IndicatorSection
           title="EDUCATION"
-          indicators={educationIndicators}
           records={selectedEducationRecords}
         />
 

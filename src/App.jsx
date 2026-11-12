@@ -1,4 +1,4 @@
-
+import { useEffect, useRef } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -56,6 +56,26 @@ function RequireAuth() {
 
 function AppContent() {
   const { isLoggedIn, login, signup, logout } = useAuth();
+  const location = useLocation();
+
+  const previousPath = useRef(location.pathname);
+
+  useEffect(() => {
+    const previous = previousPath.current;
+
+    if (previous === "/health" && location.pathname !== "/health") {
+      sessionStorage.removeItem("civicintel_health_filters");
+    }
+
+    if (
+      previous === "/education" &&
+      location.pathname !== "/education"
+    ) {
+      sessionStorage.removeItem("civicintel_education_filters");
+    }
+
+    previousPath.current = location.pathname;
+  }, [location.pathname]);
 
   return (
     <Routes>

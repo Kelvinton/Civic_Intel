@@ -6,6 +6,8 @@ import {
   formatDisplayValue,
 } from "../utility/exportData.js";
 import { motion } from "framer-motion";
+import { ChevronDown, Share2 } from "lucide-react";
+import { toPng } from "html-to-image";
 
 import {
   BarChart,
@@ -56,11 +58,51 @@ const releases = [
   },
 ];
 
+// Fixed colours for reporting yearsy
+
+const yearColorPalette = [
+  "#0B3C5D",
+  "#1F7A3F",
+  "#D97706",
+  "#7C3AED",
+  "#0891B2",
+  "#BE185D",
+  "#4F46E5",
+  "#A16207",
+  "#0F766E",
+  "#C026D3",
+  "#65A30D",
+  "#DC2626",
+];
+
+function getYearColor(year) {
+  const numericYear = Number(year);
+
+  if (!Number.isFinite(numericYear)) {
+    return "#475569";
+  }
+
+  const index =
+    ((numericYear % yearColorPalette.length) +
+      yearColorPalette.length) %
+    yearColorPalette.length;
+
+  return yearColorPalette[index];
+}
+
+function getYearColorRGB(year) {
+  const hex = getYearColor(year).replace("#", "");
+
+  return [
+    parseInt(hex.substring(0, 2), 16),
+    parseInt(hex.substring(2, 4), 16),
+    parseInt(hex.substring(4, 6), 16),
+  ];
+}
+
 
 // Safely formats API values.
 // Empty or missing values are not converted to zero.
-
-
 
 function isValidNumericValue(value) {
   return (
@@ -144,7 +186,17 @@ function Health() {
       });
     }
   }, [location.hash]);
-  const restoredFilters = location.state?.healthFilters;
+  const restoredFilters =
+    location.state?.healthFilters ??
+    (() => {
+      try {
+        return JSON.parse(
+          sessionStorage.getItem("civicintel_health_filters") || "null"
+        );
+      } catch {
+        return null;
+      }
+  })();
 
   // --------------------------------------------------
   // FILTER STATES
@@ -221,6 +273,10 @@ function Health() {
   const [savingIndicator, setSavingIndicator] = useState(false);
   const [saveNotice, setSaveNotice] = useState("");
   const [saveNoticeType, setSaveNoticeType] = useState("");
+
+  const shareContentRef = useRef(null);
+  const chartScrollRef = useRef(null);
+  const [sharing, setSharing] = useState(false);
 
 
   useEffect(() => {
@@ -574,19 +630,20 @@ function Health() {
     if (!appliedFilters) {
       return [];
     }
-
+    const selectedStates = appliedFilters.states ?? [];
+    const selectedYears = appliedFilters.years ?? [];
     return healthRecords
       .filter((record) => {
         const matchesIndicator =
         record.indicator_key === appliedFilters.indicator;
 
         const matchesState =
-        appliedFilters.states.length === 0 ||
-        appliedFilters.states.includes(record.state);
+          selectedStates.length === 0 ||
+          selectedStates.includes(record.state);
 
         const matchesYear =
-        appliedFilters.years.length === 0 ||
-        appliedFilters.years.includes(String(record.year));
+          selectedYears.length === 0 ||
+          selectedYears.includes(String(record.year));
 
         const isNotNational =
           String(record.state).trim().toLowerCase() !== "national";
@@ -714,6 +771,10 @@ function Health() {
     isPercentageIndicator,
   ]);
 
+  const chartYears = [
+    ...new Set(chartRows.map((item) => String(item.year))),
+  ].sort((a, b) => Number(a) - Number(b));
+
   // --------------------------------------------------
   // NATIONAL BENCHMARK POSITION
   // --------------------------------------------------
@@ -767,6 +828,11 @@ function Health() {
 
       return;
     }
+
+    sessionStorage.setItem(
+      "civicintel_health_filters",
+      JSON.stringify(filters)
+    );
 
     setAppliedFilters(filters);
     setHasAppliedFilters(true);
@@ -995,6 +1061,8 @@ function Health() {
     period.rows.push({
       state: record.state,
       value: record.numericValue,
+      color: getYearColorRGB(record.year),
+      colorLabel: `Year ${year}`,
     });
 
     return periods;
@@ -1108,6 +1176,146 @@ function Health() {
       setSavingIndicator(false);
     }
   };
+
+  
+  
+const handleShare = async () => {
+  if (!shareContentRef.current || sharing) return;
+
+  const reportElement = shareContentRef.current;
+  const chartContainer = chartScrollRef.current;
+
+  const originalStyles = {
+    width: reportElement.style.width,
+    maxWidth: reportElement.style.maxWidth,
+    gridTemplateColumns: reportElement.style.gridTemplateColumns,
+    overflowX: chartContainer?.style.overflowX,
+  };
+
+  const restoreLayout = () => {
+    reportElement.style.width = originalStyles.width;
+    reportElement.style.maxWidth = originalStyles.maxWidth;
+    reportElement.style.gridTemplateColumns =
+      originalStyles.gridTemplateColumns;
+
+    if (chartContainer) {
+      chartContainer.style.overflowX = originalStyles.overflowX;
+    }
+  };
+
+  try {
+    setSharing(true);
+
+    // Temporarily expand the report for image capture.
+    const captureWidth = Math.max(1100, chartRows.length * 52);
+
+    reportElement.style.width = `${captureWidth}px`;
+    reportElement.style.maxWidth = "none";
+    reportElement.style.gridTemplateColumns =
+      "minmax(0, 2.1fr) minmax(300px, 0.9fr)";
+
+    if (chartContainer) {
+      chartContainer.style.overflowX = "visible";
+    }
+
+    const imageUrl = await toPng(reportElement, {
+      pixelRatio: 2,
+      backgroundColor: "#082C40",
+      filter: (node) =>
+        !(node instanceof HTMLElement && node.dataset.shareExclude === "true"),
+    });
+
+    // Restore the normal page layout after capturing.
+    restoreLayout();
+
+    const reportImage = new Image();
+    reportImage.src = imageUrl;
+
+    await new Promise((resolve, reject) => {
+      reportImage.onload = resolve;
+      reportImage.onerror = reject;
+    });
+
+    const logo = new Image();
+    logo.src = civicIntelLogo;
+
+    await new Promise((resolve, reject) => {
+      logo.onload = resolve;
+      logo.onerror = reject;
+    });
+
+    const headerHeight = 140;
+    const canvas = document.createElement("canvas");
+
+    canvas.width = reportImage.width;
+    canvas.height = reportImage.height + headerHeight;
+
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      throw new Error("Could not create report image.");
+    }
+
+    context.fillStyle = "#0B3C5D";
+    context.fillRect(0, 0, canvas.width, headerHeight);
+
+    context.drawImage(logo, 30, 25, 90, 90);
+
+    context.fillStyle = "#FFFFFF";
+    context.font = "bold 34px Arial";
+    context.fillText("CivicIntel", 145, 65);
+
+    context.font = "18px Arial";
+    context.fillText("Health Data Report", 145, 100);
+
+    context.drawImage(reportImage, 0, headerHeight);
+
+    const blob = await new Promise((resolve) =>
+      canvas.toBlob(resolve, "image/png")
+    );
+
+    if (!blob) {
+      throw new Error("Could not generate the report PNG.");
+    }
+
+    const file = new File([blob], "civicintel-health-report.png", {
+      type: "image/png",
+    });
+
+    const canShareFile =
+      navigator.share &&
+      navigator.canShare &&
+      navigator.canShare({ files: [file] });
+
+    if (canShareFile) {
+      await navigator.share({
+        title: "CivicIntel Health Report",
+        text: "Health data analysis from CivicIntel.",
+        files: [file],
+      });
+    } else {
+      const brandedImageUrl = canvas.toDataURL("image/png");
+
+      const link = document.createElement("a");
+      link.href = brandedImageUrl;
+      link.download = "civicintel-health-report.png";
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+  } catch (error) {
+    if (error.name !== "AbortError") {
+      console.error("Unable to share health report:", error);
+      window.alert("Unable to prepare the report. Please try again.");
+    }
+  } finally {
+    restoreLayout();
+    setSharing(false);
+  }
+};
+
+
 
   // --------------------------------------------------
   // RETRY LOADING STATES
@@ -1267,50 +1475,60 @@ function Health() {
 
               {/* INDICATOR FILTER */}
               <label className="flex flex-col gap-2 text-xs">
-                Indicator
+                <div className="flex min-h-8 flex-col justify-end">
+                  <span>Indicator</span>
+                </div>
 
-                <select
-                  value={effectiveIndicator}
-                  onChange={(event) =>
-                    setIndicator(event.target.value)
-                  }
-                  disabled={
-                    recordsLoading ||
-                    indicatorOptions.length === 0
-                  }
-                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {recordsLoading && (
-                    <option value="">
-                      Loading indicators...
-                    </option>
-                  )}
-
-                  {!recordsLoading &&
-                    indicatorOptions.length === 0 && (
+                <div className="relative">
+                  <select
+                    value={effectiveIndicator}
+                    onChange={(event) => setIndicator(event.target.value)}
+                    disabled={recordsLoading || indicatorOptions.length === 0}
+                    className="w-full appearance-none rounded-xl border border-[#B7C5CB] bg-[#C5D2D9] px-3 py-3 pr-10 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {recordsLoading && (
                       <option value="">
-                        No indicators available
+                        Loading indicators...
                       </option>
                     )}
 
-                  {indicatorOptions.map((item) => (
-                    <option key={item.key} value={item.key}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
+                    {!recordsLoading &&
+                      indicatorOptions.length === 0 && (
+                        <option value="">
+                          No indicators available
+                        </option>
+                      )}
+
+                    {indicatorOptions.map((item) => (
+                      <option key={item.key} value={item.key}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={16}
+                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-600"
+                  />
+
+                </div>
               </label>
 
               {/* STATE FILTER */}
               <label className="flex flex-col gap-2 text-xs">
-                State
+                <div className="flex min-h-8 flex-col justify-end">
+                  <span>State</span>
+                  <span>Select one or multiple states</span>
+                </div>
 
                 <details ref={stateDropdownRef} className="relative">
                   <summary className="cursor-pointer list-none rounded-xl border border-gray-300  px-4 py-3 text-sm bg-[#C5D2D9]">
                     {state.length === 0
                       ? "All states"
                       : `${state.length} state${state.length > 1 ? "s" : ""} selected`}
-                    <span className="float-right">▾</span>
+                    <ChevronDown
+                      size={16}
+                      className="shrink-0 text-slate-600 float-right"
+                    />
                   </summary>
 
                   <div className="absolute left-0 z-30 mt-2 max-h-64 w-full min-w-48 overflow-y-auto rounded-xl border border-gray-200 bg-white p-3 shadow-lg">
@@ -1370,7 +1588,10 @@ function Health() {
 
               {/* YEAR FILTER */}
               <div className="flex flex-col gap-2 text-xs ">
-                <span>Year</span>
+                <div className="flex min-h-8 flex-col justify-end">
+                  <span>Year</span>
+                  <span>Select single or multiple years</span>
+                </div>
 
                 <details
                   ref={yearDropdownRef}
@@ -1389,7 +1610,10 @@ function Health() {
                         : `${effectiveYears.length} year(s) selected`}
                     </span>
 
-                    <span aria-hidden="true">▾</span>
+                    <ChevronDown
+                      size={16}
+                      className="shrink-0 text-slate-600 float-right"
+                    />
                   </summary>
 
                   <div className="absolute left-0 top-full z-30 mt-2 max-h-60 w-full min-w-48 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
@@ -1402,7 +1626,9 @@ function Health() {
                         className="accent-[#0B3C5D]"
                       />
                       All available years
+
                     </label>
+                    
 
                     <div className="space-y-3 pt-3">
                       {yearOptions.map((item) => (
@@ -1512,7 +1738,10 @@ function Health() {
               </p>
             </div>
           ) : (
-            <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,2.1fr)_minmax(300px,0.9fr)]">
+            <div 
+              ref={shareContentRef}
+              className="grid items-start gap-8 lg:grid-cols-[minmax(0,2.1fr)_minmax(300px,0.9fr)]"
+            >
 
               {/* LEFT: WHITE CHART PANEL */}
               <div className="min-w-0 bg-white p-4 text-[#0B2F45] shadow-xl sm:p-6">
@@ -1547,24 +1776,15 @@ function Health() {
                   </div>
 
                   <div className="flex flex-wrap gap-x-4 gap-y-2 text-[10px] text-gray-500">
-                    {nationalBenchmark ? (
-                      <>
-                        <span className="flex items-center gap-1.5">
-                          <span className="h-2.5 w-2.5 rounded-sm bg-[#16512F]" />
-                          At/above national
-                        </span>
-
-                        <span className="flex items-center gap-1.5">
-                          <span className="h-2.5 w-2.5 rounded-sm bg-[#0B3048]" />
-                          Below national
-                        </span>
-                      </>
-                    ) : (
-                      <span className="flex items-center gap-1.5">
-                        <span className="h-2.5 w-2.5 rounded-sm bg-[#16512F]" />
-                        State value
+                    {chartYears.map((itemYear) => (
+                      <span key={itemYear} className="flex items-center gap-1.5">
+                        <span
+                          className="h-2.5 w-2.5 rounded-sm"
+                          style={{ backgroundColor: getYearColor(itemYear) }}
+                        />
+                        {itemYear}
                       </span>
-                    )}
+                    ))}
 
                     {nationalBenchmark && (
                       <span className="flex items-center gap-1.5">
@@ -1588,7 +1808,10 @@ function Health() {
 
                     {/* CHART AXIS */}
                     
-                    <div className="mt-10 w-full overflow-x-auto pb-3 ">
+                    <div
+                      ref={chartScrollRef}
+                      className="mt-10 w-full overflow-x-auto pb-3"
+                    >
                       <div
                         className="h-90"
                         style={{
@@ -1679,24 +1902,12 @@ function Health() {
                               radius={[5, 5, 0, 0]}
                               maxBarSize={42}
                             >
-                              {chartRows.map((item) => {
-                                const aboveBenchmark =
-                                  benchmarkValue !== null &&
-                                  item.numericValue >= benchmarkValue;
-
-                                return (
-                                  <Cell
-                                    key={`${item.state}-${item.indicator_key}-${item.year}`}
-                                    fill={
-                                      benchmarkValue === null
-                                        ? "#16512F"
-                                        : aboveBenchmark
-                                          ? "#16512F"
-                                          : "#0B3048"
-                                    }
-                                  />
-                                );
-                              })}
+                              {chartRows.map((item) => (
+                                <Cell
+                                  key={`${item.state}-${item.indicator_key}-${item.year}`}
+                                  fill={getYearColor(item.year)}
+                                />
+                              ))}
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>
@@ -1868,7 +2079,7 @@ function Health() {
                       </p>
                     </>
                   ) : (
-                    <p>
+                    <p className="text-white/70">
                       {appliedFilters.years.length > 1
                         ? "A single national comparison is not displayed when multiple reporting years are selected."
                         : "A comparable national value was not returned for this indicator and year. A regional or national gap cannot be calculated reliably yet."}
@@ -1877,7 +2088,22 @@ function Health() {
                 </div>
 
                 {/* EXPORT AND SAVE BUTTONS */}
-                <div className="flex flex-col gap-3">
+                <div 
+                  data-share-exclude="true"
+                  className="flex flex-col gap-3"
+                >
+
+                  {/* SHARE REPORT */}
+                  <button
+                    type="button"
+                    onClick={handleShare}
+                    disabled={sharing || chartRows.length === 0}
+                    className="flex w-full items-center justify-center gap-3 rounded-full border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Share2 size={18} />
+
+                    <span>{sharing ? "Preparing report..." : "Share report"}</span>
+                  </button>
 
                   {/* EXPORT DROPDOWN */}
                   <div className="relative w-full">
@@ -2015,87 +2241,6 @@ function Health() {
                   </div>
                 </div>
 
-                {/* FACILITY SPOT CHECK */}
-                <div className="pt-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-bold">
-                      Facility Spot Check
-                    </h3>
-
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="text-white/90"
-                      aria-hidden="true"
-                    >
-                      <path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" />
-                      <circle cx="12" cy="10" r="2.5" />
-                    </svg>
-                  </div>
-
-                  <p className="mt-3 text-sm leading-6 text-white/65">
-                    Verified facility locations and audit points will appear
-                    here when facility-level GPS data is connected.
-                  </p>
-
-                  <div className="relative mt-4 flex h-44 items-center justify-center overflow-hidden rounded-lg border border-white/15 bg-[#DCE8E5]">
-                    <div className="absolute inset-0 opacity-40">
-                      <svg
-                        viewBox="0 0 400 180"
-                        preserveAspectRatio="none"
-                        className="h-full w-full"
-                        aria-hidden="true"
-                      >
-                        <path
-                          d="M-20 40 L80 20 L130 65 L210 15 L300 55 L420 25"
-                          fill="none"
-                          stroke="#A2B9AE"
-                          strokeWidth="3"
-                        />
-
-                        <path
-                          d="M-20 130 L80 95 L150 140 L240 90 L320 145 L420 105"
-                          fill="none"
-                          stroke="#A2B9AE"
-                          strokeWidth="3"
-                        />
-
-                        <path
-                          d="M40 -20 L100 60 L70 200 M220 -20 L190 80 L250 200 M340 -20 L300 70 L370 200"
-                          fill="none"
-                          stroke="#B7C8C0"
-                          strokeWidth="2"
-                        />
-                      </svg>
-                    </div>
-
-                    <div className="relative text-center text-[#0B3C5D]">
-                      <span className="text-2xl" aria-hidden="true">
-                        ⌖
-                      </span>
-
-                      <p className="mt-1 text-xs font-semibold">
-                        Facility mapping not connected
-                      </p>
-
-                      <p className="mt-1 text-[10px] text-[#526B70]">
-                        Awaiting verified facility coordinates
-                      </p>
-                    </div>
-
-                    <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between bg-white/90 px-3 py-2 text-[9px] text-[#145C3B]">
-                      <span>● GPS mapping pending</span>
-                      <span>Facility data unavailable</span>
-                    </div>
-                  </div>
-                </div>
               </aside>
             </div>
           )}

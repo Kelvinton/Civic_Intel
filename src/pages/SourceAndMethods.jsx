@@ -14,7 +14,7 @@ import SourcePic1 from "../assets/source.png";
 const sections = [
   { label: "Source hierarchy", href: "#source-hierarchy" },
   { label: "Methodology", href: "#methodology" },
-  { label: "Revision History", href: "#revision-history" },
+  // { label: "Revision History", href: "#revision-history" },
   { label: "How to interpret data", href: "#interpret-data" },
 ];
 
@@ -205,7 +205,7 @@ function SourcesAndMethods() {
 
               <p className="mt-4 max-w-md text-xs leading-5 text-[#E7EDF0] sm:text-sm">
                   How CivicIntel selects, verifies, and publishes health and
-                  education data for Nigeria — and how to interpret what you see.
+                  education data for Nigeria and how to interpret what you see.
               </p>
             </div>
 
@@ -415,7 +415,7 @@ function SourcesAndMethods() {
       </section>
      
       {/* Revision history: compact three-column cards */}
-      <motion.section
+      {/* <motion.section
         id="revision-history"
         {...getRevealProps(shouldReduceMotion)}
         className="scroll-mt-6 bg-[#E7ECF0] px-5 py-8 sm:px-8 sm:py-10 lg:px-12"
@@ -479,7 +479,7 @@ function SourcesAndMethods() {
             </div>
           )}
         </div>
-      </motion.section>
+      </motion.section> */}
 
       
       {/* Interpretation: desktop grid, mobile green timeline */}

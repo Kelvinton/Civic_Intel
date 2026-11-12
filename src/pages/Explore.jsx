@@ -446,9 +446,13 @@ function Explore() {
   const [rawSelectedStates, setRawSelectedStates] = useState(() => {
     const restoredStates = restoredDraft?.selectedStates;
 
-    return Array.isArray(restoredStates)
-      ? [...new Set(restoredStates)]
-      : [];
+    if (Array.isArray(restoredStates)) {
+      return [...new Set(restoredStates)];
+    }
+
+    const compareState = location.state?.compareState;
+
+    return compareState ? [compareState] : [];
   });
 
   const [selectedYears, setSelectedYears] = useState(() => {
