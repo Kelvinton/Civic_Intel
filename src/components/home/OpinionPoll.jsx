@@ -1,6 +1,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import { Turnstile } from "@marsidev/react-turnstile";
 
 import {
   revealVariants,
@@ -10,6 +11,8 @@ import {
 
 import { apiRequest } from "../../api/api.js";
 import { useAuth } from "../../context/AuthContext.jsx";
+
+const TURNSTILE_SITE_KEY = "0x4AAAAAAF5u8SN5tnqNSyrE";
 
 // Dedicated animation for poll options.
 const pollOptionVariants = {
@@ -43,6 +46,18 @@ function formatClosingDate(date) {
   })}`;
 }
 
+// Create or retrieve the guest device token.
+function getGuestToken() {
+  let guestToken = localStorage.getItem("civicintel_guest_token");
+
+  if (!guestToken) {
+    guestToken = crypto.randomUUID();
+    localStorage.setItem("civicintel_guest_token", guestToken);
+  }
+
+  return guestToken;
+}
+
 function OpinionPoll() {
   const motionSettings = useMotionSettings();
   const shouldReduceMotion = useReducedMotion();
@@ -55,6 +70,7 @@ function OpinionPoll() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isExpired, setIsExpired] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
 
   // Check whether the poll is still open.
   const isPollOpen =
@@ -87,7 +103,13 @@ function OpinionPoll() {
         setLoading(true);
         setError("");
 
-        const response = await apiRequest("/polls");
+        const guestHeaders = !isLoggedIn
+          ? { "X-Guest-Token": getGuestToken() }
+          : {};
+
+        const response = await apiRequest("/polls", {
+          headers: guestHeaders,
+        });
 
         const polls = Array.isArray(response?.items)
           ? response.items
@@ -119,7 +141,10 @@ function OpinionPoll() {
 
         // Fetch full poll details, including options and results.
         const pollDetails = await apiRequest(
-          `/polls/${selectedPoll.id}`
+          `/polls/${selectedPoll.id}`,
+          {
+            headers: guestHeaders,
+          }
         );
 
         if (isMounted) {
@@ -154,8 +179,9 @@ function OpinionPoll() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isLoggedIn]);
 
+  
   // Submit a vote.
   async function handleSubmit(event) {
     event.preventDefault();
@@ -164,22 +190,55 @@ function OpinionPoll() {
       return;
     }
 
+    // Guests can only vote when the poll allows it.
+    if (!isLoggedIn && !poll.allow_guest_votes) {
+      setError("This poll is only available to registered users.");
+      return;
+    }
+
+    // Guest votes require CAPTCHA verification.
+    if (!isLoggedIn && !captchaToken) {
+      setError("Please complete the CAPTCHA before submitting your vote.");
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError("");
       setSuccess("");
 
-      await apiRequest(`/polls/${poll.id}/vote`, {
-        method: "PUT",
-        body: JSON.stringify({
-          option_id: selectedOption,
-        }),
-      });
+      if (isLoggedIn) {
+        // Registered-user voting.
+        await apiRequest(`/polls/${poll.id}/vote`, {
+          method: "PUT",
+          body: JSON.stringify({
+            option_id: selectedOption,
+          }),
+        });
+      } else {
+        // Guest voting.
+        await apiRequest(`/polls/${poll.id}/guest-vote`, {
+          method: "POST",
+          headers: {
+            "X-Guest-Token": getGuestToken(),
+          },
+          body: JSON.stringify({
+            option_id: selectedOption,
+            captcha_token: captchaToken,
+          }),
+        });
+      }
 
-      // Fetch the latest poll so the displayed results
-      // reflect the backend's updated vote counts.
+      // Fetch the latest poll details.
+      const guestHeaders = !isLoggedIn
+        ? { "X-Guest-Token": getGuestToken() }
+        : {};
+
       const updatedPoll = await apiRequest(
-        `/polls/${poll.id}`
+        `/polls/${poll.id}`,
+        {
+          headers: guestHeaders,
+        }
       );
 
       const closingTime = updatedPoll.closes_at
@@ -194,8 +253,13 @@ function OpinionPoll() {
 
       setPoll(updatedPoll);
       setSelectedOption(updatedPoll.my_vote || selectedOption);
+      setCaptchaToken("");
 
-      setSuccess("Thank you for sharing your opinion. Your vote has been received.");
+      setSuccess(
+        isLoggedIn
+          ? "Thank you for sharing your opinion. Your vote has been received."
+          : "Thank you for participating. Your guest vote has been received."
+      );
     } catch (err) {
       setError(
         err.message || "Unable to submit your vote. Please try again."
@@ -204,6 +268,7 @@ function OpinionPoll() {
       setSubmitting(false);
     }
   }
+
 
   function handleOptionChange(optionId) {
     if (hasVoted || !isPollOpen) return;
@@ -315,7 +380,14 @@ function OpinionPoll() {
 
             {/* Poll form */}
             <form onSubmit={handleSubmit} className="mt-6">
-              <fieldset disabled={!isLoggedIn || !isPollOpen || hasVoted || submitting}>
+              <fieldset
+                disabled={
+                  !isPollOpen ||
+                  hasVoted ||
+                  submitting ||
+                  (!isLoggedIn && !poll.allow_guest_votes)
+                }
+              >
                 <legend className="sr-only">
                   Select your preferred poll option
                 </legend>
@@ -356,7 +428,26 @@ function OpinionPoll() {
                   ))}
                 </motion.div>
               </fieldset>
+              {/* Guest CAPTCHA */}
+              {!isLoggedIn &&
+                isPollOpen &&
+                !hasVoted &&
+                poll.allow_guest_votes && (
+                  <div className="mt-6">
+                    <p className="mb-3 text-sm text-[#B8C2C9]">
+                      Complete this verification before submitting your vote.
+                    </p>
 
+                    <Turnstile
+                      siteKey={TURNSTILE_SITE_KEY}
+                      onSuccess={(token) => setCaptchaToken(token)}
+                      onExpire={() => setCaptchaToken("")}
+                      onError={() => setCaptchaToken("")}
+                    />
+                  </div>
+              )}
+
+              
               {/* Voting access */}
               {isPollOpen && !hasVoted && (
                 isLoggedIn ? (
@@ -379,18 +470,15 @@ function OpinionPoll() {
                     <span>
                       {submitting ? "Submitting..." : "Submit Feedback"}
                     </span>
-
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={1.5}
-                      className="h-6 w-6"
-                      aria-hidden="true"
-                    >
-                      <path d="M4 12h16M13 5l7 7-7 7" />
-                    </svg>
                   </motion.button>
+                ) : poll.allow_guest_votes ? (
+                  <button
+                    type="submit"
+                    disabled={!selectedOption || !captchaToken || submitting}
+                    className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full bg-[#1F7A3F] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {submitting ? "Submitting..." : "Submit Vote"}
+                  </button>
                 ) : (
                   <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-5">
                     <h4 className="text-sm font-semibold text-white">
@@ -412,12 +500,29 @@ function OpinionPoll() {
                 )
               )}
 
+
+              
               {/* Already voted */}
               {hasVoted && isPollOpen && (
-                <p className="mt-5 text-sm text-[#77D69A]">
-                  You have already submitted your vote.
-                </p>
+                <div className="mt-5">
+                  <p className="text-sm text-[#77D69A]">
+                    You have already submitted your vote.
+                  </p>
+
+                  {!isLoggedIn && (
+                    <p className="mt-3 text-sm leading-6 text-[#B8C2C9]">
+                      Sign up to change your vote and keep a record.
+                      <a
+                        href="/signup"
+                        className="ml-1 font-semibold text-[#77D69A] underline underline-offset-4 hover:text-white"
+                      >
+                        Create an account
+                      </a>
+                    </p>
+                  )}
+                </div>
               )}
+
 
               {/* Closed poll */}
               {!isPollOpen && (
@@ -440,52 +545,106 @@ function OpinionPoll() {
                 </motion.p>
               )}
 
+              
               {/* Poll results */}
               {showResults && (
                 <div className="mt-8 border-t border-white/10 pt-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h4 className="text-sm font-bold uppercase tracking-wide text-white">
-                      Poll Results
-                    </h4>
+                  <h4 className="text-sm font-bold uppercase tracking-wide text-white">
+                    Poll Results
+                  </h4>
 
-                    <span className="text-xs text-[#B8C2C9]">
-                      {poll.total_votes ?? 0} total votes
-                    </span>
+                  {/* Registered voters */}
+                  <div className="mt-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h5 className="text-sm font-semibold text-[#77D69A]">
+                        Registered voters
+                      </h5>
+
+                      <span className="text-xs text-[#B8C2C9]">
+                        {poll.total_votes ?? 0} total votes
+                      </span>
+                    </div>
+
+                    <div className="mt-4 space-y-5">
+                      {poll.options?.map((option) => (
+                        <div key={option.id}>
+                          <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                            <span className="text-[#F3F5F6]">
+                              {option.text}
+                            </span>
+
+                            <span className="shrink-0 font-semibold text-[#77D69A]">
+                              {Number(option.percent ?? 0).toFixed(1)}%
+                            </span>
+                          </div>
+
+                          <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                            <div
+                              className="h-full rounded-full bg-[#24834F] transition-all duration-500"
+                              style={{
+                                width: `${Math.min(
+                                  100,
+                                  Math.max(0, Number(option.percent) || 0)
+                                )}%`,
+                              }}
+                            />
+                          </div>
+
+                          <p className="mt-1 text-xs text-[#B8C2C9]">
+                            {option.votes ?? 0} votes
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
-                  <div className="mt-5 space-y-5">
-                    {poll.options?.map((option) => (
-                      <div key={option.id}>
-                        <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                          <span className="text-[#F3F5F6]">
-                            {option.text}
-                          </span>
+                  {/* Guest voters */}
+                  <div className="mt-8 border-t border-white/10 pt-6">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h5 className="text-sm font-semibold text-[#D6A756]">
+                        Guests, unverified
+                      </h5>
 
-                          <span className="shrink-0 font-semibold text-[#77D69A]">
-                            {Number(option.percent ?? 0).toFixed(1)}%
-                          </span>
+                      <span className="text-xs text-[#B8C2C9]">
+                        {poll.guest_total_votes ?? 0} total votes
+                      </span>
+                    </div>
+
+                    <div className="mt-4 space-y-5">
+                      {poll.options?.map((option) => (
+                        <div key={option.id}>
+                          <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                            <span className="text-[#F3F5F6]">
+                              {option.text}
+                            </span>
+
+                            <span className="shrink-0 font-semibold text-[#D6A756]">
+                              {Number(option.guest_percent ?? 0).toFixed(1)}%
+                            </span>
+                          </div>
+
+                          <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                            <div
+                              className="h-full rounded-full bg-[#D6A756] transition-all duration-500"
+                              style={{
+                                width: `${Math.min(
+                                  100,
+                                  Math.max(0, Number(option.guest_percent) || 0)
+                                )}%`,
+                              }}
+                            />
+                          </div>
+
+                          <p className="mt-1 text-xs text-[#B8C2C9]">
+                            {option.guest_votes ?? 0} votes
+                          </p>
                         </div>
-
-                        <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                          <div
-                            className="h-full rounded-full bg-[#24834F] transition-all duration-500"
-                            style={{
-                              width: `${Math.min(
-                                100,
-                                Math.max(0, Number(option.percent) || 0)
-                              )}%`,
-                            }}
-                          />
-                        </div>
-
-                        <p className="mt-1 text-xs text-[#B8C2C9]">
-                          {option.votes ?? 0} votes
-                        </p>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
+
             </form>
           </>
         )}
