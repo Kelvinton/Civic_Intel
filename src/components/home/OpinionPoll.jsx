@@ -72,6 +72,16 @@ function OpinionPoll() {
   const [isExpired, setIsExpired] = useState(false);
   const [captchaToken, setCaptchaToken] = useState("");
 
+  useEffect(() => {
+    if (!success) return;
+
+    const timeout = setTimeout(() => {
+      setSuccess("");
+    }, 3000);
+
+    return () => clearTimeout(timeout);
+  }, [success]);
+
   // Check whether the poll is still open.
   const isPollOpen =
   poll?.status === "open" && !isExpired;
@@ -536,6 +546,7 @@ function OpinionPoll() {
                 <motion.p
                   initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
                   transition={{ duration: 0.3 }}
                   role="status"
                   aria-live="polite"
@@ -549,24 +560,33 @@ function OpinionPoll() {
               {/* Poll results */}
               {showResults && (
                 <div className="mt-8 border-t border-white/10 pt-6">
-                  <h4 className="text-sm font-bold uppercase tracking-wide text-white">
-                    Poll Results
-                  </h4>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h4 className="text-sm font-bold uppercase tracking-wide text-white">
+                      Poll Results
+                    </h4>
 
-                  {/* Registered voters */}
-                  <div className="mt-5">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <h5 className="text-sm font-semibold text-[#77D69A]">
-                        Registered voters
-                      </h5>
+                    <span className="text-xs text-[#B8C2C9]">
+                      {Number(poll.total_votes ?? 0) +
+                        Number(poll.guest_total_votes ?? 0)} total votes
+                    </span>
+                  </div>
 
-                      <span className="text-xs text-[#B8C2C9]">
-                        {poll.total_votes ?? 0} total votes
-                      </span>
-                    </div>
+                  <div className="mt-5 space-y-5">
+                    {poll.options?.map((option) => {
+                      const totalOptionVotes =
+                        Number(option.votes ?? 0) +
+                        Number(option.guest_votes ?? 0);
 
-                    <div className="mt-4 space-y-5">
-                      {poll.options?.map((option) => (
+                      const totalVotes =
+                        Number(poll.total_votes ?? 0) +
+                        Number(poll.guest_total_votes ?? 0);
+
+                      const percentage =
+                        totalVotes > 0
+                          ? (totalOptionVotes / totalVotes) * 100
+                          : 0;
+
+                      return (
                         <div key={option.id}>
                           <div className="mb-2 flex items-center justify-between gap-3 text-sm">
                             <span className="text-[#F3F5F6]">
@@ -574,7 +594,7 @@ function OpinionPoll() {
                             </span>
 
                             <span className="shrink-0 font-semibold text-[#77D69A]">
-                              {Number(option.percent ?? 0).toFixed(1)}%
+                              {percentage.toFixed(1)}%
                             </span>
                           </div>
 
@@ -582,65 +602,17 @@ function OpinionPoll() {
                             <div
                               className="h-full rounded-full bg-[#24834F] transition-all duration-500"
                               style={{
-                                width: `${Math.min(
-                                  100,
-                                  Math.max(0, Number(option.percent) || 0)
-                                )}%`,
+                                width: `${Math.min(100, Math.max(0, percentage))}%`,
                               }}
                             />
                           </div>
 
                           <p className="mt-1 text-xs text-[#B8C2C9]">
-                            {option.votes ?? 0} votes
+                            {totalOptionVotes} votes
                           </p>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Guest voters */}
-                  <div className="mt-8 border-t border-white/10 pt-6">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <h5 className="text-sm font-semibold text-[#D6A756]">
-                        Guests, unverified
-                      </h5>
-
-                      <span className="text-xs text-[#B8C2C9]">
-                        {poll.guest_total_votes ?? 0} total votes
-                      </span>
-                    </div>
-
-                    <div className="mt-4 space-y-5">
-                      {poll.options?.map((option) => (
-                        <div key={option.id}>
-                          <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                            <span className="text-[#F3F5F6]">
-                              {option.text}
-                            </span>
-
-                            <span className="shrink-0 font-semibold text-[#D6A756]">
-                              {Number(option.guest_percent ?? 0).toFixed(1)}%
-                            </span>
-                          </div>
-
-                          <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                            <div
-                              className="h-full rounded-full bg-[#D6A756] transition-all duration-500"
-                              style={{
-                                width: `${Math.min(
-                                  100,
-                                  Math.max(0, Number(option.guest_percent) || 0)
-                                )}%`,
-                              }}
-                            />
-                          </div>
-
-                          <p className="mt-1 text-xs text-[#B8C2C9]">
-                            {option.guest_votes ?? 0} votes
-                          </p>
-                        </div>
-                      ))}
-                    </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

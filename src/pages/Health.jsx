@@ -30,7 +30,10 @@ import {
 import { useAuth } from "../context/AuthContext.jsx";
 import { getStates } from "../api/referenceData.js";
 import { getPublishedRecords } from "../api/publishedData.js";
-import { getMedia } from "../api/media.js";
+import {
+  getMedia,
+  subscribeToMedia,
+} from "../api/media.js";
 
 import HealthHero from "../assets/health.hero.jpg";
 import civicIntelLogo from "../assets/civicintellogo1.png";
@@ -346,6 +349,7 @@ function Health() {
           }
 
           allRecords.push(...response.items);
+         
 
           total = Number(response.total ?? allRecords.length);
           offset += response.items.length;
@@ -398,50 +402,60 @@ function Health() {
     };
   }, []);
 
-  // --------------------------------------------------
+
   // LOAD MEDIA REPORTS
-  // --------------------------------------------------
-
   useEffect(() => {
-    let isMounted = true;
+  let isMounted = true;
 
-    async function loadHealthMedia() {
-      try {
-        const response = await getMedia({
-          limit: 50,
-          offset: 0,
-        });
+  function updateHealthMedia(response) {
+    if (!isMounted) return;
 
-        if (!response || !Array.isArray(response.items)) {
-          throw new Error(
-            "The Media response was not in the expected format."
-          );
-        }
-
-        if (isMounted) {
-          setHealthMedia(response.items);
-          setMediaError("");
-        }
-      } catch (error) {
-        if (isMounted) {
-          setMediaError(
-            error instanceof Error
-              ? error.message
-              : "Could not load Media reports."
-          );
-        }
-      } finally {
-        if (isMounted) {
-          setMediaLoading(false);
-        }
-      }
+    if (!response || !Array.isArray(response.items)) {
+      return;
     }
 
-    loadHealthMedia();
+    setHealthMedia(response.items);
+    setMediaError("");
+  }
 
-    return () => {
-      isMounted = false;
-    };
+  // Listen for refreshed articles.
+  const unsubscribe = subscribeToMedia(updateHealthMedia);
+
+  async function loadHealthMedia() {
+    try {
+      const response = await getMedia({
+        limit: 50,
+        offset: 0,
+      });
+
+      if (!response || !Array.isArray(response.items)) {
+        throw new Error(
+          "The Media response was not in the expected format."
+        );
+      }
+
+      updateHealthMedia(response);
+    } catch (error) {
+      if (isMounted) {
+        setMediaError(
+          error instanceof Error
+            ? error.message
+            : "Could not load Media reports."
+        );
+      }
+    } finally {
+      if (isMounted) {
+        setMediaLoading(false);
+      }
+    }
+  }
+
+  loadHealthMedia();
+
+  return () => {
+    isMounted = false;
+    unsubscribe();
+  };
   }, []);
 
   const healthReleases = healthMedia
@@ -450,10 +464,8 @@ function Health() {
   )
   .slice(0, 3);
 
-  // --------------------------------------------------
-  // STATE AVERAGE HEALTH OVERVIEW
-  // --------------------------------------------------
-
+  
+  // STATE AVERAGE HEALTH OVERVIEW 
   const overviewStats = useMemo(() => {
     const groupedIndicators = {};
 
@@ -706,6 +718,22 @@ function Health() {
     return Array.from(latestByState.values());
   }, [chartData, appliedFilters]);
 
+  const highestHealthRecord = useMemo(() => {
+    if (!stateChartData.length) return null;
+
+    return stateChartData.reduce((highest, record) =>
+      record.numericValue > highest.numericValue ? record : highest
+    );
+  }, [stateChartData]);
+
+  const lowestHealthRecord = useMemo(() => {
+    if (!stateChartData.length) return null;
+
+    return stateChartData.reduce((lowest, record) =>
+      record.numericValue < lowest.numericValue ? record : lowest
+    );
+  }, [stateChartData]);
+
   // --------------------------------------------------
   // SELECTED INDICATOR INFORMATION
   // --------------------------------------------------
@@ -775,34 +803,13 @@ function Health() {
     ...new Set(chartRows.map((item) => String(item.year))),
   ].sort((a, b) => Number(a) - Number(b));
 
-  // --------------------------------------------------
-  // NATIONAL BENCHMARK POSITION
-  // --------------------------------------------------
-
+  // NATIONAL BENCHMARK VALUE
   const benchmarkValue = nationalBenchmark
-    ? Number(nationalBenchmark.value)
-    : null;
+  ? Number(nationalBenchmark.value)
+  : null;
 
-  const benchmarkPosition =
-    benchmarkValue !== null &&
-    Number.isFinite(benchmarkValue)
-      ? isPercentageIndicator
-        ? Math.max(0, Math.min(benchmarkValue, 100))
-        : maximumValue > 0
-          ? Math.max(
-              0,
-              Math.min(
-                (Math.abs(benchmarkValue) / maximumValue) * 100,
-                100
-              )
-            )
-          : null
-      : null;
 
-  // --------------------------------------------------
   // APPLY FILTERS
-  // --------------------------------------------------
-
   const handleApplyFilters = (event) => {
     event.preventDefault();
 
@@ -2018,73 +2025,128 @@ const handleShare = async () => {
                     </span>
                   </h2>
 
-                  <p className="mt-3 text-sm leading-6 text-white/65">
+                  {/* <p className="mt-3 text-sm leading-6 text-white/65">
                     Explore how {indicatorLabel.toLowerCase()} varies across
                     the selected Nigerian states. The figures shown are
                     published records retrieved from CivicIntel&apos;s
                     Health dataset.
-                  </p>
+                  </p> */}
 
-                  <p className="mt-3 text-xs leading-5 text-white/45">
+                  {/* <p className="mt-3 text-xs leading-5 text-white/45">
                     {chartRows.length} state record
                     {chartRows.length === 1 ? "" : "s"} displayed
                     {" · "}
                     {appliedFilters.states.length === 0
                     ? "All available states"
                     : appliedFilters.states.join(", ")}
-                  </p>
+                  </p> */}
                 </div>
 
-                {/* NATIONAL COMPARISON */}
-                <div>
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-xs font-medium text-white/70">
-                      National benchmark comparison
+                {/* OVERVIEW AND KEY FINDINGS */}
+                <div className="space-y-5 border-t border-white/15 pt-5">
+
+                  {/* OVERVIEW */}
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-white/70">
+                      Overview
                     </h3>
 
-                    {nationalBenchmark ? (
-                      <span className="text-[10px] text-white/50">
-                        {formatDisplayValue(
-                          benchmarkValue,
-                          nationalBenchmark.unit
-                        )}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-white/40">
-                        Not available
-                      </span>
-                    )}
-                  </div>
+                    <p className="mt-3 text-sm leading-6 text-white/65">
+                      This report examines {indicatorLabel.toLowerCase()} across{" "}
+                      {chartRows.length} Nigerian state
+                      {chartRows.length === 1 ? "" : "s"} using published CivicIntel
+                      health records.
 
-                  {nationalBenchmark ? (
-                    <>
-                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/15">
-                        <div
-                          className="h-full rounded-full bg-[#1F7A3F]"
-                          style={{
-                            width: `${Math.min(
-                              Math.max(benchmarkPosition ?? 0, 0),
-                              100
-                            )}%`,
-                          }}
-                        />
+                      {appliedFilters.years.length === 0
+                        ? " The analysis uses the latest available record for each state."
+                        : ` The selected reporting period is ${
+                            appliedFilters.years.join(", ")
+                          }.`}
+                    </p>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                        <p className="text-[10px] text-white/50">
+                          States represented
+                        </p>
+
+                        <p className="mt-1 text-xl font-bold text-white">
+                          {chartRows.length}
+                        </p>
                       </div>
 
-                      <p className="mt-2 text-[10px] leading-5 text-white/50">
-                        National value for {appliedFilters.years[0]}:{" "}
-                        {formatDisplayValue(
-                          benchmarkValue,
-                          nationalBenchmark.unit
-                        )}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-white/70">
-                      {appliedFilters.years.length > 1
-                        ? "A single national comparison is not displayed when multiple reporting years are selected."
-                        : "A comparable national value was not returned for this indicator and year. A regional or national gap cannot be calculated reliably yet."}
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                        <p className="text-[10px] text-white/50">
+                          Reporting period
+                        </p>
+
+                        <p className="mt-1 text-xl font-bold text-white">
+                          {[
+                            ...new Set(
+                              chartRows.map((record) => String(record.year))
+                            ),
+                          ]
+                            .sort((a, b) => Number(a) - Number(b))
+                            .join(", ") || "No reporting year"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* KEY FINDINGS */}
+                  <div className="border-t border-white/15 pt-5">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-white/70">
+                      Key Findings
+                    </h3>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                        <p className="text-[10px] text-white/50">
+                          Highest reported value
+                        </p>
+
+                        <p className="mt-2 text-lg font-bold text-white">
+                          {highestHealthRecord
+                            ? formatDisplayValue(
+                                highestHealthRecord.numericValue,
+                                highestHealthRecord.unit
+                              )
+                            : "—"}
+                        </p>
+
+                        <p className="mt-1 text-xs text-white/60">
+                          {highestHealthRecord?.state ?? "No data"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                        <p className="text-[10px] text-white/50">
+                          Lowest reported value
+                        </p>
+
+                        <p className="mt-2 text-lg font-bold text-white">
+                          {lowestHealthRecord
+                            ? formatDisplayValue(
+                                lowestHealthRecord.numericValue,
+                                lowestHealthRecord.unit
+                              )
+                            : "—"}
+                        </p>
+
+                        <p className="mt-1 text-xs text-white/60">
+                          {lowestHealthRecord?.state ?? "No data"}
+                        </p>
+                      </div>
+
+                    </div>
+
+                    <p className="mt-3 text-[10px] leading-5 text-white/45">
+                      These findings describe reported values and do not automatically
+                      indicate better or worse health outcomes.
                     </p>
-                  )}
+                  </div>
+
                 </div>
 
                 {/* EXPORT AND SAVE BUTTONS */}
@@ -2278,10 +2340,9 @@ const handleShare = async () => {
                 variants={staggerContainer}
                 className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
               >
-                {(healthReleases.length > 0
-                  ? healthReleases
-                  : releases
-                ).map((release) => (
+                {[...healthReleases, ...releases]
+                .slice(0, 3)
+                .map((release) => (
                   <Link
                     to={
                       release.id

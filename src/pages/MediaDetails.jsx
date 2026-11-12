@@ -15,6 +15,7 @@ function formatArticleContent(content) {
     "Why the campaign matters",
     "The cVPV2 situation",
     "Why these locations were prioritized",
+    "References",
   ];
 
   let formattedContent = content;
@@ -142,12 +143,12 @@ function MediaDetails() {
     <main className="min-h-screen bg-[#F4F6F7] pt-8 text-[#082B40]">
 
       {/* TOP NAVIGATION */}
-      <div className="mx-auto max-w-6xl px-5 pt-8 sm:px-8 lg:px-12">
+      <div className="mx-auto max-w-6xl px-5 pt-8 sm:px-8 lg:px-12 mt-8">
         <Link
           to="/media"
           className="inline-flex items-center gap-2 text-sm font-semibold text-[#1F7A3F] transition hover:gap-3"
         >
-          <span aria-hidden="true">←</span>
+          
           Back to Media
         </Link>
       </div>
@@ -246,6 +247,7 @@ function MediaDetails() {
                     "Why the campaign matters",
                     "The cVPV2 situation",
                     "Why these locations were prioritized",
+                    "References",
                   ].some(
                     (heading) =>
                       heading.toLowerCase() === paragraph.toLowerCase()

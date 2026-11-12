@@ -6,6 +6,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import {
   getMedia,
   getMediaOptions,
+  subscribeToMedia,
 } from "../api/media.js";
 
 const heroSlides = [
@@ -190,6 +191,24 @@ function Media() {
 
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  // Listen for refreshed media articles.
+  useEffect(() => {
+    let isMounted = true;
+
+    const unsubscribe = subscribeToMedia((response) => {
+      if (!isMounted || !Array.isArray(response?.items)) {
+        return;
+      }
+
+      setReleases(response.items);
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
     };
   }, []);
 
