@@ -9,7 +9,10 @@ import {
   useMotionSettings,
 } from "../../animation.js";
 
-import { getMedia } from "../../api/media.js";
+import {
+  getMedia,
+  subscribeToMedia,
+} from "../../api/media.js";
 
 import Category1 from "../../assets/latest report/category1.png";
 import Category2 from "../../assets/latest report/category2.png";
@@ -87,9 +90,32 @@ function LatestReports() {
 
   const [publishedReports, setPublishedReports] = useState([]);
 
-  // Fetch the latest published media reports.
+  // Fetch and listen for updated published media reports.
   useEffect(() => {
     let isMounted = true;
+
+    function updateReports(response) {
+      if (!isMounted) return;
+
+      const items = Array.isArray(response?.items)
+        ? response.items
+        : [];
+
+      const sortedReports = [...items]
+      .sort(
+        (a, b) =>
+          new Date(b.published_on || 0) -
+          new Date(a.published_on || 0)
+      )
+      .slice(0, 3);
+
+      setPublishedReports(
+        sortedReports.map(formatMediaReport)
+      );
+    }
+
+    // Listen for refreshed articles.
+    const unsubscribe = subscribeToMedia(updateReports);
 
     async function loadLatestReports() {
       try {
@@ -98,21 +124,7 @@ function LatestReports() {
           offset: 0,
         });
 
-        if (!isMounted) return;
-
-        const items = Array.isArray(response.items)
-          ? response.items
-          : [];
-
-        const sortedReports = [...items].sort(
-          (a, b) =>
-            new Date(b.published_on || 0) -
-            new Date(a.published_on || 0)
-        );
-
-        setPublishedReports(
-          sortedReports.map(formatMediaReport)
-        );
+        updateReports(response);
       } catch (error) {
         console.error(
           "Failed to load homepage media reports:",
@@ -125,6 +137,7 @@ function LatestReports() {
 
     return () => {
       isMounted = false;
+      unsubscribe();
     };
   }, []);
 

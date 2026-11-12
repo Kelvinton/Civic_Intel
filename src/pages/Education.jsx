@@ -8,6 +8,10 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { motion, useReducedMotion } from "framer-motion";
 import { exportData, formatDisplayValue,} from "../utility/exportData.js";
 import { getPublishedRecords } from "../api/publishedData.js";
+import {
+  getMedia,
+  subscribeToMedia,
+} from "../api/media.js";
 import { BarChart, Bar, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, } from "recharts";
 
 
@@ -218,6 +222,7 @@ function Education() {
   const [indicators, setIndicators] = useState([]);
   const [indicatorsLoading, setIndicatorsLoading] = useState(true);
   const [indicatorsError, setIndicatorsError] = useState("");
+  const [educationMedia, setEducationMedia] = useState([]);
 
   // National overview data
   // All published education records, including state-level records
@@ -321,46 +326,52 @@ function Education() {
     };
   }, []);
 
+    const educationReleases = educationMedia
+    .filter((release) =>
+      release.category?.toLowerCase().includes("education")
+    )
+    .slice(0, 3);
+
   // LOAD EDUCATION INDICATORS FROM BACKEND
-useEffect(() => {
-  let isMounted = true;
+  useEffect(() => {
+    let isMounted = true;
 
-  async function loadIndicators() {
-    try {
-      const data = await getIndicators();
+    async function loadIndicators() {
+      try {
+        const data = await getIndicators();
 
-      if (!isMounted) return;
+        if (!isMounted) return;
 
-      const educationIndicators = (Array.isArray(data) ? data : [])
-        .filter(
-          (item) =>
-            String(item.sector ?? "").toLowerCase() === "education"
-        )
-        .sort((a, b) =>
-          (a.name || "").localeCompare(b.name || "")
-        );
+        const educationIndicators = (Array.isArray(data) ? data : [])
+          .filter(
+            (item) =>
+              String(item.sector ?? "").toLowerCase() === "education"
+          )
+          .sort((a, b) =>
+            (a.name || "").localeCompare(b.name || "")
+          );
 
-      setIndicators(educationIndicators);
-      setIndicatorsError("");
-    } catch (error) {
-      if (isMounted) {
-        setIndicatorsError(
-          error.message || "Unable to load education indicators."
-        );
-      }
-    } finally {
-      if (isMounted) {
-        setIndicatorsLoading(false);
+        setIndicators(educationIndicators);
+        setIndicatorsError("");
+      } catch (error) {
+        if (isMounted) {
+          setIndicatorsError(
+            error.message || "Unable to load education indicators."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIndicatorsLoading(false);
+        }
       }
     }
-  }
 
-  loadIndicators();
+    loadIndicators();
 
-  return () => {
-    isMounted = false;
-  };
-}, []);
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // LOAD ALL PUBLISHED EDUCATION RECORDS
   // Public request: no login is required to view these summaries.
@@ -428,6 +439,45 @@ useEffect(() => {
 
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  // LOAD EDUCATION MEDIA RELEASES
+  useEffect(() => {
+    let isMounted = true;
+
+    function updateEducationMedia(response) {
+      if (!isMounted || !Array.isArray(response?.items)) {
+        return;
+      }
+
+      setEducationMedia(response.items);
+    }
+
+    // Listen for refreshed articles.
+    const unsubscribe = subscribeToMedia(updateEducationMedia);
+
+    async function loadEducationMedia() {
+      try {
+        const response = await getMedia({
+          limit: 20,
+          offset: 0,
+        });
+
+        updateEducationMedia(response);
+      } catch (error) {
+        console.error(
+          "Failed to load education media reports:",
+          error
+        );
+      }
+    }
+
+    loadEducationMedia();
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
     };
   }, []);
 
@@ -1954,7 +2004,9 @@ useEffect(() => {
             id="education-releases"
             className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
           >
-            {releases.map((release) => (
+            {[...educationReleases, ...releases]
+            .slice(0, 3)
+            .map((release) => (
               <Link
                 to={
                   release.id

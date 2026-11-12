@@ -121,67 +121,6 @@ function getComparisonYears(comparison) {
   return [];
 }
 
-// --------------------------------------------------
-// Fixed colours for Nigerian states and FCT
-// --------------------------------------------------
-
-const stateColorPalette = {
-  Abia: "#E63946",
-  Adamawa: "#2563EB",
-  "Akwa Ibom": "#059669",
-  Anambra: "#92f3EA",
-  Bauchi: "#EA580C",
-  Bayelsa: "#0891B2",
-  Benue: "#BE123C",
-  Borno: "#4F46E5",
-  "Cross River": "#0D9488",
-  Delta: "#C026D3",
-  Ebonyi: "#65A30D",
-  Edo: "#D97706",
-  Ekiti: "#7C3AED",
-  Enugu: "#0284C7",
-  FCT: "#DB2777",
-  Gombe: "#16A34A",
-  Imo: "#DC2626",
-  Jigawa: "#4F46E5",
-  Kaduna: "#0F766E",
-  Kano: "#A21CAF",
-  Katsina: "#B45309",
-  Kebbi: "#1D4ED8",
-  Kogi: "#15803D",
-  Kwara: "#C2410C",
-  Lagos: "#7E22CE",
-  Nasarawa: "#0369A1",
-  Niger: "#CA8A04",
-  Ogun: "#0F9D8A",
-  Ondo: "#BE185D",
-  Osun: "#4338CA",
-  Oyo: "#4D7C0F",
-  Plateau: "#9333EA",
-  Rivers: "#0369A1",
-  Sokoto: "#B91C1C",
-  Taraba: "#0E7490",
-  Yobe: "#A16207",
-  Zamfara: "#6D28D9",
-};
-
-function getStateColor(state) {
-  return stateColorPalette[state] || "#475569";
-}
-
-function getStateColorRGB(state) {
-  const color = getStateColor(state);
-
-  const hex = color.replace("#", "");
-
-  return [
-    parseInt(hex.substring(0, 2), 16),
-    parseInt(hex.substring(2, 4), 16),
-    parseInt(hex.substring(4, 6), 16),
-  ];
-}
-
-
 // Format missing values
 function formatValue(value) {
   if (value === null || value === undefined || value === "") {
@@ -734,131 +673,78 @@ function ProvenancePlaceholder({ result }) {
 // --------------------------------------------------
 
 function AnalysisBrief({ comparison, result, resultsLoading }) {
-  const displayedYears =
-    comparison.selectedYears?.length > 0
-      ? comparison.selectedYears.join(", ")
-      : comparison.fromYear && comparison.toYear
-        ? comparison.fromYear === comparison.toYear
-          ? comparison.fromYear
-          : `${comparison.fromYear}–${comparison.toYear}`
-        : "All available years";
-
-    const analysisExplanation = useMemo(() => {
-  if (resultsLoading) {
-    return "Preparing comparison findings...";
-  }
-
-  if (!result || !Array.isArray(result.series)) {
-    return "No comparison data is currently available.";
-  }
-
-  const validPeriods = result.series
-    .map((period) => {
-      const rows = (period.rows || [])
-        .filter(
-          (row) =>
-            row.state &&
-            row.value !== null &&
-            row.value !== undefined &&
-            row.value !== "" &&
-            Number.isFinite(Number(row.value))
-        )
-        .map((row) => ({
-          state: row.state,
-          value: Number(row.value),
-        }));
-
-      return {
-        year: period.year,
-        national_average: period.national_average,
-        missing_states: period.missing_states || [],
-        rows,
-      };
-    })
-    .filter((period) => period.rows.length > 0);
-
-  if (validPeriods.length === 0) {
-    return "No usable state values were returned for this comparison.";
-  }
-
-  const unit =
-    comparison.unit ||
-    result.indicator?.unit ||
-    "";
-
-  const formatAnalysisValue = (value) =>
-    `${formatValue(value)}${unit ? ` ${unit}` : ""}`;
-
-  const latestPeriod = validPeriods[validPeriods.length - 1];
-
-  const higherIsBetter =
-  result.indicator?.higher_is_better;
-
-  const rankedRows = [...latestPeriod.rows].sort(
-    (a, b) =>
-      higherIsBetter === false
-        ? a.value - b.value
-        : b.value - a.value
-  );
-
-  let explanation =
-    `Comparing ${comparison.indicatorName} across ${comparison.selectedStates.join(", ")}.`;
-
-  explanation +=
-    ` Latest year (${latestPeriod.year}): Best-performing — ${rankedRows[0].state} (${formatAnalysisValue(rankedRows[0].value)}).`;
-
-  if (rankedRows.length > 1) {
-    const lowest = rankedRows[rankedRows.length - 1];
-
-    explanation +=
-      ` Lowest-performing — ${lowest.state} (${formatAnalysisValue(lowest.value)}).`;
-  }
-
-  const yearlyFindings = validPeriods.map((period) => {
-    const average =
-      period.national_average !== null &&
-      period.national_average !== undefined &&
-      Number.isFinite(Number(period.national_average))
-        ? Number(period.national_average)
-        : null;
-
-    const above =
-      average === null
-        ? []
-        : period.rows
-            .filter((row) => row.value > average)
-            .map((row) => row.state);
-
-    const below =
-      average === null
-        ? []
-        : period.rows
-            .filter((row) => row.value < average)
-            .map((row) => row.state);
-
-    const parts = [
-      `${period.year}:`,
-      `National avg. ${average === null ? "—" : formatAnalysisValue(average)}`,
-      `Above: ${above.join(", ")  || " "}`,
-      `Below: ${below.join(", ") || " "}`,
-    ];
-
-    if (period.missing_states.length > 0) {
-      parts.push(`Missing: ${period.missing_states.join(", ")}`);
+  
+    const analysisData = useMemo(() => {
+    if (resultsLoading || !result || !Array.isArray(result.series)) {
+      return null;
     }
 
-    return parts.join("  ");
-  });
+    const validPeriods = result.series
+      .map((period) => {
+        const rows = (period.rows || [])
+          .filter(
+            (row) =>
+              row.state &&
+              row.value !== null &&
+              row.value !== undefined &&
+              row.value !== "" &&
+              Number.isFinite(Number(row.value))
+          )
+          .map((row) => ({
+            state: row.state,
+            value: Number(row.value),
+          }));
 
-  explanation += `\n\n${yearlyFindings.join("\n")}`;
+        return {
+          year: period.year,
+          national_average: period.national_average,
+          missing_states: period.missing_states || [],
+          rows,
+        };
+      })
+      .filter((period) => period.rows.length > 0);
 
-  if (result.contains_simulated_data === true) {
-    explanation +=
-      "\n\nNote: This comparison contains simulated data, not verified statistics.";
-  }
+    const allRows = validPeriods.flatMap((period) =>
+      period.rows.map((row) => ({
+        ...row,
+        year: period.year,
+      }))
+    );
 
-  return explanation;
-  }, [comparison, result, resultsLoading]);
+    if (allRows.length === 0) {
+      return {
+        validPeriods,
+        highest: null,
+        lowest: null,
+        reportingYears: [],
+        stateCount: 0,
+      };
+    }
+
+    const highest = allRows.reduce((current, row) =>
+      row.value > current.value ? row : current
+    );
+
+    const lowest = allRows.reduce((current, row) =>
+      row.value < current.value ? row : current
+    );
+
+    const reportingYears = [
+      ...new Set(validPeriods.map((period) => String(period.year))),
+    ].sort((a, b) => Number(a) - Number(b));
+
+    const representedStates = [
+      ...new Set(allRows.map((row) => row.state)),
+    ];
+
+    return {
+      validPeriods,
+      highest,
+      lowest,
+      reportingYears,
+      stateCount: representedStates.length,
+    };
+  }, [result, resultsLoading]);
 
 
   return (
@@ -887,61 +773,132 @@ function AnalysisBrief({ comparison, result, resultsLoading }) {
         Findings will depend on the available records.
       </p>
 
-      <div className="mt-4 space-y-3 border-t border-slate-200 pt-4 text-xs">
-        
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-          <span className="text-slate-500">Indicator</span>
+      {/* OVERVIEW */}
+      <div className="mt-4 space-y-4 border-t border-slate-200 pt-4">
 
-          <span className="w-full wrap-break-word text-left font-medium text-slate-700 sm:max-w-[65%] sm:text-right">
-            {comparison.indicatorName}
-          </span>
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-[#0B3C5D]">
+            Overview
+          </h3>
+
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            This report examines {comparison.indicatorName.toLowerCase()} across{" "}
+            {comparison.selectedStates.length} selected Nigerian states
+            using published CivicIntel data.
+            The analysis covers{" "}
+            {analysisData?.reportingYears.join(", ") || "the selected reporting period"}.
+          </p>
         </div>
 
+        <div className="grid grid-cols-2 gap-3">
 
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-          <span className="text-slate-500">Indicator key</span>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[10px] text-slate-500">
+              States represented
+            </p>
 
-          <span className="w-full break-all text-left font-medium text-slate-700 sm:max-w-[65%] sm:text-right">
-            {comparison.indicator}
-          </span>
-        </div>
+            <p className="mt-1 text-xl font-bold text-slate-900">
+              {analysisData?.stateCount ?? 0}
+            </p>
+          </div>
 
-        <div className="flex items-start justify-between gap-3">
-          <span className="text-slate-500">Selected states</span>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[10px] text-slate-500">
+              Reporting years
+            </p>
 
-          <span className="max-w-[65%] wrap-break-word text-right font-medium text-slate-700">
-            {comparison.selectedStates.join(", ")}
-          </span>
-        </div>
+            <p className="mt-1 text-sm font-bold text-slate-900">
+              {analysisData?.reportingYears.join(", ") || "No data"}
+            </p>
+          </div>
 
-        <div className="flex items-start justify-between gap-3">
-          <span className="text-slate-500">Selected years</span>
+          </div>
 
-          <span className="max-w-[65%] text-right font-medium text-slate-700">
-            {displayedYears}
-          </span>
-        </div>
+          {/* STATES WITH MISSING DATA */}
+          <div className="border-t border-slate-200 pt-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#0B3C5D]">
+              States with Missing Data
+            </h3>
 
-        
+            <div className="mt-3 space-y-3">
+              {analysisData?.validPeriods?.length > 0 ? (
+                analysisData.validPeriods.map((period) => (
+                  <div key={period.year}>
+                    <p className="text-xs font-medium text-slate-700">
+                      {period.year}
+                    </p>
 
-        <div className="flex items-start justify-between gap-3">
-          <span className="text-slate-500">Unit</span>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      {period.missing_states.length > 0
+                        ? period.missing_states.join(", ")
+                        : "No missing states reported for this year."}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-slate-500">
+                  Missing-data information is unavailable.
+                </p>
+              )}
+            </div>
+          </div>
 
-          <span className="max-w-[65%] text-right font-medium text-slate-700">
-            {comparison.unit || result?.indicator?.unit || "Not specified"}
-          </span>
+          {/* KEY FINDINGS */}
+          <div className="border-t border-slate-200 pt-5">
+
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-[#0B3C5D]">
+            Key Findings
+          </h3>
+
+          <div className="mt-4 grid grid-cols-2 gap-3">
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="text-[10px] text-slate-500">
+                Highest reported value
+              </p>
+
+              <p className="mt-2 text-lg font-bold text-slate-900">
+                {analysisData?.highest
+                  ? `${formatValue(analysisData.highest.value)} ${
+                      comparison.unit || result?.indicator?.unit || ""
+                    }`
+                  : "—"}
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                {analysisData?.highest?.state ?? "No data"}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="text-[10px] text-slate-500">
+                Lowest reported value
+              </p>
+
+              <p className="mt-2 text-lg font-bold text-slate-900">
+                {analysisData?.lowest
+                  ? `${formatValue(analysisData.lowest.value)} ${
+                      comparison.unit || result?.indicator?.unit || ""
+                    }`
+                  : "—"}
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                {analysisData?.lowest?.state ?? "No data"}
+              </p>
+            </div>
+
+          </div>
+
+          <p className="mt-3 text-[10px] leading-5 text-slate-500">
+            These findings describe reported values and do not automatically
+            indicate better or worse outcomes.
+          </p>
+
         </div>
       </div>
 
-      <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-3">
-        <p className="text-xs font-medium text-[#0B3C5D]">
-          Overview and key findings
-        </p>
-
-        <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-slate-500">
-          {analysisExplanation}
-        </p>
-      </div>
+      
     </section>
   );
 }
