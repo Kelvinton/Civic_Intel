@@ -1,4 +1,5 @@
 
+import { ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getStates, getIndicators,} from "../api/referenceData.js";
 import { apiRequest } from "../api/api.js";
@@ -37,6 +38,32 @@ const releases = [
     image: Education3,
   },
 ];
+
+// --------------------------------------------------
+// Fixed colours for Nigerian states and FCT
+// --------------------------------------------------
+
+const yearColorPalette = [
+  "#2563EB",
+  "#059669",
+  "#D97706",
+  "#9333EA",
+  "#DC2626",
+  "#0891B2",
+  "#C026D3",
+  "#65A30D",
+];
+
+function getYearColorRGB(index) {
+  const color = yearColorPalette[index % yearColorPalette.length];
+  const hex = color.replace("#", "");
+
+  return [
+    parseInt(hex.substring(0, 2), 16),
+    parseInt(hex.substring(2, 4), 16),
+    parseInt(hex.substring(4, 6), 16),
+  ];
+}
 
 // const formatNumber = (number) =>
 //   new Intl.NumberFormat("en-NG").format(number);
@@ -127,12 +154,23 @@ function Education() {
   const { isLoggedIn } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const restoredFilters = location.state?.educationFilters;
+  const restoredFilters =
+  location.state?.educationFilters ??
+  (() => {
+    try {
+      return JSON.parse(
+        sessionStorage.getItem("civicintel_education_filters") || "null"
+      );
+    } catch {
+      return null;
+    }
+  })();
   
   const shouldReduceMotion = useReducedMotion();
 
   const stateDropdownRef = useRef(null);
   const yearDropdownRef = useRef(null);
+ 
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -392,6 +430,8 @@ useEffect(() => {
       isMounted = false;
     };
   }, []);
+
+  
 
   // INDICATORS PROVIDED BY THE BACKEND
   const availableIndicators = useMemo(() => {
@@ -780,6 +820,7 @@ useEffect(() => {
     );
   }, [educationRecords, search]);
 
+
   // PAGINATE FILTERED EDUCATION RECORDS
   const totalPages = Math.ceil(
     filteredRecords.length / RECORDS_PER_PAGE
@@ -821,19 +862,28 @@ useEffect(() => {
       return;
     }
 
-    setSearch("");
-    setCurrentPage(0);
-    setEducationRecords([]);
-    setRecordsError("");
-    setRecordsLoading(true);
-    setShowExportOptions(false);
+      const filters = {
+        indicator,
+        states: state,
+        years: year,
+      };
 
-    setAppliedFilters({
-      indicator,
-      states: state,
-      years: year,
-    });
+      sessionStorage.setItem(
+        "civicintel_education_filters",
+        JSON.stringify(filters)
+      );
+
+      setSearch("");
+      setCurrentPage(0);
+      setEducationRecords([]);
+      setRecordsError("");
+      setRecordsLoading(true);
+      setShowExportOptions(false);
+
+      setAppliedFilters(filters);
   };
+
+
 
   const handleExport = async (format) => {
     if (!requireLogin("export education data")) return;
@@ -931,7 +981,7 @@ useEffect(() => {
               ),
             ]
               .sort((a, b) => a - b)
-              .map((year) => {
+              .map((year, yearIndex) => {
                 const recordsByState = new Map();
 
                 matchingRecords
@@ -954,6 +1004,7 @@ useEffect(() => {
                     recordsByState.set(normalizedState, {
                       state: stateName,
                       value,
+                      color: getYearColorRGB(yearIndex),
                     });
                   });
 
@@ -985,6 +1036,10 @@ useEffect(() => {
             matchingRecords.find(
               (record) => record.unit
             )?.unit ?? "",
+
+           chartColors: [
+            [31, 122, 63], // #1F7A3F — Education green
+          ],
 
           metadata: {
           Year:
@@ -1176,32 +1231,43 @@ useEffect(() => {
           <form onSubmit={handleApplyFilters}>
             <div className="grid gap-4 md:grid-cols-3">
               <label className="flex flex-col gap-2 text-xs">
-                Indicator
+                <div className="flex min-h-8 flex-col justify-end">
+                  <span>Indicator</span>
+                </div>
 
-                <select
-                  value={indicator}
-                  onChange={(event) => setIndicator(event.target.value)}
-                  disabled={indicatorsLoading}
-                  className="w-full rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-wait disabled:opacity-60"
-                >
-                  <option value="all">All Education Indicators</option>
+                <div className="relative">
+                  <select
+                    value={indicator}
+                    onChange={(event) => setIndicator(event.target.value)}
+                    disabled={indicatorsLoading}
+                    className="w-full appearance-none rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 pr-10 text-sm outline-none focus:border-[#1F7A3F] disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {/* KEEP ALL YOUR EXISTING OPTIONS HERE */}
+                  
+                    <option value="all">All Education Indicators</option>
 
-                  {indicatorsLoading ? (
-                    <option value="" disabled>
-                      Loading indicators...
-                    </option>
-                  ) : indicators.length > 0 ? (
-                    indicators.map((item) => (
-                      <option key={item.key} value={item.key}>
-                        {item.name || item.key}
+                    {indicatorsLoading ? (
+                      <option value="" disabled>
+                        Loading indicators...
                       </option>
-                    ))
-                  ) : (
-                    <option value="" disabled>
-                      No education indicators available
-                    </option>
-                  )}
-                </select>
+                    ) : indicators.length > 0 ? (
+                      indicators.map((item) => (
+                        <option key={item.key} value={item.key}>
+                          {item.name || item.key}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>
+                        No education indicators available
+                      </option>
+                    )}
+                  </select>
+
+                  <ChevronDown
+                      size={16}
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-600"
+                  />
+                </div>
 
                 {indicatorsError && (
                   <p className="mt-1 text-xs text-red-600">
@@ -1211,14 +1277,23 @@ useEffect(() => {
               </label>
 
               <label className="flex flex-col gap-2 text-xs">
-                States
+                <div className="flex min-h-8 flex-col justify-end">
+                  <span>State</span>
+                  <span>Select single or multiple states</span>
+                </div>
 
                 <details ref={stateDropdownRef} className="relative">
-                  <summary className="cursor-pointer list-none rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm">
-                    {state.length === 0
-                      ? "All states"
-                      : `${state.length} state${state.length > 1 ? "s" : ""} selected`}
-                    <span className="float-right">▾</span>
+                  <summary className="flex cursor-pointer list-none items-center justify-between rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm">
+                    <span>
+                      {state.length === 0
+                        ? "All states"
+                        : `${state.length} state${state.length > 1 ? "s" : ""} selected`}
+                    </span>
+
+                    <ChevronDown
+                      size={16}
+                      className="shrink-0 text-slate-600"
+                    />
                   </summary>
 
                   <div className="absolute left-0 z-30 mt-2 max-h-64 w-full min-w-48 overflow-y-auto rounded-xl border border-gray-200 bg-white p-3 text-[#20272B] shadow-xl">
@@ -1273,15 +1348,23 @@ useEffect(() => {
               </label>
 
               <label className="flex flex-col gap-2 text-xs">
-                Year
+                <div className="flex min-h-8 flex-col justify-end">
+                  <span>Year</span>
+                  <span>Select single or multiple years</span>
+                </div>
 
                 <details ref={yearDropdownRef} className="relative">
-                  <summary className="cursor-pointer list-none rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm">
-                    {year.length === 0
-                      ? "All available years"
-                      : `${year.length} year${year.length > 1 ? "s" : ""} selected`}
+                  <summary className="flex cursor-pointer list-none items-center justify-between rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm">
+                    <span>
+                      {year.length === 0
+                        ? "All available years"
+                        : `${year.length} year${year.length > 1 ? "s" : ""} selected`}
+                    </span>
 
-                    <span className="float-right">▾</span>
+                    <ChevronDown
+                      size={16}
+                      className="shrink-0 text-slate-600"
+                    />
                   </summary>
 
                   <div className="absolute left-0 z-30 mt-2 max-h-64 w-full min-w-48 overflow-y-auto rounded-xl border border-gray-200 bg-white p-3 text-[#20272B] shadow-xl">
@@ -1410,6 +1493,7 @@ useEffect(() => {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
+
                   <button
                     type="button"
                     onClick={() =>
@@ -1534,7 +1618,7 @@ useEffect(() => {
                   </button>
                 </div>
               ) : (
-                <>
+                <div>
                   <div className="mb-4 flex flex-wrap items-center gap-3">
                     <span className="rounded-sm bg-gray-200 px-2 py-1 text-[10px] text-gray-700">
                       Showing {paginatedRecords.length} of{" "}
@@ -1547,6 +1631,7 @@ useEffect(() => {
                   </div>
 
                   <div className="overflow-x-auto rounded-sm">
+                    
                     <table className="w-full min-w-212.5 border-collapse bg-[#FFFBEF] text-left text-[#20272B]">
                       <thead className="bg-[#E5EBEE] text-[10px] uppercase">
                         <tr>
@@ -1602,7 +1687,9 @@ useEffect(() => {
                   </div>
 
                   {/* PAGINATION */}
-                  <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
+                  <div
+                    className="mt-5 flex flex-wrap items-center justify-between gap-4"
+                  >
                     <p className="text-xs text-white/70">
                       Page {totalPages === 0 ? 0 : currentPage + 1}{" "}
                       of {totalPages}
@@ -1657,7 +1744,7 @@ useEffect(() => {
                       methodology
                     </p>
                   </div>
-                </>
+                </div>
               )}
             </div>
           )}

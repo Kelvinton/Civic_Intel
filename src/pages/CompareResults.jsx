@@ -1,8 +1,11 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Download } from "lucide-react";
+
+import { toPng } from "html-to-image";
+import civicIntelLogo from "../assets/civicintellogo1.png";
 
 import {
   BarChart,
@@ -12,6 +15,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  LabelList,
 } from "recharts";
 
 import { apiRequest } from "../api/api.js";
@@ -21,7 +25,7 @@ import {
 } from "../utility/exportData.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getComparison } from "../api/referenceData.js";
-import SurveyCoverageChart from "../components/SurveyCoverageChart.jsx";
+// import SurveyCoverageChart from "../components/SurveyCoverageChart.jsx";
 
 
 
@@ -118,9 +122,67 @@ function getComparisonYears(comparison) {
 }
 
 // --------------------------------------------------
-// Format missing values
+// Fixed colours for Nigerian states and FCT
 // --------------------------------------------------
 
+const stateColorPalette = {
+  Abia: "#E63946",
+  Adamawa: "#2563EB",
+  "Akwa Ibom": "#059669",
+  Anambra: "#92f3EA",
+  Bauchi: "#EA580C",
+  Bayelsa: "#0891B2",
+  Benue: "#BE123C",
+  Borno: "#4F46E5",
+  "Cross River": "#0D9488",
+  Delta: "#C026D3",
+  Ebonyi: "#65A30D",
+  Edo: "#D97706",
+  Ekiti: "#7C3AED",
+  Enugu: "#0284C7",
+  FCT: "#DB2777",
+  Gombe: "#16A34A",
+  Imo: "#DC2626",
+  Jigawa: "#4F46E5",
+  Kaduna: "#0F766E",
+  Kano: "#A21CAF",
+  Katsina: "#B45309",
+  Kebbi: "#1D4ED8",
+  Kogi: "#15803D",
+  Kwara: "#C2410C",
+  Lagos: "#7E22CE",
+  Nasarawa: "#0369A1",
+  Niger: "#CA8A04",
+  Ogun: "#0F9D8A",
+  Ondo: "#BE185D",
+  Osun: "#4338CA",
+  Oyo: "#4D7C0F",
+  Plateau: "#9333EA",
+  Rivers: "#0369A1",
+  Sokoto: "#B91C1C",
+  Taraba: "#0E7490",
+  Yobe: "#A16207",
+  Zamfara: "#6D28D9",
+};
+
+function getStateColor(state) {
+  return stateColorPalette[state] || "#475569";
+}
+
+function getStateColorRGB(state) {
+  const color = getStateColor(state);
+
+  const hex = color.replace("#", "");
+
+  return [
+    parseInt(hex.substring(0, 2), 16),
+    parseInt(hex.substring(2, 4), 16),
+    parseInt(hex.substring(4, 6), 16),
+  ];
+}
+
+
+// Format missing values
 function formatValue(value) {
   if (value === null || value === undefined || value === "") {
     return "—";
@@ -262,13 +324,27 @@ function exportComparison(comparison, format, records = null) {
   ];
 
   // Prepare chart data using the original API records.
+  const yearColors = [
+    [11, 60, 93],   // Navy
+    [31, 122, 63],  // Green
+    [214, 167, 86], // Gold
+    [124, 58, 237], // Purple
+  ];
+
   const chartData = (records || []).reduce((periods, record) => {
     const year = String(record.Year);
 
     let period = periods.find((item) => item.year === year);
 
     if (!period) {
-      period = { year, rows: [] };
+      const yearColor = yearColors[periods.length % yearColors.length];
+
+      period = {
+        year,
+        rows: [],
+        color: yearColor,
+      };
+
       periods.push(period);
     }
 
@@ -284,6 +360,8 @@ function exportComparison(comparison, format, records = null) {
       period.rows.push({
         state: record.state,
         value,
+        color: period.color,
+        colorLabel: period.year,
       });
     }
 
@@ -301,6 +379,12 @@ function exportComparison(comparison, format, records = null) {
     chartData,
     chartTitle: comparison.indicatorName,
     chartUnit: comparison.unit || "",
+    chartColors: [
+      [11, 60, 93],   // Navy
+      [31, 122, 63],  // Green
+      [214, 167, 86], // Gold
+      [124, 58, 237], // Purple
+    ],
     landscape: true,
   });
 
@@ -376,7 +460,17 @@ function ChartPlaceholder({result, loading, error, selectedStates = [], unit = "
     selectedStates.some((state) => item[state] !== undefined)
   );
 
-  const stateColors = ["#1F7A3F", "#D6A756", "#0B3C5D", "#8B5CF6"];
+  const chartYears = graphData.map((item) => String(item.year));
+
+  const chartData = selectedStates.map((state) => {
+    const stateData = { state };
+
+    graphData.forEach((item) => {
+      stateData[String(item.year)] = item[state];
+    });
+
+    return stateData;
+  });
 
   return (
     <div className="min-w-0 bg-white p-4 sm:p-5">
@@ -414,105 +508,109 @@ function ChartPlaceholder({result, loading, error, selectedStates = [], unit = "
       ) : (
         <>
           {/* Grouped comparison graph */}
-          <div className="mt-5 h-72 w-full max-w-3xl">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={graphData}
-                margin={{
-                  top: 15,
-                  right: 15,
-                  left: 0,
-                  bottom: 10,
-                }}
-                barCategoryGap="35%"
-                barGap={5}
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  vertical={false}
-                  stroke="#E2E8F0"
-                />
+          <div className="mt-5 w-full max-w-3xl">
+            <ResponsiveContainer
+  width="100%"
+  height={Math.max(360, selectedStates.length * 55)}
+>
+  <BarChart
+    data={chartData}
+    layout="vertical"
+    margin={{
+      top: 10,
+      right: 55,
+      left: 5,
+      bottom: 10,
+    }}
+    barCategoryGap="25%"
+    barGap={3}
+  >
+    <CartesianGrid
+      strokeDasharray="3 3"
+      horizontal={false}
+      stroke="#E2E8F0"
+    />
 
-                <XAxis
-                  dataKey="year"
-                  tick={{ fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
+    <XAxis
+      type="number"
+      tick={{ fontSize: 10 }}
+      axisLine={false}
+      tickLine={false}
+      tickFormatter={(value) =>
+        `${formatValue(value)}${unit === "%" ? "%" : ""}`
+      }
+    />
 
-                <YAxis
-                  tick={{ fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={65}
-                  tickFormatter={(value) =>
-                    new Intl.NumberFormat("en", {
-                      notation: "compact",
-                      maximumFractionDigits: 1,
-                    }).format(value)
-                  }
-                />
+    <YAxis
+      type="category"
+      dataKey="state"
+      width={85}
+      tick={{ fontSize: 10 }}
+      axisLine={false}
+      tickLine={false}
+    />
 
-                <Tooltip
-                  formatter={(value, name) => [
-                    formatDisplayValue(value, unit),
-                    name,
-                  ]}
-                  contentStyle={{
-                    backgroundColor: "rgba(255, 255, 255, 0.88)",
-                    backdropFilter: "blur(6px)",
-                    borderRadius: "8px",
-                    border: "1px solid #E2E8F0",
-                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
-                    fontSize: "11px",
-                    padding: "8px 12px",
-                  }}
-                  itemStyle={{
-                    padding: "2px 0",
-                    fontWeight: 600,
-                  }}
-                  labelStyle={{
-                    color: "#0B3C5D",
-                    fontWeight: 700,
-                    marginBottom: "4px",
-                  }}
-                  wrapperStyle={{
-                    pointerEvents: "none",
-                    zIndex: 10,
-                  }}
-                />
+    <Tooltip
+      formatter={(value, name) => [
+        formatDisplayValue(value, unit),
+        name,
+      ]}
+      contentStyle={{
+        backgroundColor: "rgba(255, 255, 255, 0.95)",
+        borderRadius: "8px",
+        border: "1px solid #E2E8F0",
+        fontSize: "11px",
+      }}
+    />
 
-                {selectedStates.map((state, index) => (
-                  <Bar
-                    key={state}
-                    dataKey={state}
-                    name={state}
-                    fill={stateColors[index % stateColors.length]}
-                    radius={[4, 4, 0, 0]}
-                    maxBarSize={22}
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
+    {chartYears.map((year, index) => (
+      <Bar
+        key={year}
+        dataKey={year}
+        name={year}
+        fill={["#0B3C5D", "#1F7A3F", "#D6A756", "#7C3AED"][index % 4]}
+        radius={[0, 4, 4, 0]}
+        maxBarSize={18}
+      >
+        <LabelList
+          dataKey={year}
+          position="right"
+          formatter={(value) =>
+            value == null ? "" : formatDisplayValue(value, unit)
+          }
+          style={{
+            fontSize: 9,
+            fill: "#334155",
+          }}
+        />
+      </Bar>
+    ))}
+  </BarChart>
+</ResponsiveContainer>
           </div>
 
-          {/* Legend */}
-          <div className="mt-3 flex flex-wrap justify-center gap-4">
-            {selectedStates.map((state, index) => (
-              <div key={state} className="flex items-center gap-2">
-                <span
-                  className="size-2.5 rounded-sm"
-                  style={{
-                    backgroundColor:
-                      stateColors[index % stateColors.length],
-                  }}
-                />
-                <span className="text-xs text-slate-600">
-                  {state}
-                </span>
-              </div>
-            ))}
-          </div>
+          {/* Year legend */}
+<div className="mt-4 flex flex-wrap justify-center gap-4">
+  {chartYears.map((year, index) => (
+    <div key={year} className="flex items-center gap-2">
+      <span
+        className="size-2.5 rounded-sm"
+        style={{
+          backgroundColor: [
+            "#0B3C5D",
+            "#1F7A3F",
+            "#D6A756",
+            "#7C3AED",
+          ][index % 4],
+        }}
+      />
+
+      <span className="text-xs text-slate-600">
+        {year}
+      </span>
+    </div>
+  ))}
+</div>
 
           {/* National averages and missing records */}
           <div className="mt-6 space-y-3">
@@ -645,6 +743,124 @@ function AnalysisBrief({ comparison, result, resultsLoading }) {
           : `${comparison.fromYear}–${comparison.toYear}`
         : "All available years";
 
+    const analysisExplanation = useMemo(() => {
+  if (resultsLoading) {
+    return "Preparing comparison findings...";
+  }
+
+  if (!result || !Array.isArray(result.series)) {
+    return "No comparison data is currently available.";
+  }
+
+  const validPeriods = result.series
+    .map((period) => {
+      const rows = (period.rows || [])
+        .filter(
+          (row) =>
+            row.state &&
+            row.value !== null &&
+            row.value !== undefined &&
+            row.value !== "" &&
+            Number.isFinite(Number(row.value))
+        )
+        .map((row) => ({
+          state: row.state,
+          value: Number(row.value),
+        }));
+
+      return {
+        year: period.year,
+        national_average: period.national_average,
+        missing_states: period.missing_states || [],
+        rows,
+      };
+    })
+    .filter((period) => period.rows.length > 0);
+
+  if (validPeriods.length === 0) {
+    return "No usable state values were returned for this comparison.";
+  }
+
+  const unit =
+    comparison.unit ||
+    result.indicator?.unit ||
+    "";
+
+  const formatAnalysisValue = (value) =>
+    `${formatValue(value)}${unit ? ` ${unit}` : ""}`;
+
+  const latestPeriod = validPeriods[validPeriods.length - 1];
+
+  const higherIsBetter =
+  result.indicator?.higher_is_better;
+
+  const rankedRows = [...latestPeriod.rows].sort(
+    (a, b) =>
+      higherIsBetter === false
+        ? a.value - b.value
+        : b.value - a.value
+  );
+
+  let explanation =
+    `Comparing ${comparison.indicatorName} across ${comparison.selectedStates.join(", ")}.`;
+
+  explanation +=
+    ` Latest year (${latestPeriod.year}): Best-performing — ${rankedRows[0].state} (${formatAnalysisValue(rankedRows[0].value)}).`;
+
+  if (rankedRows.length > 1) {
+    const lowest = rankedRows[rankedRows.length - 1];
+
+    explanation +=
+      ` Lowest-performing — ${lowest.state} (${formatAnalysisValue(lowest.value)}).`;
+  }
+
+  const yearlyFindings = validPeriods.map((period) => {
+    const average =
+      period.national_average !== null &&
+      period.national_average !== undefined &&
+      Number.isFinite(Number(period.national_average))
+        ? Number(period.national_average)
+        : null;
+
+    const above =
+      average === null
+        ? []
+        : period.rows
+            .filter((row) => row.value > average)
+            .map((row) => row.state);
+
+    const below =
+      average === null
+        ? []
+        : period.rows
+            .filter((row) => row.value < average)
+            .map((row) => row.state);
+
+    const parts = [
+      `${period.year}:`,
+      `National avg. ${average === null ? "—" : formatAnalysisValue(average)}`,
+      `Above: ${above.join(", ")  || " "}`,
+      `Below: ${below.join(", ") || " "}`,
+    ];
+
+    if (period.missing_states.length > 0) {
+      parts.push(`Missing: ${period.missing_states.join(", ")}`);
+    }
+
+    return parts.join("  ");
+  });
+
+  explanation += `\n\n${yearlyFindings.join("\n")}`;
+
+  if (result.contains_simulated_data === true) {
+    explanation +=
+      "\n\nNote: This comparison contains simulated data, not verified statistics.";
+  }
+
+  return explanation;
+  }, [comparison, result, resultsLoading]);
+
+
   return (
     <section>
       <div className="flex items-center justify-between gap-3">
@@ -667,23 +883,25 @@ function AnalysisBrief({ comparison, result, resultsLoading }) {
 
       <p className="mt-2 text-xs leading-relaxed text-slate-500 sm:text-sm">
         This report compares the selected states using the
-        indicator and data returned by the CivicIntel backend.
+        indicator and data returned by the CivicIntel server.
         Findings will depend on the available records.
       </p>
 
       <div className="mt-4 space-y-3 border-t border-slate-200 pt-4 text-xs">
-        <div className="flex items-start justify-between gap-3">
+        
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
           <span className="text-slate-500">Indicator</span>
 
-          <span className="max-w-[65%] wrap-break-word text-right font-medium text-slate-700">
+          <span className="w-full wrap-break-word text-left font-medium text-slate-700 sm:max-w-[65%] sm:text-right">
             {comparison.indicatorName}
           </span>
         </div>
 
-        <div className="flex items-start justify-between gap-3">
+
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
           <span className="text-slate-500">Indicator key</span>
 
-          <span className="max-w-[65%] wrap-break-word text-right font-medium text-slate-700">
+          <span className="w-full break-all text-left font-medium text-slate-700 sm:max-w-[65%] sm:text-right">
             {comparison.indicator}
           </span>
         </div>
@@ -704,6 +922,8 @@ function AnalysisBrief({ comparison, result, resultsLoading }) {
           </span>
         </div>
 
+        
+
         <div className="flex items-start justify-between gap-3">
           <span className="text-slate-500">Unit</span>
 
@@ -718,12 +938,8 @@ function AnalysisBrief({ comparison, result, resultsLoading }) {
           Overview and key findings
         </p>
 
-        <p className="mt-1 text-xs leading-relaxed text-slate-500">
-          {resultsLoading
-            ? "The comparison data is being retrieved."
-            : result
-              ? "The comparison records, state averages, and national averages returned by the backend are displayed in the results section."
-              : "Summary statistics and insights will appear when comparison records are available."}
+        <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-slate-500">
+          {analysisExplanation}
         </p>
       </div>
     </section>
@@ -751,11 +967,22 @@ function CompareResults() {
   const [notice, setNotice] = useState("");
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [savingComparison, setSavingComparison] = useState(false);
+  const shareContentRef = useRef(null);
+  const [sharing, setSharing] = useState(false);
 
-  // --------------------------------------------------
+  // Automatically clear notifications after 2 seconds.
+  useEffect(() => {
+    if (!notice) return;
+
+    const timer = setTimeout(() => {
+      setNotice("");
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+
   // Login protection
-  // --------------------------------------------------
-
   useEffect(() => {
     if (loading || isLoggedIn) {
       return;
@@ -798,10 +1025,8 @@ function CompareResults() {
 
         // Request each selected year separately.
         if (comparison.selectedYears?.length > 0) {
-          console.log(
-            "Years selected for comparison:",
-            comparison.selectedYears
-          );
+          
+         
 
           responses = await Promise.all(
             comparison.selectedYears.map((year) =>
@@ -829,26 +1054,6 @@ function CompareResults() {
           (response) =>
             response?.data?.data ?? response?.data ?? response
         );
-
-        console.log("Individual year responses:", results);
-
-        results.forEach((item) => {
-          console.log("Year:", item.series?.[0]?.year);
-
-          console.table(
-            (item.series?.[0]?.rows || []).map((row) => ({
-              year: item.series?.[0]?.year,
-              state: row.state,
-              value: row.value,
-              zone: row.zone,
-            }))
-          );
-
-          console.log(
-            "Missing states:",
-            item.series?.[0]?.missing_states
-          );
-        });
 
         const firstResult = results[0] || {};
 
@@ -908,11 +1113,6 @@ function CompareResults() {
                     : []
                 ),
         };
-
-        console.log(
-          "Combined comparison result:",
-          combinedResult
-        );
 
         if (isMounted) {
           setResult(combinedResult);
@@ -981,9 +1181,15 @@ function CompareResults() {
         }))
       );
 
-      hasRecords = exportComparison(comparison, format, records);
+      hasRecords = exportComparison(
+        {
+          ...comparison,
+          unit: comparison.unit || result?.indicator?.unit || "",
+        },
+        format,
+        records
+      );
     } catch (error) {
-      console.error("Comparison export failed:", error);
 
       setNotice(
         error.message ||
@@ -1013,13 +1219,127 @@ function CompareResults() {
           : `${format.toUpperCase()} export downloaded and recorded. It contains your comparison settings only because no state records were returned.`
       );
     } catch (error) {
-      console.error("Export history recording failed:", error);
 
       setNotice(
         `${format.toUpperCase()} file was downloaded, but CivicIntel could not record it in your account history: ${error.message}`
       );
     }
   };
+
+
+  // --------------------------------------------------
+  // Share comparison as a branded PNG
+  // --------------------------------------------------
+
+  
+  const handleShare = async () => {
+    if (!shareContentRef.current || sharing) {
+      return;
+    }
+
+    try {
+      setSharing(true);
+
+      const imageUrl = await toPng(shareContentRef.current, {
+        pixelRatio: 2,
+        backgroundColor: "#E7ECEF",
+        filter: (node) =>
+          !(
+            node instanceof HTMLElement &&
+            node.dataset.shareExclude === "true"
+          ),
+      });
+
+      const reportImage = new Image();
+      reportImage.src = imageUrl;
+
+      await new Promise((resolve, reject) => {
+        reportImage.onload = resolve;
+        reportImage.onerror = reject;
+      });
+
+      const logo = new Image();
+      logo.src = civicIntelLogo;
+
+      await new Promise((resolve, reject) => {
+        logo.onload = resolve;
+        logo.onerror = reject;
+      });
+
+      const headerHeight = 140;
+      const canvas = document.createElement("canvas");
+
+      canvas.width = reportImage.width;
+      canvas.height = reportImage.height + headerHeight;
+
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        throw new Error("Could not create report image.");
+      }
+
+      context.fillStyle = "#0B3C5D";
+      context.fillRect(0, 0, canvas.width, headerHeight);
+
+      context.drawImage(logo, 30, 25, 90, 90);
+
+      context.fillStyle = "#FFFFFF";
+      context.font = "bold 34px Arial";
+      context.fillText("CivicIntel", 145, 65);
+
+      context.font = "18px Arial";
+      context.fillText("Comparison Report", 145, 100);
+
+      context.drawImage(reportImage, 0, headerHeight);
+
+      const blob = await new Promise((resolve) =>
+        canvas.toBlob(resolve, "image/png")
+      );
+
+      if (!blob) {
+        throw new Error("Could not generate the report PNG.");
+      }
+
+      const file = new File(
+        [blob],
+        "civicintel-comparison-report.png",
+        { type: "image/png" }
+      );
+
+      const canShareFile =
+        navigator.share &&
+        navigator.canShare &&
+        navigator.canShare({ files: [file] });
+
+      if (canShareFile) {
+        await navigator.share({
+          title: "CivicIntel Comparison Report",
+          text: "State comparison analysis from CivicIntel.",
+          files: [file],
+        });
+      } else {
+        const brandedImageUrl = canvas.toDataURL("image/png");
+
+        const link = document.createElement("a");
+        link.href = brandedImageUrl;
+        link.download = "civicintel-comparison-report.png";
+
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        window.alert(
+          "Unable to prepare the comparison image. Please try again."
+        );
+      }
+    } finally {
+      setSharing(false);
+    }
+  };
+
+
 
   // --------------------------------------------------
   // Save comparison to the user's account
@@ -1072,7 +1392,6 @@ function CompareResults() {
         "Comparison saved successfully to your account."
       );
     } catch (error) {
-      console.error("Could not save comparison:", error);
 
       setNotice(
         error.message ||
@@ -1083,10 +1402,8 @@ function CompareResults() {
     }
   };
 
-  // --------------------------------------------------
-  // Page layout
-  // --------------------------------------------------
 
+  // Page layout
   return (
     <div className="min-h-screen bg-[#E7ECEF] pt-18">
       <main className="mx-auto max-w-7xl px-4 pb-8 pt-18 sm:px-8 sm:pt-14 lg:px-10">
@@ -1110,7 +1427,10 @@ function CompareResults() {
         )}
 
         {comparison && (
-          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,2.1fr)_minmax(280px,0.9fr)] lg:gap-10">
+          <div 
+            ref={shareContentRef}
+            className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,2.1fr)_minmax(280px,0.9fr)] lg:gap-10"
+          >
             {/* Main results column */}
             <div className="min-w-0 space-y-5">
               {/* NEW: Average chart and table */}
@@ -1140,89 +1460,104 @@ function CompareResults() {
                 resultsLoading={resultsLoading}
               />
 
-              {/* Export menu */}
-              <div className="relative mt-5">
+              {/* Share, export and save actions */}
+              <div data-share-exclude="true">
+                {/* Share report */}
                 <button
                   type="button"
-                  onClick={() =>
-                    setShowExportMenu((previous) => !previous)
-                  }
-                  aria-expanded={showExportMenu}
-                  aria-controls="comparison-export-menu"
-                  className="flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#176332] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F7A3F]"
+                  onClick={handleShare}
+                  disabled={sharing}
+                  className="flex w-full items-center justify-center gap-3 rounded-full bg-[#0B3C5D] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#082F49] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <span>Export</span>
-
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    className={`h-4 w-4 transition-transform duration-200 ${
-                      showExportMenu ? "rotate-180" : ""
-                    }`}
-                    aria-hidden="true"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="m6 9 6 6 6-6"
-                    />
-                  </svg>
+                  {sharing ? "Preparing image..." : "Share report"}
                 </button>
 
-                {showExportMenu && (
-                  <div
-                    id="comparison-export-menu"
-                    className="absolute left-0 right-0 z-10 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
+                {/* Export menu */}
+                <div className="relative mt-5">
+                 
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowExportMenu((previous) => !previous)
+                    }
+                    aria-expanded={showExportMenu}
+                    aria-controls="comparison-export-menu"
+                    className="flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#176332] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F7A3F]"
                   >
-                    {["CSV", "PDF", "XLSX"].map((format) => (
-                      <button
-                        key={format}
-                        type="button"
-                        onClick={() => handleExport(format)}
-                        className="block w-full px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50 focus-visible:bg-slate-50"
-                      >
-                        Export as {format}
-                      </button>
-                    ))}
+                    <span>Export</span>
+
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      className={`h-4 w-4 transition-transform duration-200 ${
+                        showExportMenu ? "rotate-180" : ""
+                      }`}
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="m6 9 6 6 6-6"
+                      />
+                    </svg>
+                  </button>
+
+                  {showExportMenu && (
+                    <div
+                      id="comparison-export-menu"
+                      className="absolute left-0 right-0 z-10 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
+                    >
+                      {["CSV", "PDF", "XLSX"].map((format) => (
+                        <button
+                          key={format}
+                          type="button"
+                          onClick={() => handleExport(format)}
+                          className="block w-full px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50 focus-visible:bg-slate-50"
+                        >
+                          Export as {format}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+             
+
+                {/* Save comparison */}
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={savingComparison || !comparison}
+                  className="mt-2 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#176332] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F7A3F] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingComparison ? "Saving..." : "Save comparison"}
+
+                  {savingComparison ? (
+                    <span className="size-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  ) : (
+                    <Download
+                      className="h-4 w-4"
+                      aria-hidden="true"
+                    />
+                  )}
+                </button>
+
+                {/* Export and save notifications */}
+                {notice && (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-xs leading-relaxed text-slate-700"
+                  >
+                    {notice}
                   </div>
                 )}
+
+                {/* Survey coverage chart */}
+                {/* <SurveyCoverageChart /> */}
               </div>
-
-              {/* Save comparison */}
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={savingComparison || !comparison}
-                className="mt-2 flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#176332] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F7A3F] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {savingComparison ? "Saving..." : "Save comparison"}
-
-                {savingComparison ? (
-                  <span className="size-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                ) : (
-                  <Download
-                    className="h-4 w-4"
-                    aria-hidden="true"
-                  />
-                )}
-              </button>
-
-              {/* Export and save notifications */}
-              {notice && (
-                <div
-                  role="status"
-                  aria-live="polite"
-                  className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-xs leading-relaxed text-slate-700"
-                >
-                  {notice}
-                </div>
-              )}
-
-              {/* Survey coverage chart */}
-              <SurveyCoverageChart />
             </aside>
           </div>
         )}

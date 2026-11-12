@@ -50,7 +50,7 @@ function formatDisplayDate(date, prefix = "") {
   })}`;
 }
 
-// Display years from saved comparisons and export records.
+// Display years from saved comparisons 
 function formatYearDisplay(item) {
   if (item.year != null) {
     return item.year;
@@ -126,9 +126,7 @@ function Account() {
 
   // Filters and See all controls
   const [savedFilter, setSavedFilter] = useState("All");
-  const [exportFilter, setExportFilter] = useState("All");
   const [showAllSaved, setShowAllSaved] = useState(false);
-  const [showAllExports, setShowAllExports] = useState(false);
 
   // Saved comparisons from the backend
   const [savedItems, setSavedItems] = useState([]);
@@ -139,12 +137,6 @@ function Account() {
   // Custom delete confirmation popup
   const [deleteConfirmation, setDeleteConfirmation] = useState(null);
 
-  // Export history from the backend
-  const [exportItems, setExportItems] = useState([]);
-  const [exportTotal, setExportTotal] = useState(0);
-  const [loadingExports, setLoadingExports] = useState(true);
-  const [exportError, setExportError] = useState("");
-  const [deletingExportId, setDeletingExportId] = useState(null);
 
   // Profile fields
   const [name, setName] = useState(() => getUserName(user));
@@ -159,28 +151,20 @@ function Account() {
   const [notice, setNotice] = useState("");
   const [noticeType, setNoticeType] = useState("info");
 
-  // Fetch saved comparisons and export history.
+  // Fetch saved comparisons.
   useEffect(() => {
     // No request is needed when the user is logged out.
-    // The login screen is displayed instead.
     if (!isLoggedIn) return;
 
     let active = true;
 
     async function loadAccountData() {
-      // Start loading whenever the user logs in.
       setLoadingSaved(true);
-      setLoadingExports(true);
-
       setSavedError("");
-      setExportError("");
 
-      // Fetch both resources independently.
-      const [savedResult, exportResult] =
-        await Promise.allSettled([
-          apiRequest("/saved-comparisons"),
-          apiRequest("/exports"),
-        ]);
+      const [savedResult] = await Promise.allSettled([
+        apiRequest("/saved-comparisons"),
+      ]);
 
       // Prevent updates if the component has unmounted
       // or the user has logged out.
@@ -205,27 +189,7 @@ function Account() {
         );
       }
 
-      // Process export history.
-      if (exportResult.status === "fulfilled") {
-        const result = normalizeListResponse(
-          exportResult.value
-        );
-
-        setExportItems(result.items);
-        setExportTotal(result.total);
-        setExportError("");
-      } else {
-        setExportItems([]);
-        setExportTotal(0);
-
-        setExportError(
-          exportResult.reason?.message ||
-            "Unable to load your export history."
-        );
-      }
-
       setLoadingSaved(false);
-      setLoadingExports(false);
     }
 
     loadAccountData();
@@ -289,41 +253,6 @@ function Account() {
       );
     } finally {
       setDeletingSavedId(null);
-    }
-  }
-
-  // Delete an export from the history.
-  async function handleDeleteExport(exportId) {
-    if (exportId == null || deletingExportId !== null) return;
-
-    try {
-      setDeletingExportId(exportId);
-
-      await apiRequest(
-        `/exports/${encodeURIComponent(exportId)}`,
-        {
-          method: "DELETE",
-        }
-      );
-
-      setExportItems((previousItems) =>
-        previousItems.filter(
-          (item) => String(item.id) !== String(exportId)
-        )
-      );
-
-      setExportTotal((previousTotal) =>
-        Math.max(0, previousTotal - 1)
-      );
-
-      showNotice("Export record deleted successfully.", "success");
-    } catch (error) {
-      showNotice(
-        error?.message || "Unable to delete this export record.",
-        "error"
-      );
-    } finally {
-      setDeletingExportId(null);
     }
   }
 
@@ -418,25 +347,6 @@ function Account() {
             savedFilter.toLowerCase()
         );
 
-  // Filter exports by format.
-  const filteredExports =
-    exportFilter === "All"
-      ? exportItems
-      : exportItems.filter(
-          (item) =>
-            item.format?.toUpperCase() === exportFilter
-        );
-
-  // Show four records initially.
-  const visibleSaved = showAllSaved
-    ? filteredSaved
-    : filteredSaved.slice(0, 4);
-
-  const visibleExports = showAllExports
-    ? filteredExports
-    : filteredExports.slice(0, 4);
-
-  // Get unique sectors for the saved data filter.
   const savedSectors = [
     ...new Set(
       savedItems
@@ -444,6 +354,11 @@ function Account() {
         .filter(Boolean)
     ),
   ];
+
+  // Show four records initially.
+  const visibleSaved = showAllSaved
+    ? filteredSaved
+    : filteredSaved.slice(0, 4);
 
   // Require login.
   if (!isLoggedIn) {
@@ -913,132 +828,6 @@ function Account() {
         </div>
       </section>
 
-      {/* RECENT EXPORTS */}
-      <section className="px-5 py-10 sm:px-8 sm:py-12 lg:px-14">
-        <div className="mx-auto max-w-5xl">
-
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <SectionHeading>
-              Recent Exports ({exportTotal})
-            </SectionHeading>
-
-            <div className="flex items-center gap-4 text-sm">
-              <label className="flex items-center gap-2">
-                <span className="sr-only">
-                  Filter recent exports
-                </span>
-
-                <select
-                  value={exportFilter}
-                  onChange={(event) =>
-                    setExportFilter(event.target.value)
-                  }
-                  className="max-w-24 px-2 py-1 outline-none"
-                >
-                  <option value="All">All formats</option>
-                  <option value="XLSX">XLSX</option>
-                  <option value="PDF">PDF</option>
-                  <option value="CSV">CSV</option>
-                  
-                </select>
-
-                
-              </label>
-
-              {filteredExports.length > 4 && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowAllExports((value) => !value)
-                  }
-                  className="font-medium text-[#1F7A3F] hover:underline"
-                >
-                  {showAllExports ? "Show less" : "See all"}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* EXPORT HISTORY CARDS */}
-          <div className="mt-8">
-            {loadingExports ? (
-              <p className="py-8 text-center text-sm text-gray-500">
-                Loading your export history...
-              </p>
-            ) : exportError ? (
-              <p className="rounded-lg bg-white p-5 text-sm text-red-600">
-                {exportError}
-              </p>
-            ) : visibleExports.length === 0 ? (
-              <p className="rounded-lg bg-white p-6 text-center text-sm text-gray-500">
-                {exportItems.length === 0
-                  ? "You haven't exported any data yet."
-                  : "No exports match this filter."}
-              </p>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
-                {visibleExports.map((item) => (
-                  <article
-                    key={item.id}
-                    className="flex min-h-37 flex-col rounded-lg bg-white p-4 shadow-sm"
-                  >
-                    <span className="w-fit rounded-full bg-[#e8f2ec] px-3 py-1 text-[10px] font-medium uppercase text-[#1F7A3F]">
-                      {item.format || "Unknown"}
-                    </span>
-
-                    <h3 className="mt-2 text-base font-bold">
-                      {item.title ||
-                        item.dataset?.title ||
-                        "Untitled export"}
-                    </h3>
-
-                    <p className="mt-2 text-xs leading-5 text-gray-500">
-                      {item.subtitle ||
-                        item.indicator?.name ||
-                        "No description"}
-                    </p>
-
-                    {Array.isArray(item.states) &&
-                      item.states.length > 0 && (
-                        <p className="mt-1 text-xs text-gray-500">
-                          {item.states.join(", ")}
-                        </p>
-                      )}
-
-                      <p className="mt-1 text-xs text-gray-500">
-                        {formatYearDisplay(item)}
-                      </p>
-
-                    <div className="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-gray-200 pt-4">
-                      <span className="text-[11px] text-gray-500">
-                        {formatDisplayDate(item.exported_at, "Exported ")}
-                      </span>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setDeleteConfirmation({
-                            type: "export",
-                            id: item.id,
-                            title: item.title || item.dataset?.title || "this export",
-                          })
-                        }
-                        disabled={deletingExportId !== null}
-                        className="text-xs font-medium text-red-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {String(deletingExportId) === String(item.id)
-                          ? "Deleting..."
-                          : "Delete"}
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
       {deleteConfirmation && (
         <div
           className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 px-4"
@@ -1061,9 +850,7 @@ function Account() {
               className="mt-4 text-lg font-bold text-gray-900"
             >
               Delete this{" "}
-              {deleteConfirmation.type === "saved"
-                ? "comparison"
-                : "export"}?
+              comparison?
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-gray-600">
@@ -1085,21 +872,13 @@ function Account() {
 
               <button
                 type="button"
-                disabled={
-                  deletingSavedId !== null ||
-                  deletingExportId !== null
-                }
+                disabled={deletingSavedId !== null}
                 onClick={async () => {
                   const confirmation = deleteConfirmation;
                   if (!confirmation) return;
 
                   setDeleteConfirmation(null);
-
-                  if (confirmation.type === "saved") {
-                    await handleDeleteSaved(confirmation.id);
-                  } else {
-                    await handleDeleteExport(confirmation.id);
-                  }
+                  await handleDeleteSaved(confirmation.id);
                 }}
                 className="rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
               >

@@ -245,15 +245,15 @@ function CompareStates() {
           )}
 
           {optionsError && (
-  <p
-    role="alert"
-    className="mt-4 text-sm text-red-200"
-  >
-    {optionsError.toLowerCase().includes("not authenticated")
-      ? "Please log in or sign up to use Compare States."
-      : optionsError}
-  </p>
-)}
+            <p
+              role="alert"
+              className="mt-4 text-sm text-red-200"
+            >
+              {optionsError.toLowerCase().includes("not authenticated")
+                ? "Please log in or sign up to use Compare States."
+                : optionsError}
+            </p>
+          )}
 
           <div className="mt-6">
             <label
@@ -268,11 +268,11 @@ function CompareStates() {
               value={indicator}
              
               onChange={(event) => {
-  setIndicator(event.target.value);
-  setSelectedYears([]);
-  setShowYearDropdown(false);
-  setError("");
-}}
+              setIndicator(event.target.value);
+              setSelectedYears([]);
+              setShowYearDropdown(false);
+              setError("");
+            }}
               className={selectClass}
               disabled={optionsLoading || indicators.length === 0}
               required
@@ -358,121 +358,121 @@ function CompareStates() {
 
           {/* Multiple year selection */}
           <div className="relative mt-5">
-  <label
-    htmlFor="year-dropdown"
-    className="block text-xs font-medium"
-  >
-    Select Years
-  </label>
-
-  <p className="mt-1 text-xs text-white/70">
-    Select multiple years to compare. Only years with
-    available data for this indicator are shown.
-  </p>
-
-  {/* Dropdown trigger */}
-  <button
-    id="year-dropdown"
-    type="button"
-    onClick={() =>
-      setShowYearDropdown((previous) => !previous)
-    }
-    disabled={!indicator || availableYears.length === 0}
-    aria-expanded={showYearDropdown}
-    aria-controls="year-options"
-    className="mt-2 flex h-12 w-full items-center justify-between rounded-xl bg-white px-4 text-left text-sm text-gray-800 outline-none transition hover:ring-2 hover:ring-[#1F7A3F]/30 focus:ring-2 focus:ring-[#1F7A3F]/40 disabled:cursor-not-allowed disabled:opacity-60"
-  >
-    <span>
-      {selectedYears.length > 0
-        ? `${selectedYears.length} years selected`
-        : "Select comparison years"}
-    </span>
-
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={`h-4 w-4 transition-transform ${
-        showYearDropdown ? "rotate-180" : ""
-      }`}
-      aria-hidden="true"
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  </button>
-
-  {/* Dropdown options */}
-  {showYearDropdown && (
-    <div
-      id="year-options"
-      className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 text-gray-800 shadow-xl"
-    >
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs font-semibold text-slate-700">
-          Available years
-        </p>
-
-        <button
-          type="button"
-          onClick={() => setSelectedYears([])}
-          className="text-xs font-medium text-[#1F7A3F] hover:underline"
-        >
-          Clear selection
-        </button>
-      </div>
-
-      <div className="space-y-1">
-        {availableYears.map((year) => {
-          const checked = selectedYears.includes(year);
-
-          return (
             <label
-              key={year}
-              className="flex cursor-pointer items-center justify-between rounded-lg px-3 py-2.5 transition hover:bg-slate-50"
+              htmlFor="year-dropdown"
+              className="block text-xs font-medium"
             >
-              <span className="text-sm text-slate-700">
-                {year}
+              Select Years
+            </label>
+
+            <p className="mt-1 text-xs text-white/70">
+              Select multiple years to compare. Only years with
+              available data for this indicator are shown.
+            </p>
+
+            {/* Dropdown trigger */}
+            <button
+              id="year-dropdown"
+              type="button"
+              onClick={() =>
+                setShowYearDropdown((previous) => !previous)
+              }
+              disabled={!indicator || availableYears.length === 0}
+              aria-expanded={showYearDropdown}
+              aria-controls="year-options"
+              className="mt-2 flex h-12 w-full items-center justify-between rounded-xl bg-white px-4 text-left text-sm text-gray-800 outline-none transition hover:ring-2 hover:ring-[#1F7A3F]/30 focus:ring-2 focus:ring-[#1F7A3F]/40 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <span>
+                {selectedYears.length > 0
+                  ? `${selectedYears.length} years selected`
+                  : "Select comparison years"}
               </span>
 
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => toggleYear(year)}
-                className="h-4 w-4 accent-[#1F7A3F]"
-              />
-            </label>
-          );
-        })}
-      </div>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={`h-4 w-4 transition-transform ${
+                  showYearDropdown ? "rotate-180" : ""
+                }`}
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
 
-      <button
-        type="button"
-        onClick={() => setShowYearDropdown(false)}
-        className="mt-3 w-full rounded-lg bg-[#1F7A3F] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#176331]"
-      >
-        Done
-      </button>
-    </div>
-  )}
+            {/* Dropdown options */}
+            {showYearDropdown && (
+              <div
+                id="year-options"
+                className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 text-gray-800 shadow-xl"
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-700">
+                    Available years
+                  </p>
 
-  {/* Selected years summary */}
-  <div className="mt-3">
-    {selectedYears.length > 0 ? (
-      <p className="text-xs text-white/80">
-        Selected: {selectedYears.join(", ")}
-      </p>
-    ) : (
-      <p className="text-xs text-white/70">
-        No specific years selected. All available years
-        will be used.
-      </p>
-    )}
-  </div>
-</div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedYears([])}
+                    className="text-xs font-medium text-[#1F7A3F] hover:underline"
+                  >
+                    Clear selection
+                  </button>
+                </div>
+
+                <div className="space-y-1">
+                  {availableYears.map((year) => {
+                    const checked = selectedYears.includes(year);
+
+                    return (
+                      <label
+                        key={year}
+                        className="flex cursor-pointer items-center justify-between rounded-lg px-3 py-2.5 transition hover:bg-slate-50"
+                      >
+                        <span className="text-sm text-slate-700">
+                          {year}
+                        </span>
+
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleYear(year)}
+                          className="h-4 w-4 accent-[#1F7A3F]"
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowYearDropdown(false)}
+                  className="mt-3 w-full rounded-lg bg-[#1F7A3F] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#176331]"
+                >
+                  Done
+                </button>
+              </div>
+            )}
+
+            {/* Selected years summary */}
+            <div className="mt-3">
+              {selectedYears.length > 0 ? (
+                <p className="text-xs text-white/80">
+                  Selected: {selectedYears.join(", ")}
+                </p>
+              ) : (
+                <p className="text-xs text-white/70">
+                  No specific years selected. All available years
+                  will be used.
+                </p>
+              )}
+            </div>
+          </div>
 
           {error && (
             <p

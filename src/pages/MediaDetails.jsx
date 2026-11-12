@@ -89,7 +89,7 @@ function MediaDetails() {
     : "Date not available";
 
   return (
-    <main className="min-h-screen bg-[#E7ECEF] text-[#082B40]">
+    <main className="min-h-screen bg-[#E7ECEF] text-[#082B40] mt-8">
       {/* REPORT CONTENT */}
       <article className="mx-auto w-full max-w-5xl px-5 py-12 sm:px-8 lg:px-12 lg:py-16">
         {/* BACK LINK */}
@@ -97,7 +97,7 @@ function MediaDetails() {
           to="/media"
           className="inline-flex items-center gap-2 text-sm font-semibold text-[#1F7A3F] transition hover:underline"
         >
-          <span aria-hidden="true">←</span>
+          
           Back to Media
         </Link>
 

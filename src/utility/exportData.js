@@ -65,34 +65,33 @@ function escapeCSV(value) {
   return `"${safeValue.replace(/"/g, '""')}"`;
 }
 
-function addPDFWatermark(doc) {
-  const pageCount = doc.internal.getNumberOfPages();
+function drawPDFWatermarkPage(doc) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
 
-  for (let page = 1; page <= pageCount; page++) {
-    doc.setPage(page);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(17);
+  doc.setTextColor(238, 241, 243);
 
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
+  doc.setFontSize(11);
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(150, 165, 175);
+  const spacingX = 125;
+  const spacingY = 65;
 
-    // Top branding
-    doc.text(
-      "CIVICINTEL | NIGERIA DATA PLATFORM",
-      pageWidth / 2,
-      8,
-      { align: "center" }
-    );
-
-    // Bottom branding
-    doc.text(
-      "CIVICINTEL | NIGERIA DATA PLATFORM",
-      pageWidth / 2,
-      pageHeight - 8,
-      { align: "center" }
-    );
+  for (
+    let y = -20;
+    y < pageHeight + 40;
+    y += spacingY
+  ) {
+    for (
+      let x = -30;
+      x < pageWidth + 40;
+      x += spacingX
+    ) {
+      doc.text("CIVICINTEL | NIGERIA DATA PLATFORM", x, y, {
+        angle: -35,
+      });
+    }
   }
 }
 
@@ -263,14 +262,31 @@ function formatExcel({
   XLSX.writeFile(workbook, `${fileName}.xlsx`);
 }
 
-function drawPDFChart(doc, chartData, chartTitle, chartUnit, startY) {
+
+function drawPDFChart(
+  doc,
+  chartData,
+  chartTitle,
+  chartUnit,
+  startY,
+  chartColors = []
+) {
   if (!Array.isArray(chartData) || chartData.length === 0) {
     return startY;
   }
 
-  const validPeriods = chartData.filter(
-    (period) => period.rows?.length > 0
-  );
+  const validPeriods = chartData
+    .map((period) => ({
+      ...period,
+      rows: (period.rows ?? []).filter(
+        (row) =>
+          row.value !== null &&
+          row.value !== undefined &&
+          String(row.value).trim() !== "" &&
+          Number.isFinite(Number(row.value))
+      ),
+    }))
+    .filter((period) => period.rows.length > 0);
 
   if (validPeriods.length === 0) {
     return startY;
@@ -278,17 +294,20 @@ function drawPDFChart(doc, chartData, chartTitle, chartUnit, startY) {
 
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  const colors = [
-    [11, 60, 93],
-    [31, 122, 63],
-    [214, 166, 87],
-    [76, 110, 145],
-    [135, 91, 145],
-    [205, 112, 75],
-    [85, 135, 125],
-    [120, 120, 120],
+  // Use the same year colour order as the website.
+  const defaultColors = [
+    [11, 60, 93],   // Navy
+    [31, 122, 63],  // Green
+    [214, 167, 86], // Gold
+    [124, 58, 237], // Purple
   ];
 
+  const colors =
+    Array.isArray(chartColors) && chartColors.length > 0
+      ? chartColors
+      : defaultColors;
+
+  // Get the states in the order they appear in the data.
   const states = [
     ...new Set(
       validPeriods.flatMap((period) =>
@@ -298,7 +317,7 @@ function drawPDFChart(doc, chartData, chartTitle, chartUnit, startY) {
   ];
 
   const allValues = validPeriods.flatMap((period) =>
-    period.rows.map((row) => row.value)
+    period.rows.map((row) => Number(row.value))
   );
 
   const maxValue = Math.max(...allValues, 0);
@@ -307,18 +326,37 @@ function drawPDFChart(doc, chartData, chartTitle, chartUnit, startY) {
     return startY;
   }
 
-  const chartTop = startY + 23;
-  const chartBottom = startY + 90;
-  const chartLeft = 35;
-  const chartRight = pageWidth - 18;
+  // Chart dimensions.
+  const chartLeft = 47;
+  const chartRight = pageWidth - 35;
+  const chartTop = startY + 25;
+
   const plotWidth = chartRight - chartLeft;
+
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  const availableChartHeight = pageHeight - chartTop - 32;
+
+  const chartHeight = Math.min(
+    states.length * 10.5,
+    availableChartHeight
+  );
+
+  const chartBottom = chartTop + chartHeight;
   const plotHeight = chartBottom - chartTop;
 
+  // Chart title.
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.setTextColor(11, 60, 93);
-  doc.text(chartTitle || "State Comparison", 14, startY + 7);
 
+  doc.text(
+    chartTitle || "State Comparison",
+    14,
+    startY + 7
+  );
+
+  // Unit.
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(90, 100, 110);
@@ -327,95 +365,177 @@ function drawPDFChart(doc, chartData, chartTitle, chartUnit, startY) {
     doc.text(`Unit: ${chartUnit}`, 14, startY + 13);
   }
 
-  // Horizontal grid lines and value labels.
+  // Horizontal grouped bars, with states on the vertical axis.
+  const groupHeight = plotHeight / states.length;
+
+  const barGap = 1.2;
+  const stateGroupGap = 2.5;
+
+  const barHeight = Math.min(
+    5,
+    (
+      groupHeight -
+      stateGroupGap -
+      (validPeriods.length - 1) * barGap
+    ) / validPeriods.length
+  );
+
+  // Draw vertical grid lines and horizontal-axis labels.
   for (let i = 0; i <= 4; i++) {
     const value = (maxValue / 4) * i;
-    const y = chartBottom - (plotHeight / 4) * i;
+    const x = chartLeft + (plotWidth / 4) * i;
 
     doc.setDrawColor(220, 225, 230);
-    doc.line(chartLeft, y, chartRight, y);
+    doc.line(x, chartTop, x, chartBottom);
 
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
+    doc.setTextColor(90, 100, 110);
+
     doc.text(
       formatValue(value),
-      chartLeft - 3,
-      y + 1,
-      { align: "right" }
+      x,
+      chartBottom + 6,
+      { align: "center" }
     );
   }
 
-  const groupWidth = plotWidth / validPeriods.length;
-  const barWidth = Math.min(
-    8,
-    groupWidth / Math.max(states.length * 1.5, 2)
-  );
-
-  validPeriods.forEach((period, periodIndex) => {
+  // Draw each state's group of year bars.
+  states.forEach((state, stateIndex) => {
     const groupCenter =
-      chartLeft + groupWidth * (periodIndex + 0.5);
+      chartTop + groupHeight * (stateIndex + 0.5);
 
-    period.rows.forEach((row) => {
-      const stateIndex = states.indexOf(row.state);
-      const barHeight = (row.value / maxValue) * plotHeight;
-
-      const x =
-        groupCenter -
-        (states.length * barWidth) / 2 +
-        stateIndex * barWidth;
-
-      const y = chartBottom - barHeight;
-
-      doc.setFillColor(
-        ...colors[stateIndex % colors.length]
-      );
-
-      doc.rect(
-        x,
-        y,
-        Math.max(barWidth - 0.8, 1),
-        barHeight,
-        "F"
-      );
-    });
-
+    // State labels on the vertical axis.
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
+    doc.setFontSize(7);
     doc.setTextColor(60, 70, 80);
 
     doc.text(
-      String(period.year),
-      groupCenter,
-      chartBottom + 7,
-      { align: "center" }
+      state,
+      chartLeft - 4,
+      groupCenter + 1,
+      { align: "right" }
     );
+
+    validPeriods.forEach((period, periodIndex) => {
+      const row = period.rows.find(
+        (item) => item.state === state
+      );
+
+      if (!row) return;
+
+      const value = Number(row.value);
+
+      const color =
+  row.color ||
+  period.color ||
+  colors[periodIndex % colors.length];
+
+      const totalBarsHeight =
+        validPeriods.length * barHeight +
+        (validPeriods.length - 1) * barGap;
+
+      const firstBarY =
+        groupCenter - totalBarsHeight / 2;
+
+      const barY =
+        firstBarY +
+        periodIndex * (barHeight + barGap);
+
+      const barWidth = (value / maxValue) * plotWidth;
+
+      // Draw the year-specific bar.
+      doc.setFillColor(...color);
+
+      doc.roundedRect(
+        chartLeft,
+        barY,
+        Math.max(barWidth, 0.5),
+        barHeight,
+        0.8,
+        0.8,
+        "F"
+      );
+
+      // Display the value and its unit beside the bar.
+      const displayValue = formatDisplayValue(
+        value,
+        chartUnit
+      );
+
+      const labelX = chartLeft + barWidth + 2;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6.5);
+      doc.setTextColor(51, 65, 85);
+
+      if (labelX + doc.getTextWidth(displayValue) > chartRight) {
+      // Always display the figure outside the bar.
+      doc.setTextColor(51, 65, 85);
+
+      doc.text(
+        displayValue,
+        labelX,
+        barY + barHeight - 0.3
+      );
+} else {
+  // Keep labels outside the bar in dark text.
+  doc.setTextColor(51, 65, 85);
+
+  doc.text(
+    displayValue,
+    labelX,
+    barY + barHeight - 0.3
+  );
+}
+    });
   });
 
-  // State legend.
+  // Legend: one colour for each year.
+  const legendItems = validPeriods.map(
+    (period, index) => ({
+      label: String(period.year),
+      color:
+        period.rows[0]?.color ||
+        period.color ||
+        colors[index % colors.length],
+    })
+  );
+
+  // Legend heading.
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(11, 60, 93);
+
+  doc.text("Reporting Year", 14, chartBottom + 15);
+
+  // Legend entries.
   let legendX = 14;
-  let legendY = chartBottom + 17;
+  let legendY = chartBottom + 23;
+
+  doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
 
-  states.forEach((state, index) => {
-    const color = colors[index % colors.length];
-
-    const labelWidth = doc.getTextWidth(state) + 12;
+  legendItems.forEach((item) => {
+    const labelWidth = doc.getTextWidth(item.label) + 12;
 
     if (legendX + labelWidth > pageWidth - 14) {
       legendX = 14;
       legendY += 8;
     }
 
-    doc.setFillColor(...color);
+    doc.setFillColor(...item.color);
     doc.rect(legendX, legendY - 3, 3, 3, "F");
 
     doc.setTextColor(60, 70, 80);
-    doc.text(state, legendX + 5, legendY);
+    doc.text(item.label, legendX + 5, legendY);
 
     legendX += labelWidth;
   });
 
   return legendY + 5;
 }
+
 
 // Transform repeated state/year records into a comparison table.
 // Each state gets one row, with a separate column for each year.
@@ -522,6 +642,7 @@ function formatPDF({
   chartData = [],
   chartTitle = "",
   chartUnit = "",
+  chartColors = [],
   landscape = true,
 }) {
   const doc = new jsPDF({
@@ -529,6 +650,18 @@ function formatPDF({
     unit: "mm",
     format: "a4",
   });
+  const watermarkedPages = new Set();
+
+  const drawWatermarkOnce = () => {
+    const pageNumber = doc.internal.getCurrentPageInfo().pageNumber;
+
+    if (watermarkedPages.has(pageNumber)) return;
+
+    drawPDFWatermarkPage(doc);
+    watermarkedPages.add(pageNumber);
+  };
+
+  drawWatermarkOnce();
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
@@ -564,16 +697,10 @@ function formatPDF({
       columnStyles: {
         0: { fontStyle: "bold", cellWidth: 55 },
       },
+      willDrawPage: drawWatermarkOnce,
     });
 
     y = doc.lastAutoTable.finalY + 10;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(11, 60, 93);
-    doc.text("VISUAL COMPARISON", 14, y);
-
-    y += 3;
   } else {
     const metadataLines = Object.entries(metadata).map(
       ([key, value]) => `${key}: ${value}`
@@ -597,31 +724,27 @@ function formatPDF({
     }
   }
 
-  // Add the visual comparison chart before the data table.
+  // Add the visual comparison chart below the State Summary.
   if (chartData.length > 0) {
-    const pageHeight = doc.internal.pageSize.getHeight();
-
-    // Move the chart to a fresh page if there isn't enough room.
-    if (y + 110 > pageHeight - 15) {
-      doc.addPage();
-      y = 20;
-    }
-
     drawPDFChart(
       doc,
       chartData,
       chartTitle,
       chartUnit,
-      y
+      y,
+      chartColors
     );
 
     // Start the detailed table on a fresh page.
     doc.addPage();
+    drawWatermarkOnce();
+
     y = 20;
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(11, 60, 93);
+
     doc.text("COMPARISON DATA", 14, y);
 
     y += 3;
@@ -641,6 +764,21 @@ function formatPDF({
       tableHeaders.map((header) => {
         const value = row[header];
 
+        const isValueColumn =
+          String(header).trim().toLowerCase() === "value" ||
+          /^\d{4}$/.test(String(header).trim());
+
+        if (
+          isValueColumn &&
+          chartUnit &&
+          value !== null &&
+          value !== undefined &&
+          String(value).trim() !== "" &&
+          Number.isFinite(Number(value))
+        ) {
+          return formatDisplayValue(value, chartUnit);
+        }
+
         return value !== null && typeof value === "object"
           ? JSON.stringify(value)
           : String(value ?? "");
@@ -659,9 +797,8 @@ function formatPDF({
     alternateRowStyles: {
       fillColor: [240, 245, 247],
     },
+    willDrawPage: drawWatermarkOnce,
   });
-
-  addPDFWatermark(doc);
 
   doc.save(`${fileName}.pdf`);
 }
@@ -686,6 +823,7 @@ export function exportData({
   metadata = {},
   summary = [],
   chartData = [],
+  chartColors = [],
   chartTitle = "",
   chartUnit = "",
   landscape = true,
@@ -715,6 +853,7 @@ export function exportData({
     chartData,
     chartTitle,
     chartUnit,
+    chartColors,
     landscape,
   };
 
