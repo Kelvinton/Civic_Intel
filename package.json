@@ -11,6 +11,7 @@
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
+    "@marsidev/react-turnstile": "^1.6.3",
     "@tailwindcss/vite": "^4.3.3",
     "framer-motion": "^14.6.0",
     "html-to-image": "^1.11.13",

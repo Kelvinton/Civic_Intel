@@ -1967,7 +1967,11 @@ useEffect(() => {
                 <article className="group h-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg active:scale-[0.99]">
                   <div className="overflow-hidden">
                     <img
-                      src={release.image_url || release.image}
+                      src={
+                        release.image_url
+                        ? `https://backend-production-91cb.up.railway.app${release.image_url}`
+                        : release.image
+                      }
                       alt={release.title || ""}
                       loading="lazy"
                       className="h-48 w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"

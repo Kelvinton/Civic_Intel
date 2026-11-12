@@ -420,7 +420,7 @@ function Media() {
                       <div className="overflow-hidden rounded-tl-[52px] rounded-br-[52px] bg-gray-300">
                         {release.image_url ? (
                           <img
-                            src={release.image_url}
+                            src={`https://backend-production-91cb.up.railway.app${release.image_url}`}
                             alt={release.title}
                             loading="lazy"
                             className="h-60 w-full object-cover transition-transform duration-500 group-hover:scale-105 sm:h-64"

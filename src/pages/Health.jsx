@@ -2297,7 +2297,11 @@ const handleShare = async () => {
                     >
                       <div className="overflow-hidden">
                         <img
-                          src={release.image_url || release.image}
+                          src={
+                            release.image_url
+                              ? `https://backend-production-91cb.up.railway.app${release.image_url}`
+                              : release.image
+                          }
                           alt={release.title || ""}
                           loading="lazy"
                           className="h-48 w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"

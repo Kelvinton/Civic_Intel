@@ -74,7 +74,9 @@ function formatMediaReport(report) {
       ? `Source: ${report.source}`
       : "Explore this latest CivicIntel release.",
     date: formatDate(report.published_on),
-    image: report.image_url || Category1,
+    image: report.image_url
+    ? `https://backend-production-91cb.up.railway.app${report.image_url}`
+    : Category1,
     imageAlt: report.title,
   };
 }
