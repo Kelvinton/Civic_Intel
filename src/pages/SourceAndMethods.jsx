@@ -197,7 +197,7 @@ function SourcesAndMethods() {
           <div className="flex flex-col items-center  md:flex-row  w-full gap-8">
             {/* Hero text */}
             <div className="w-full md:w-1/2  h-55 sm:h-75 lg:h-87.5 pl-5 sm:pl-16 py-18">
-              <h1 className="text-4xl font-bold leading-tight tracking-normal  text-white/80 sm:text-4xl lg:7xl ">
+              <h1 className="text-4xl font-bold leading-tight tracking-normal  text-white/80 sm:text-4xl lg:text-7xl ">
                   Sources &amp;
                   <br />
                   Methodology

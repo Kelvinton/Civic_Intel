@@ -2162,9 +2162,10 @@ const handleShare = async () => {
                     disabled={sharing || chartRows.length === 0}
                     className="flex w-full items-center justify-center gap-3 rounded-full border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                   >
+                    <span>{sharing ? "Preparing report..." : "Share report"}</span>
+
                     <Share2 size={18} />
 
-                    <span>{sharing ? "Preparing report..." : "Share report"}</span>
                   </button>
 
                   {/* EXPORT DROPDOWN */}

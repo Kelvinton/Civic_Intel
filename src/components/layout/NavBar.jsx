@@ -19,14 +19,19 @@ const navLinks = [
 
 const governanceLinks = [
   {
-    label: "Election Results",
-    href: "https://YOUR-ELECTION-RESULTS-URL.com",
-    description: "View election results",
+    label: "Sentiment Analysis",
+    to: "/sentiment-analysis",
+    description: "Explore public sentiment",
   },
   {
-    label: "Opinion Poll",
-    href: "https://YOUR-OPINION-POLL-URL.com",
-    description: "Explore public opinion poll",
+    label: "Voter Education",
+    to: "/voter-education",
+    description: "Learn about voting and elections",
+  },
+  {
+    label: "FAQ",
+    to: "/faq",
+    description: "Find answers to common questions",
   },
 ];
 
@@ -238,11 +243,9 @@ function Navbar() {
                 <div className="absolute left-0 top-full z-50 w-64 pt-3">
                   <div className="overflow-hidden rounded-xl border border-gray-200 bg-white py-2 text-[#20272B] shadow-xl">
                     {governanceLinks.map((item) => (
-                      <a
+                      <Link
                         key={item.label}
-                        href={item.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        to={item.to}
                         className="block px-4 py-3 transition-colors duration-200 hover:bg-gray-100 hover:text-[#1F7A3F]"
                       >
                         <span className="block text-sm font-semibold">
@@ -253,7 +256,7 @@ function Navbar() {
                         <span className="mt-1 block text-xs text-gray-500">
                           {item.description}
                         </span>
-                      </a>
+                      </Link>
                     ))}
                   </div>
                 </div>
@@ -657,24 +660,16 @@ function Navbar() {
                   {mobileGovernanceOpen && (
                     <ul className="mt-1 space-y-1 border-l border-white/20 pl-3">
                       {governanceLinks.map((item) => (
-                        <li key={item.label}>
-                          <a
-                            href={item.href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={closeMobileMenu}
-                            className="block rounded-lg px-3 py-3 text-center text-sm text-white/90 transition hover:text-[#1F7A3F]"
-                          >
-                            {item.label}
-                            <span
-                              className="ml-2 text-xs"
-                              aria-hidden="true"
-                            >
-                              ↗
-                            </span>
-                          </a>
-                        </li>
-                      ))}
+                      <li key={item.label}>
+                        <Link
+                          to={item.to}
+                          onClick={closeMobileMenu}
+                          className="block rounded-lg px-3 py-3 text-center text-sm text-white/90 transition hover:text-[#1F7A3F]"
+                        >
+                          {item.label}
+                        </Link>
+                      </li>
+                    ))}
                     </ul>
                   )}
                 </li>
