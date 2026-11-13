@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Download } from "lucide-react";
+import { Download, Share2 } from "lucide-react"; 
+
 
 import { toPng } from "html-to-image";
 import civicIntelLogo from "../assets/civicintellogo1.png";
@@ -1424,9 +1425,12 @@ function CompareResults() {
                   type="button"
                   onClick={handleShare}
                   disabled={sharing}
-                  className="flex w-full items-center justify-center gap-3 rounded-full bg-[#0B3C5D] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#082F49] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex w-full items-center justify-center gap-3 rounded-full bg-[#0B3C5D] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#082F49] disabled:cursor-not-allowed disabled:opacity-50 mt-4"
+                
                 >
                   {sharing ? "Preparing image..." : "Share report"}
+                  
+                  <Share2 size={18} />
                 </button>
 
                 {/* Export menu */}

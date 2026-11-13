@@ -24,6 +24,7 @@ import { useAuth } from "./context/AuthContext.jsx";
 import Media from "./pages/Media.jsx";
 import MediaDetails from "./pages/MediaDetails.jsx";
 import Account from "./pages/Account.jsx";
+import FAQ from "./pages/FAQ.jsx";
 
 // Protect only routes that require authentication.
 function RequireAuth() {
@@ -144,6 +145,8 @@ function AppContent() {
           path="/media"
           element={<Media />}
         />
+
+        <Route path="/faq" element={<FAQ />} />
 
         <Route
           path="/media/:mediaId"

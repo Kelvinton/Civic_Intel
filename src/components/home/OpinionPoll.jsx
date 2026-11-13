@@ -13,6 +13,45 @@ import { apiRequest } from "../../api/api.js";
 import { useAuth } from "../../context/AuthContext.jsx";
 
 const TURNSTILE_SITE_KEY = "0x4AAAAAAF5u8SN5tnqNSyrE";
+const NIGERIAN_STATES = [
+  "Abia",
+  "Adamawa",
+  "Akwa Ibom",
+  "Anambra",
+  "Bauchi",
+  "Bayelsa",
+  "Benue",
+  "Borno",
+  "Cross River",
+  "Delta",
+  "Ebonyi",
+  "Edo",
+  "Ekiti",
+  "Enugu",
+  "FCT",
+  "Gombe",
+  "Imo",
+  "Jigawa",
+  "Kaduna",
+  "Kano",
+  "Katsina",
+  "Kebbi",
+  "Kogi",
+  "Kwara",
+  "Lagos",
+  "Nasarawa",
+  "Niger",
+  "Ogun",
+  "Ondo",
+  "Osun",
+  "Oyo",
+  "Plateau",
+  "Rivers",
+  "Sokoto",
+  "Taraba",
+  "Yobe",
+  "Zamfara",
+];
 
 // Dedicated animation for poll options.
 const pollOptionVariants = {
@@ -58,13 +97,30 @@ function getGuestToken() {
   return guestToken;
 }
 
+// Create a separate storage key for each voter and poll.
+function getPollStateKey(pollId, isLoggedIn, user) {
+  if (!pollId) return null;
+
+  if (isLoggedIn && user?.id) {
+    return `civicintel_poll_state_user_${user.id}_${pollId}`;
+  }
+
+  if (!isLoggedIn) {
+    return `civicintel_poll_state_guest_${getGuestToken()}_${pollId}`;
+  }
+
+  return null;
+}
+
 function OpinionPoll() {
   const motionSettings = useMotionSettings();
   const shouldReduceMotion = useReducedMotion();
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, user } = useAuth();
 
   const [poll, setPoll] = useState(null);
   const [selectedOption, setSelectedOption] = useState("");
+  const [selectedState, setSelectedState] = useState("");
+  const [isStateLocked, setIsStateLocked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -170,6 +226,19 @@ function OpinionPoll() {
 
           setPoll(pollDetails);
           setSelectedOption(pollDetails.my_vote || "");
+
+          const stateKey = getPollStateKey(
+            pollDetails.id,
+            isLoggedIn,
+            { id: user?.id }
+          );
+
+          const savedState = stateKey
+            ? localStorage.getItem(stateKey)
+            : "";
+
+          setSelectedState(savedState || "");
+          setIsStateLocked(Boolean(savedState));
         }
       } catch (err) {
         if (isMounted) {
@@ -189,14 +258,24 @@ function OpinionPoll() {
     return () => {
       isMounted = false;
     };
-  }, [isLoggedIn]);
+  }, [isLoggedIn, user?.id]);
 
   
   // Submit a vote.
   async function handleSubmit(event) {
     event.preventDefault();
 
-    if (!poll || !selectedOption || !isPollOpen || hasVoted) {
+    if (
+      !poll ||
+      !selectedOption ||
+      !isPollOpen ||
+      (!isLoggedIn && hasVoted)
+    ) {
+      return;
+    }
+
+    if (poll.requires_state && !selectedState) {
+      setError("Please select your state of residence.");
       return;
     }
 
@@ -223,6 +302,7 @@ function OpinionPoll() {
           method: "PUT",
           body: JSON.stringify({
             option_id: selectedOption,
+            ...(poll.requires_state && { state: selectedState }),
           }),
         });
       } else {
@@ -235,8 +315,24 @@ function OpinionPoll() {
           body: JSON.stringify({
             option_id: selectedOption,
             captcha_token: captchaToken,
+            ...(poll.requires_state && { state: selectedState }),
           }),
         });
+      }
+
+      // Remember the voter's state after a successful vote.
+      if (poll.requires_state) {
+        const stateKey = getPollStateKey(
+          poll.id,
+          isLoggedIn,
+          user
+        );
+
+        if (stateKey) {
+          localStorage.setItem(stateKey, selectedState);
+          setIsStateLocked(true);
+          
+        }
       }
 
       // Fetch the latest poll details.
@@ -268,7 +364,7 @@ function OpinionPoll() {
       setSuccess(
         isLoggedIn
           ? "Thank you for sharing your opinion. Your vote has been received."
-          : "Thank you for participating. Your guest vote has been received."
+          : "Thank you for participating. Your vote has been received."
       );
     } catch (err) {
       setError(
@@ -281,7 +377,7 @@ function OpinionPoll() {
 
 
   function handleOptionChange(optionId) {
-    if (hasVoted || !isPollOpen) return;
+    if ((!isLoggedIn && hasVoted) || !isPollOpen) return;
 
     setSelectedOption(optionId);
     setSuccess("");
@@ -390,10 +486,42 @@ function OpinionPoll() {
 
             {/* Poll form */}
             <form onSubmit={handleSubmit} className="mt-6">
+              {poll.requires_state && (
+              <div className="mb-6 max-w-190">
+                <label
+                  htmlFor="poll-state"
+                  className="mb-2 block text-sm font-medium text-[#F3F5F6]"
+                >
+                  State of Residence <span className="text-red-400">*</span>
+                </label>
+
+                <select
+                  id="poll-state"
+                  value={selectedState}
+                  onChange={(event) => setSelectedState(event.target.value)}
+                  required
+                  disabled={
+                    !isPollOpen ||
+                    submitting ||
+                    isStateLocked ||
+                    (!isLoggedIn && hasVoted)
+                  }
+                  className="w-full rounded-xl border border-white/20 bg-[#102D3A] px-4 py-3 text-sm text-white outline-none transition focus:border-[#77D69A] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <option value="">Select your state</option>
+
+                  {NIGERIAN_STATES.map((state) => (
+                    <option key={state} value={state}>
+                      {state}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
               <fieldset
                 disabled={
                   !isPollOpen ||
-                  hasVoted ||
+                  (!isLoggedIn && hasVoted) ||
                   submitting ||
                   (!isLoggedIn && !poll.allow_guest_votes)
                 }
@@ -459,7 +587,7 @@ function OpinionPoll() {
 
               
               {/* Voting access */}
-              {isPollOpen && !hasVoted && (
+              {isPollOpen && (!hasVoted || isLoggedIn) && (
                 isLoggedIn ? (
                   <motion.button
                     type="submit"
@@ -478,7 +606,11 @@ function OpinionPoll() {
                     className="mt-6 inline-flex min-h-12 items-center justify-center gap-4 rounded-full bg-white px-4 py-3 text-sm font-medium text-[#1F7A3F] transition hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <span>
-                      {submitting ? "Submitting..." : "Submit Feedback"}
+                      {submitting
+                      ? "Submitting..."
+                      : hasVoted
+                        ? "Update Vote"
+                        : "Submit Feedback"}
                     </span>
                   </motion.button>
                 ) : poll.allow_guest_votes ? (
