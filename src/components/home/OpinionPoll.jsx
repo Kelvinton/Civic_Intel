@@ -265,12 +265,7 @@ function OpinionPoll() {
   async function handleSubmit(event) {
     event.preventDefault();
 
-    if (
-      !poll ||
-      !selectedOption ||
-      !isPollOpen ||
-      (!isLoggedIn && hasVoted)
-    ) {
+    if (!poll || !selectedOption || !isPollOpen || hasVoted) {
       return;
     }
 
@@ -377,7 +372,7 @@ function OpinionPoll() {
 
 
   function handleOptionChange(optionId) {
-    if ((!isLoggedIn && hasVoted) || !isPollOpen) return;
+    if (hasVoted || !isPollOpen) return;
 
     setSelectedOption(optionId);
     setSuccess("");
@@ -521,7 +516,7 @@ function OpinionPoll() {
               <fieldset
                 disabled={
                   !isPollOpen ||
-                  (!isLoggedIn && hasVoted) ||
+                  hasVoted ||
                   submitting ||
                   (!isLoggedIn && !poll.allow_guest_votes)
                 }
@@ -587,7 +582,7 @@ function OpinionPoll() {
 
               
               {/* Voting access */}
-              {isPollOpen && (!hasVoted || isLoggedIn) && (
+              {isPollOpen && !hasVoted && (
                 isLoggedIn ? (
                   <motion.button
                     type="submit"
@@ -606,11 +601,7 @@ function OpinionPoll() {
                     className="mt-6 inline-flex min-h-12 items-center justify-center gap-4 rounded-full bg-white px-4 py-3 text-sm font-medium text-[#1F7A3F] transition hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <span>
-                      {submitting
-                      ? "Submitting..."
-                      : hasVoted
-                        ? "Update Vote"
-                        : "Submit Feedback"}
+                      {submitting ? "Submitting..." : "Submit Feedback"}
                     </span>
                   </motion.button>
                 ) : poll.allow_guest_votes ? (
@@ -648,20 +639,8 @@ function OpinionPoll() {
               {hasVoted && isPollOpen && (
                 <div className="mt-5">
                   <p className="text-sm text-[#77D69A]">
-                    You have already submitted your vote.
+                    You have already submitted your vote. Thank you for participating
                   </p>
-
-                  {!isLoggedIn && (
-                    <p className="mt-3 text-sm leading-6 text-[#B8C2C9]">
-                      Sign up to change your vote and keep a record.
-                      <a
-                        href="/signup"
-                        className="ml-1 font-semibold text-[#77D69A] underline underline-offset-4 hover:text-white"
-                      >
-                        Create an account
-                      </a>
-                    </p>
-                  )}
                 </div>
               )}
 
@@ -754,7 +733,7 @@ function OpinionPoll() {
         )}
 
         {/* Privacy notice */}
-        <motion.div
+        {/* <motion.div
           variants={revealVariants}
           {...motionSettings}
           className="mt-6 flex items-start gap-3 text-xs leading-5 text-[#B8C2C9] sm:mt-7 sm:items-center sm:text-sm"
@@ -782,7 +761,7 @@ function OpinionPoll() {
           <p>
             Your response has been received. Results are displayed when the poll closes.
           </p>
-        </motion.div>
+        </motion.div> */}
       </div>
     </section>
   );

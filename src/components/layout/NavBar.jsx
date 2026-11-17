@@ -12,27 +12,10 @@ const navLinks = [
   { label: "Home", to: "/" },
   { label: "Health", to: "/health" },
   { label: "Education", to: "/education" },
+  { label: "Governance", to: "/governance" },
   { label: "States", to: "/states" },
   { label: "Explore", to: "/explore" },
   { label: "Sources and Methods", to: "/sources-and-methods" },
-];
-
-const governanceLinks = [
-  {
-    label: "Sentiment Analysis",
-    to: "/sentiment-analysis",
-    description: "Explore public sentiment",
-  },
-  {
-    label: "Voter Education",
-    to: "/voter-education",
-    description: "Learn about voting and elections",
-  },
-  {
-    label: "FAQ",
-    to: "/faq",
-    description: "Find answers to common questions",
-  },
 ];
 
 function Navbar() {
@@ -43,8 +26,6 @@ function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [governanceOpen, setGovernanceOpen] = useState(false);
-  const [mobileGovernanceOpen, setMobileGovernanceOpen] = useState(false);
   // Notification data
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -66,7 +47,6 @@ function Navbar() {
 
   function closeMobileMenu() {
     setMenuOpen(false);
-    setMobileGovernanceOpen(false);
   }
 
   async function fetchNotifications() {
@@ -187,83 +167,9 @@ function Navbar() {
           aria-label="Main navigation"
           className="hidden flex-1 items-center justify-center lg:flex"
         >
+          
           <ul className="flex items-center gap-5 xl:gap-8">
-            {navLinks.slice(0, 3).map((link) => (
-              <li key={link.to}>
-                <NavLink
-                  to={link.to}
-                  end={link.to === "/"}
-                  className={linkClass}
-                >
-                  {link.label}
-                </NavLink>
-              </li>
-            ))}
-
-            <li
-              className="relative"
-              onMouseEnter={() => setGovernanceOpen(true)}
-              onMouseLeave={() => setGovernanceOpen(false)}
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  setGovernanceOpen((open) => !open)
-                }
-                aria-haspopup="true"
-                aria-expanded={governanceOpen}
-                className={`inline-flex items-center gap-1 whitespace-nowrap text-sm transition-colors duration-200 ${
-                  governanceOpen
-                    ? "font-semibold text-[#1F7A3F]"
-                    : "text-white hover:text-[#1F7A3F]"
-                }`}
-              >
-                Governance
-
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  className={`h-4 w-4 transition-transform duration-200 ${
-                    governanceOpen ? "rotate-180" : ""
-                  }`}
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="m6 9 6 6 6-6"
-                  />
-                </svg>
-              </button>
-
-              {governanceOpen && (
-                <div className="absolute left-0 top-full z-50 w-64 pt-3">
-                  <div className="overflow-hidden rounded-xl border border-gray-200 bg-white py-2 text-[#20272B] shadow-xl">
-                    {governanceLinks.map((item) => (
-                      <Link
-                        key={item.label}
-                        to={item.to}
-                        className="block px-4 py-3 transition-colors duration-200 hover:bg-gray-100 hover:text-[#1F7A3F]"
-                      >
-                        <span className="block text-sm font-semibold">
-                          {item.label}
-                        
-                        </span>
-
-                        <span className="mt-1 block text-xs text-gray-500">
-                          {item.description}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </li>
-
-            {navLinks.slice(3).map((link) => (
+            {navLinks.map((link) => (
               <li key={link.to}>
                 <NavLink
                   to={link.to}
@@ -275,6 +181,7 @@ function Navbar() {
               </li>
             ))}
           </ul>
+
         </nav>
 
         {/* Desktop authentication controls */}
@@ -606,75 +513,9 @@ function Navbar() {
             "
           >
             <nav aria-label="Mobile navigation">
+              
               <ul className="flex flex-col items-center gap-2">
-                {navLinks.slice(0, 3).map((link) => (
-                  <li key={link.to} className="w-full">
-                    <NavLink
-                      to={link.to}
-                      end={link.to === "/"}
-                      onClick={closeMobileMenu}
-                      className={({ isActive }) =>
-                        `block w-full rounded-lg px-3 py-3 text-center text-sm ${
-                          isActive
-                            ? "font-semibold text-[#1F7A3F]"
-                            : "text-white hover:text-[#1F7A3F]"
-                        }`
-                      }
-                    >
-                      {link.label}
-                    </NavLink>
-                  </li>
-                ))}
-
-                <li className="w-full">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setMobileGovernanceOpen((open) => !open)
-                    }
-                    aria-expanded={mobileGovernanceOpen}
-                    aria-haspopup="true"
-                    className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-3 text-center text-sm text-white transition hover:text-[#1F7A3F]"
-                  >
-                    Governance
-
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      className={`h-4 w-4 transition-transform duration-200 ${
-                        mobileGovernanceOpen ? "rotate-180" : ""
-                      }`}
-                      aria-hidden="true"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="m6 9 6 6 6-6"
-                      />
-                    </svg>
-                  </button>
-
-                  {mobileGovernanceOpen && (
-                    <ul className="mt-1 space-y-1 border-l border-white/20 pl-3">
-                      {governanceLinks.map((item) => (
-                      <li key={item.label}>
-                        <Link
-                          to={item.to}
-                          onClick={closeMobileMenu}
-                          className="block rounded-lg px-3 py-3 text-center text-sm text-white/90 transition hover:text-[#1F7A3F]"
-                        >
-                          {item.label}
-                        </Link>
-                      </li>
-                    ))}
-                    </ul>
-                  )}
-                </li>
-
-                {navLinks.slice(3).map((link) => (
+                {navLinks.map((link) => (
                   <li key={link.to} className="w-full">
                     <NavLink
                       to={link.to}
@@ -693,6 +534,7 @@ function Navbar() {
                   </li>
                 ))}
               </ul>
+
             </nav>
 
             {/* Mobile authentication controls */}

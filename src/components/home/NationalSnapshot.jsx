@@ -31,11 +31,11 @@ const initialCards = [
     verification: "Schedule alignment verified",
   },
   {
-    label: "SOURCE TRANSPARENCY",
+    label: "GOVERNANCE",
     value: null,
-    title: "Verified Citations",
-    description: "No synthesized rankings or black-box metrics",
-    verification: "Open-source and public-domain data only",
+    title: "Governance Insights",
+    description: "Explore governance, accountability and public institutions",
+    verification: "Governance data metric unavailable",
   },
 ];
 

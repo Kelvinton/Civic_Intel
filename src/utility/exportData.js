@@ -103,6 +103,7 @@ function formatCSV({
   subtitle = "",
   metadata = {},
   summary = [],
+  chartUnit = "",
 }) {
   const hasSummary = summary.length > 0;
 
@@ -114,7 +115,11 @@ function formatCSV({
         ["STATE SUMMARY"],
         ...summary,
         [],
-        ["COMPARISON DATA"],
+        [
+          chartUnit
+            ? `COMPARISON DATA — ${chartUnit.toUpperCase()}`
+            : "COMPARISON DATA",
+        ],
         headers,
         ...rows.map((row) =>
           headers.map((header) => row[header] ?? "")
@@ -154,6 +159,7 @@ function formatExcel({
   subtitle = "",
   metadata = {},
   summary = [],
+  chartUnit = "",
 }) {
   const workbook = XLSX.utils.book_new();
 
@@ -167,7 +173,11 @@ function formatExcel({
         ["STATE SUMMARY"],
         ...summary,
         [],
-        ["COMPARISON DATA"],
+        [
+          chartUnit
+            ? `COMPARISON DATA — ${chartUnit.toUpperCase()}`
+            : "COMPARISON DATA",
+        ],
         headers,
         ...rows.map((row) =>
           headers.map((header) => row[header] ?? "")
@@ -745,7 +755,13 @@ function formatPDF({
     doc.setFontSize(11);
     doc.setTextColor(11, 60, 93);
 
-    doc.text("COMPARISON DATA", 14, y);
+    doc.text(
+      chartUnit
+        ? `COMPARISON DATA — ${chartUnit.toUpperCase()}`
+        : "COMPARISON DATA",
+      14,
+      y
+    );
 
     y += 3;
   }
