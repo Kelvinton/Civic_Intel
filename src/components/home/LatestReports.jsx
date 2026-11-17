@@ -11,50 +11,12 @@ import {
 
 import {
   getMedia,
-  subscribeToMedia,
+  getFeaturedMedia,
 } from "../../api/media.js";
 
 import Category1 from "../../assets/latest report/category1.png";
-import Category2 from "../../assets/latest report/category2.png";
-import Category3 from "../../assets/latest report/category3.png";
 
-// Existing static reports.
-// These remain available as fallbacks.
-const fallbackReports = [
-  {
-    id: "fallback-health",
-    category: "HEALTH",
-    title: "Understanding Maternal Health Across Nigerian States",
-    description:
-      "Explore maternal health coverage and the differences in access to care across states.",
-    date: "September 2026",
-    image: Category3,
-    imageAlt: "Healthcare professional working in a clinical setting",
-    mediaId: null,
-  },
-  {
-    id: "fallback-education",
-    category: "EDUCATION",
-    title: "Primary School Completion: A State-by-State View",
-    description:
-      "Examine education completion indicators and identify differences between states.",
-    date: "August 2026",
-    image: Category2,
-    imageAlt: "Students participating in a classroom lesson",
-    mediaId: null,
-  },
-  {
-    id: "fallback-finance",
-    category: "PUBLIC FINANCE",
-    title: "How States Allocate Health and Education Budgets",
-    description:
-      "Review public spending indicators and how budget allocations vary across states.",
-    date: "August 2026",
-    image: Category1,
-    imageAlt: "Financial documents and calculations on a desk",
-    mediaId: null,
-  },
-];
+
 
 // Format API publication dates.
 function formatDate(date) {
@@ -73,13 +35,13 @@ function formatMediaReport(report) {
     mediaId: report.id,
     category: report.category?.toUpperCase() || "CIVICINTEL",
     title: report.title,
-    description: report.source
-      ? `Source: ${report.source}`
-      : "Explore this latest CivicIntel release.",
+    description:
+      report.description ||
+      "Explore this latest CivicIntel release.",
     date: formatDate(report.published_on),
     image: report.image_url
-    ? `https://backend-production-91cb.up.railway.app${report.image_url}`
-    : Category1,
+      ? `https://backend-production-91cb.up.railway.app${report.image_url}`
+      : Category1,
     imageAlt: report.title,
   };
 }
@@ -90,7 +52,7 @@ function LatestReports() {
 
   const [publishedReports, setPublishedReports] = useState([]);
 
-  // Fetch and listen for updated published media reports.
+ // Fetch featured articles first, then fall back to latest published articles.
   useEffect(() => {
     let isMounted = true;
 
@@ -102,23 +64,46 @@ function LatestReports() {
         : [];
 
       const sortedReports = [...items]
-      .sort(
-        (a, b) =>
-          new Date(b.published_on || 0) -
-          new Date(a.published_on || 0)
-      )
-      .slice(0, 3);
+        .sort(
+          (a, b) =>
+            new Date(b.published_on || 0) -
+            new Date(a.published_on || 0)
+        )
+        .slice(0, 3);
 
       setPublishedReports(
         sortedReports.map(formatMediaReport)
       );
     }
 
-    // Listen for refreshed articles.
-    const unsubscribe = subscribeToMedia(updateReports);
-
     async function loadLatestReports() {
       try {
+        // Check for admin-selected featured articles first.
+        const featuredResponse = await getFeaturedMedia();
+
+        if (!isMounted) return;
+
+        const featuredArticles = Array.isArray(featuredResponse)
+          ? featuredResponse
+          : [];
+
+        if (featuredArticles.length > 0) {
+          const sortedFeatured = [...featuredArticles]
+            .sort(
+              (a, b) =>
+                new Date(b.published_on || 0) -
+                new Date(a.published_on || 0)
+            )
+            .slice(0, 3);
+
+          setPublishedReports(
+            sortedFeatured.map(formatMediaReport)
+          );
+
+          return;
+        }
+
+        // No featured articles: display the three newest published articles.
         const response = await getMedia({
           limit: 3,
           offset: 0,
@@ -137,19 +122,11 @@ function LatestReports() {
 
     return () => {
       isMounted = false;
-      unsubscribe();
     };
   }, []);
 
   // Published reports take priority.
-  // Static reports fill any remaining spaces.
-  const reports = [
-    ...publishedReports,
-    ...fallbackReports.slice(
-      0,
-      Math.max(0, 3 - publishedReports.length)
-    ),
-  ];
+  const reports = publishedReports;
 
   return (
     <section
@@ -269,12 +246,12 @@ function LatestReports() {
                       {report.date}
                     </span>
 
-                    <span
-                      aria-hidden="true"
+                    <Link
+                      to={destination}
                       className="inline-flex shrink-0 -translate-x-1 items-center text-xs font-semibold text-[#1F7A3F] opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100 motion-reduce:transition-none"
                     >
                       Read <span className="ml-1">↗</span>
-                    </span>
+                    </Link>
                   </div>
                 </div>
               </motion.article>

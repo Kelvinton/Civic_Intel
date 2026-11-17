@@ -271,13 +271,13 @@ function StateDetails() {
     ...selectedEducationRecords,
   ];
 
-  const datasetIds = [
-    ...new Set(
-      allSelectedRecords
-        .map((record) => record.dataset_id)
-        .filter(Boolean)
-    ),
-  ];
+  // const datasetIds = [
+  //   ...new Set(
+  //     allSelectedRecords
+  //       .map((record) => record.dataset_id)
+  //       .filter(Boolean)
+  //   ),
+  // ];
 
   if (loading) {
     return (
@@ -437,7 +437,7 @@ function StateDetails() {
               </p>
             </div>
 
-            <div>
+            {/* <div>
               <p className="text-[11px] font-medium text-white/90">
                 DATASET IDENTIFIERS
               </p>
@@ -446,7 +446,7 @@ function StateDetails() {
                   ? datasetIds.join(", ")
                   : "No dataset identifiers available"}
               </p>
-            </div>
+            </div> */}
           </div>
 
           {/* <Link

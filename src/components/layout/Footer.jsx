@@ -8,19 +8,29 @@ const footerSections = [
     links: [
       { label: "Health", href: "/health" },
       { label: "Education", href: "/education" },
+      { label: "Governance", href: "/governance" },
       { label: "States", href: "/states" },
       { label: "Explore", href: "/explore" },
       { label: "Media", href: "/media" },
     ],
   },
+  
   {
-    title: "Trust",
+    title: "Trust ",
     links: [
-      { label: "Sources & Method", href: "/sources-and-methods" },
-      // { label: "Methodology", href: "/methodology" },
-      // { label: "Revision History", href: "/revision-history" },
+      
+      { label: "Sources & Methods", href: "/sources-and-methods" },
+      { label: "FAQ", href: "/faq" },
     ],
   },
+
+  {
+    title: "Resources",
+    links: [
+      { label: "Voter Education", href: "/voter-education" },
+    ],
+  },
+
 ];
 
 function Footer() {
@@ -82,7 +92,7 @@ function Footer() {
     >
       <div className="mx-auto max-w-7xl px-5 py-12 sm:px-8 sm:py-14 lg:px-16">
         {/* Main footer layout */}
-        <div className="grid grid-cols-2 gap-x-5 gap-y-10 sm:grid-cols-2 sm:gap-x-8 md:grid-cols-4 md:gap-x-6 lg:gap-x-10">
+        <div className="grid grid-cols-2 gap-x-5 gap-y-10 sm:grid-cols-2 sm:gap-x-8 md:grid-cols-5 md:gap-x-6 xl:grid-cols-[260px_150px_180px_160px_230px] xl:gap-x-8">
           {/* Brand */}
           <div
             className={`${revealClass()} col-span-2 min-w-0 md:col-span-1`}

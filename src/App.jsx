@@ -14,6 +14,7 @@ import Layout from "./components/layout/Layout.jsx";
 import Home from "./pages/Home.jsx";
 import Health from "./pages/Health.jsx";
 import Education from "./pages/Education.jsx";
+import Governance from "./pages/Governance.jsx";
 import States from "./pages/States.jsx";
 import StateDetails from "./pages/StatesDetail.jsx";
 import AuthPage from "./pages/AuthPage.jsx";
@@ -25,6 +26,10 @@ import Media from "./pages/Media.jsx";
 import MediaDetails from "./pages/MediaDetails.jsx";
 import Account from "./pages/Account.jsx";
 import FAQ from "./pages/FAQ.jsx";
+import VoterEducation from "./pages/VoterEducation.jsx";
+
+import AdminLayout from "./components/admin/AdminLayout.jsx";
+import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
 
 // Protect only routes that require authentication.
 function RequireAuth() {
@@ -50,6 +55,36 @@ function RequireAuth() {
         }}
       />
     );
+  }
+
+  return <Outlet />;
+}
+
+// Protect routes that require administrator access.
+function RequireAdmin() {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-[#0B3C5D]">
+        Checking administrator access...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: location }}
+      />
+    );
+  }
+
+  if (user.role !== "admin") {
+    return <Navigate to="/" replace />;
   }
 
   return <Outlet />;
@@ -141,12 +176,22 @@ function AppContent() {
           element={<SourcesAndMethods />}
         />
 
+        <Route path="/governance" element={<Governance />} />
+
         <Route
           path="/media"
           element={<Media />}
         />
 
-        <Route path="/faq" element={<FAQ />} />
+        <Route 
+          path="/faq" 
+          element={<FAQ />} 
+        />
+
+        <Route
+          path="/voter-education"
+          element={<VoterEducation />}
+        />
 
         <Route
           path="/media/:mediaId"
@@ -154,6 +199,15 @@ function AppContent() {
         />
         
       </Route>
+
+      
+      <Route
+        path="/admin-preview"
+        element={<AdminLayout />}
+      >
+        <Route index element={<AdminDashboard />} />
+      </Route>
+     
       
       
       <Route

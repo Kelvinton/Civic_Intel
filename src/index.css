@@ -29,6 +29,29 @@ html, body {
   
 }
 
+/* Admin sidebar scrollbar */
+.admin-sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #6b91a8 #0b3c5d;
+}
+
+.admin-sidebar-scroll::-webkit-scrollbar {
+  width: 2px;
+}
+
+.admin-sidebar-scroll::-webkit-scrollbar-track {
+  background: #0b3c5d;
+}
+
+.admin-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #6b91a8;
+  border-radius: 20px;
+}
+
+.admin-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: #a8c1d1;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
