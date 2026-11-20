@@ -11,6 +11,25 @@ import { getSourcesAndMethods } from "../services/sourcesAndMethodsServices.js";
 import SourceHero from "../assets/Source.hero.png";
 import SourcePic1 from "../assets/source.png";
 
+const revealVariants = {
+  hidden: {
+    opacity: 0,
+    y: 30,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.7,
+      ease: "easeOut",
+    },
+  },
+};
+
+const motionSettings = {
+  initial: "hidden",
+};
+
 const sections = [
   { label: "Source hierarchy", href: "#source-hierarchy" },
   { label: "Methodology", href: "#methodology" },
@@ -190,35 +209,37 @@ function SourcesAndMethods() {
       
       
       {/* Hero */}
-        <motion.section
-          {...getRevealProps(shouldReduceMotion)}
-          className="pl-4 sm:pl-8 w-full max-w-6xl"
-        >
-          <div className="flex flex-col items-center  md:flex-row  w-full gap-8">
-            {/* Hero text */}
-            <div className="w-full md:w-1/2  h-55 sm:h-75 lg:h-87.5 pl-5 sm:pl-16 py-18">
-              <h1 className="text-4xl font-bold leading-tight tracking-normal  text-white sm:text-4xl lg:7xl ">
-                  Sources &amp;
-                  <br />
-                  Methodology
-              </h1>
+      
+      <motion.section
+        variants={revealVariants}
+        initial={motionSettings.initial}
+        animate="visible"
+        className="grid items-center gap-8 min-[850px]:grid-cols-2"
+      >
+        {/* Hero text */}
+        <div className="flex h-55 w-full flex-col justify-center pl-5 sm:h-75 sm:pl-16 lg:h-87.5">
+          <h1 className="text-4xl font-bold leading-tight tracking-normal text-white sm:text-5xl lg:text-6xl">
+            Sources &amp;
+            <br />
+            Methodology
+          </h1>
 
-              <p className="mt-4 max-w-md text-xs leading-5 text-[#E7EDF0] sm:text-sm">
-                  How CivicIntel selects, verifies, and publishes health and
-                  education data for Nigeria and how to interpret what you see.
-              </p>
-            </div>
+          <p className="mt-4 max-w-md text-xs leading-5 text-[#E7EDF0] sm:text-sm">
+            How CivicIntel selects, verifies, and publishes health and
+            education data for Nigeria and how to interpret what you see.
+          </p>
+        </div>
 
-            {/* Hero image */}
-            <div className="w-full md:w-1/2">
-            <img
-                src={SourceHero}
-                alt="Open source written on a typewriter"
-                className="h-55 w-full rounded-lg object-cover sm:h-75 lg:h-87.5"
-            />
-            </div>
-          </div>
-        </motion.section>
+        {/* Hero image */}
+        <div className="w-full">
+          <img
+            src={SourceHero}
+            alt="Open source written on a typewriter"
+            className="h-60 w-full rounded-lg object-cover sm:h-75 lg:h-87.5"
+          />
+        </div>
+      </motion.section>
+
 
 
       {/* Compact pill navigation */}

@@ -34,8 +34,8 @@ const initialCards = [
     label: "GOVERNANCE",
     value: null,
     title: "Governance Insights",
-    description: "Explore governance, accountability and public institutions",
-    verification: "Governance data metric unavailable",
+    description: "Fiscal transparency, public accountability, government institutions.",
+    verification: "Tracking governance and public accountability",
   },
 ];
 
@@ -86,6 +86,11 @@ function NationalSnapshot() {
             String(indicator?.sector ?? "").toLowerCase() === "education"
         ).length;
 
+        const governanceCount = indicators.filter(
+          (indicator) =>
+            String(indicator?.sector ?? "").toLowerCase() === "governance"
+        ).length;
+
         // Keep the original card content.
         // Public Transparency remains blank until a real metric exists.
         const updatedCards = [
@@ -103,7 +108,7 @@ function NationalSnapshot() {
           },
           {
             ...initialCards[3],
-            value: null,
+            value: governanceCount,
           },
         ];
 

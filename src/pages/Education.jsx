@@ -2,7 +2,6 @@
 import { ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getStates, getIndicators,} from "../api/referenceData.js";
-import { apiRequest } from "../api/api.js";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { motion, useReducedMotion } from "framer-motion";
@@ -43,10 +42,7 @@ const releases = [
   },
 ];
 
-// --------------------------------------------------
-// Fixed colours for Nigerian states and FCT
-// --------------------------------------------------
-
+// Color Palette for year
 const yearColorPalette = [
   "#2563EB",
   "#059669",
@@ -69,9 +65,9 @@ function getYearColorRGB(index) {
   ];
 }
 
-// const formatNumber = (number) =>
-//   new Intl.NumberFormat("en-NG").format(number);
 
+// const formatNumber = (number) =>
+// new Intl.NumberFormat("en-NG").format(number);
 const formatOverviewValue = (record) => {
   if (
     !record ||
@@ -714,60 +710,7 @@ function Education() {
     (item) => item.key === appliedFilters?.indicator
   )?.label ?? "Education Records";
 
-  const recordEducationExport = async (format, exportedRecords) => {
-    if (!isLoggedIn || !appliedFilters || exportedRecords.length === 0) {
-      return false;
-    }
-
-    const exportedStates = [
-      ...new Set(
-        exportedRecords
-          .map((record) => record.state)
-          .filter(Boolean)
-      ),
-    ];
-
-    const exportedYears = [
-      ...new Set(
-        exportedRecords
-          .map((record) => Number(record.year))
-          .filter(Number.isFinite)
-      ),
-    ].sort((a, b) => a - b);
-
-    const yearLabel =
-      exportedYears.length === 0
-        ? "Year unavailable"
-        : exportedYears.length === 1
-          ? String(exportedYears[0])
-          : `${exportedYears[0]}–${exportedYears[exportedYears.length - 1]}`;
-
-    const payload = {
-      format,
-      title: `Education — ${selectedIndicatorLabel}`,
-      subtitle: `${exportedStates.length === 0 ? "No state specified" : exportedStates.length === 1 ? exportedStates[0] : "Selected states"} · ${yearLabel}`,
-      indicator: appliedFilters.indicator,
-      states: exportedStates,
-      years: exportedYears,
-    };
-
-    try {
-      await apiRequest("/exports", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-
-      return true;
-    } catch (error) {
-      console.error("Could not record Education export:", error);
-
-      window.alert(
-        "Your file was exported, but CivicIntel could not save it to Recent Exports."
-      );
-
-      return false;
-    }
-  };
+  
 
   // LOAD FILTERED EDUCATION RECORDS AFTER LOGIN AND APPLY
   useEffect(() => {
@@ -1104,7 +1047,6 @@ function Education() {
         },
         landscape: true,
       });
-      await recordEducationExport(format, matchingRecords);
       
     } catch (error) {
       alert(

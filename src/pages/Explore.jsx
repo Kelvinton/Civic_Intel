@@ -796,10 +796,10 @@ if (activeStep === 3 && selectedYears.length === 0) {
                       id="indicator"
                       value={indicator || selectedIndicator?.key || ""}
                       onChange={(event) => {
-  setIndicator(event.target.value);
-  setSelectedYears([]);
-  setComparisonMessage("");
-}}
+                        setIndicator(event.target.value);
+                        setSelectedYears([]);
+                        setComparisonMessage("");
+                      }}
                       className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm text-slate-700 outline-none focus:border-[#0B3C5D] focus:ring-2 focus:ring-[#0B3C5D]/10"
                     >
                       {availableIndicators.map((item) => (

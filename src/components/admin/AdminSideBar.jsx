@@ -1,5 +1,5 @@
 
-import { NavLink } from "react-router-dom";
+import { NavLink} from "react-router-dom";
 import {
   LayoutDashboard,
   Database,
@@ -16,8 +16,8 @@ import { useAuth } from "../../context/AuthContext.jsx";
 import civicIntelLogo from "../../assets/signup.logo.png";
 
 const menuItems = [
-  { name: "Dashboard", path: "/admin", icon: LayoutDashboard },
-  { name: "Data Ingest", path: "/admin/data", icon: Database },
+  { name: "Dashboard", path: "/admin-preview", icon: LayoutDashboard },
+  { name: "Data Ingest", path: "/admin-preview/data", icon: Database },
   { name: "Publish Queue", path: "/admin/publishing", icon: BookOpen },
   { name: "Q/A / Conflicts", path: "/admin/conflicts", icon: Search },
   { name: "Analytics", path: "/admin/analytics", icon: BarChart3 },
@@ -26,6 +26,7 @@ const menuItems = [
 ];
 
 function AdminSideBar() {
+ 
   const { user, logout } = useAuth();
 
   const displayName =
@@ -34,13 +35,13 @@ function AdminSideBar() {
     "Administrator";
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 flex w-[258px] flex-col overflow-hidden bg-[#0B3C5D] text-white">
+    <aside className="fixed inset-y-0 left-0 z-40 flex w-62.5 flex-col overflow-hidden bg-[#0B3C5D] text-white">
       {/* Logo */}
-      <div className="flex h-[120px] items-center px-7">
+      <div className="flex h-30 items-center px-7">
         <img
           src={civicIntelLogo}
           alt="CivicIntel"
-          className="w-[120px] object-contain"
+          className="w-30 object-contain"
         />
       </div>
 
@@ -58,12 +59,12 @@ function AdminSideBar() {
               <NavLink
                 key={item.path}
                 to={item.path}
-                end={item.path === "/admin"}
+                end={item.path === "/admin-preview"}
                 className={({ isActive }) =>
                   `flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition ${
                     isActive
-                      ? "font-semibold text-white"
-                      : "text-white/55 hover:text-white"
+                    ? "font-semibold text-white"
+                    : "text-white/55 hover:text-white"
                   }`
                 }
               >
