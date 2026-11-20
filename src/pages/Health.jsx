@@ -16,9 +16,10 @@ import {
   CartesianGrid,
   XAxis,
   YAxis,
-  Tooltip,
+    Tooltip,
   ReferenceLine,
   ResponsiveContainer,
+  Legend,
 } from "recharts";
 
 import {
@@ -106,7 +107,6 @@ function getYearColorRGB(year) {
 
 // Safely formats API values.
 // Empty or missing values are not converted to zero.
-
 function isValidNumericValue(value) {
   return (
     value !== null &&
@@ -201,10 +201,8 @@ function Health() {
       }
   })();
 
-  // --------------------------------------------------
-  // FILTER STATES
-  // --------------------------------------------------
 
+  // FILTER STATES
   const [indicator, setIndicator] = useState(
     restoredFilters?.indicator === "anc"
       ? "anc4_pct"
@@ -225,18 +223,16 @@ function Health() {
         : [])
   );
 
-  // --------------------------------------------------
-  // REFERENCE DATA STATES
-  // --------------------------------------------------
 
+  // REFERENCE DATA STATES
   const [states, setStates] = useState([]);
   const [statesLoading, setStatesLoading] = useState(true);
   const [statesError, setStatesError] = useState("");
 
-  // --------------------------------------------------
-  // HEALTH API STATES
-  // --------------------------------------------------
+  
 
+  
+  // HEALTH API STATES
   const [healthRecords, setHealthRecords] = useState([]);
   const [recordsLoading, setRecordsLoading] = useState(true);
   const [recordsError, setRecordsError] = useState("");
@@ -245,10 +241,8 @@ function Health() {
   const [mediaLoading, setMediaLoading] = useState(true);
   const [mediaError, setMediaError] = useState("");
 
-  // --------------------------------------------------
-  // APPLIED FILTER STATES
-  // --------------------------------------------------
 
+  // APPLIED FILTER STATES
   const [appliedFilters, setAppliedFilters] = useState(
     restoredFilters
       ? {
@@ -319,11 +313,8 @@ function Health() {
     };
   }, []);
 
-  // --------------------------------------------------
-  // LOAD ALL PUBLISHED HEALTH RECORDS
-  // --------------------------------------------------
 
-  
+  // LOAD ALL PUBLISHED HEALTH RECORDS
   useEffect(() => {
     let isMounted = true;
 
@@ -562,11 +553,7 @@ function Health() {
   }, [healthRecords]);
 
 
- 
-  // --------------------------------------------------
   // AVAILABLE INDICATORS WITH PUBLISHED DATA
-  // --------------------------------------------------
-
   const indicatorOptions = useMemo(() => {
     const uniqueIndicators = new Map();
 
@@ -590,10 +577,8 @@ function Health() {
     );
   }, [healthRecords]);
 
-  // --------------------------------------------------
+ 
   // AVAILABLE YEARS
-  // --------------------------------------------------
-
   const yearOptions = useMemo(() => {
     return [
       ...new Set(
@@ -609,13 +594,10 @@ function Health() {
     ].sort((a, b) => Number(b) - Number(a));
   }, [healthRecords]);
 
-  // --------------------------------------------------
+
+
   // DERIVE VALID FILTER VALUES
-  // --------------------------------------------------
-
   // These values are calculated during rendering.
-  // No useEffect or setState is needed to correct selections.
-
   const effectiveIndicator = useMemo(() => {
     const indicatorExists = indicatorOptions.some(
       (item) => item.key === indicator
@@ -634,10 +616,8 @@ function Health() {
       .filter((selectedYear) => yearOptions.includes(selectedYear));
   }, [yearOptions, year]);
 
-  // --------------------------------------------------
+  
   // FILTER CHART RECORDS
-  // --------------------------------------------------
-
   const chartData = useMemo(() => {
     if (!appliedFilters) {
       return [];
@@ -674,10 +654,8 @@ function Health() {
       }));
   }, [healthRecords, appliedFilters]);
 
-  // --------------------------------------------------
+ 
   // NATIONAL BENCHMARK
-  // --------------------------------------------------
-
   const nationalBenchmark = useMemo(() => {
     if (!appliedFilters || appliedFilters.years.length !== 1) {
       return null;
@@ -696,10 +674,8 @@ function Health() {
     );
   }, [healthRecords, appliedFilters]);
 
-  // --------------------------------------------------
-  // LATEST RECORD PER STATE
-  // --------------------------------------------------
 
+  // LATEST RECORD PER STATE
   const stateChartData = useMemo(() => {
     if (appliedFilters?.years?.length > 0) {
       return chartData;
@@ -734,10 +710,8 @@ function Health() {
     );
   }, [stateChartData]);
 
-  // --------------------------------------------------
-  // SELECTED INDICATOR INFORMATION
-  // --------------------------------------------------
 
+  // SELECTED INDICATOR INFORMATION
   const selectedIndicator = useMemo(() => {
     if (!appliedFilters) {
       return null;
@@ -772,10 +746,9 @@ function Health() {
     return values.length ? Math.max(...values) : 0;
   }, [stateChartData, nationalBenchmark]);
 
-  // --------------------------------------------------
-  // CHART ROWS
-  // --------------------------------------------------
 
+
+  // CHART ROWS
   const chartRows = useMemo(() => {
     return [...stateChartData]
       .sort((a, b) => b.numericValue - a.numericValue)
@@ -790,7 +763,6 @@ function Health() {
           ...item,
           chartLabel: `${item.state} (${item.year})`,
           barWidth,
-          
         };
       });
   }, [
@@ -799,9 +771,33 @@ function Health() {
     isPercentageIndicator,
   ]);
 
+  const groupedChartRows = useMemo(() => {
+    const groupedByState = new Map();
+
+    stateChartData.forEach((record) => {
+      if (!groupedByState.has(record.state)) {
+        groupedByState.set(record.state, {
+          state: record.state,
+          chartLabel: record.state,
+        });
+      }
+
+      groupedByState.get(record.state)[String(record.year)] =
+        record.numericValue;
+    });
+
+    return Array.from(groupedByState.values()).sort((a, b) =>
+      a.state.localeCompare(b.state)
+    );
+  }, [stateChartData]);
+
   const chartYears = [
-    ...new Set(chartRows.map((item) => String(item.year))),
+    ...new Set(stateChartData.map((item) => String(item.year))),
   ].sort((a, b) => Number(a) - Number(b));
+
+  const representedStateCount = new Set(
+    chartRows.map((record) => record.state)
+  ).size;
 
   // NATIONAL BENCHMARK VALUE
   const benchmarkValue = nationalBenchmark
@@ -891,10 +887,8 @@ function Health() {
     });
   };
 
-  // --------------------------------------------------
-  // EXPORT DATA
-  // --------------------------------------------------
 
+  // EXPORT DATA
   const exportRows = chartRows.map((record) => ({
     State: record.state,
     Indicator: record.indicator,
@@ -916,83 +910,8 @@ function Health() {
       : "all-years"
   }`;
 
-  // --------------------------------------------------
-  // RECORD EXPORT IN BACKEND
-  // --------------------------------------------------
 
-  
-  const recordHealthExport = async (format) => {
-    if (!isLoggedIn || exportRows.length === 0 || !appliedFilters) {
-      return false;
-    }
-
-    const exportedStates = [
-      ...new Set(
-        exportRows.map((row) => row.State).filter(Boolean)
-      ),
-    ];
-
-    const exportedYears = [
-      ...new Set(
-        exportRows
-          .map((row) => Number(row.Year))
-          .filter(Number.isFinite)
-      ),
-    ].sort((a, b) => a - b);
-
-
-
-    const yearFrom = exportedYears.length
-      ? Math.min(...exportedYears)
-      : null;
-
-    const yearTo = exportedYears.length
-      ? Math.max(...exportedYears)
-      : null;
-
-    const subtitle = [
-      exportedStates.length === 1
-        ? exportedStates[0]
-        : exportedStates.length === 0
-          ? "No state specified"
-          : "All selected states",
-      yearFrom === null
-        ? "Year unavailable"
-        : yearFrom === yearTo
-          ? String(yearFrom)
-          : `${yearFrom}–${yearTo}`,
-    ].join(" · ");
-
-    const payload = {
-      format,
-      title: `Health — ${indicatorLabel}`,
-      subtitle,
-      indicator: appliedFilters.indicator,
-      states: exportedStates,
-      years: exportedYears,
-    };
-
-    try {
-      await apiRequest("/exports", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-
-      return true;
-    } catch (error) {
-      console.error("Could not record Health export:", error);
-
-      window.alert(
-        "Your file was exported, but CivicIntel could not save it to Recent Exports."
-      );
-
-      return false;
-    }
-  };
-
-
-  // CSV EXPORT
-  
+  // CSV EXPORT 
   const handleExportCSV = async () => {
     if (exportRows.length === 0) {
       window.alert("There are no records to export.");
@@ -1020,7 +939,7 @@ function Health() {
 
     setExportOpen(false);
 
-    await recordHealthExport("csv");
+    
   };
 
 
@@ -1052,7 +971,7 @@ function Health() {
 
       setExportOpen(false);
 
-      await recordHealthExport("xlsx");
+      
   };
 
   const pdfChartData = chartRows.reduce((periods, record) => {
@@ -1106,7 +1025,7 @@ function Health() {
 
     setExportOpen(false);
 
-    await recordHealthExport("pdf");
+    
   };
 
   // --------------------------------------------------
@@ -1822,12 +1741,12 @@ const handleShare = async () => {
                       <div
                         className="h-90"
                         style={{
-                          width: `${Math.max(chartRows.length * 34, 600)}px`,
+                          width: `${Math.max(groupedChartRows.length * 65, 700)}px`,
                         }}
                       >
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart
-                            data={chartRows}
+                             data={groupedChartRows}
                             margin={{ top: 30, right: 20, left: 5, bottom: 55 }}
                           >
                             <CartesianGrid
@@ -1863,19 +1782,14 @@ const handleShare = async () => {
                             />
 
                             <Tooltip
-                              formatter={(value, name, props) => [
-                                formatDisplayValue(
-                                  value,
-                                  props.payload.unit || indicatorUnit
-                                ),
-                                "Value",
+                              formatter={(value, name) => [
+                                formatDisplayValue(value, indicatorUnit),
+                                String(name),
                               ]}
                               labelFormatter={(label, payload) => {
                                 const record = payload?.[0]?.payload;
 
-                                return record
-                                  ? `State: ${record.state} | Year: ${record.year}`
-                                  : label;
+                                return record ? `State: ${record.state}` : label;
                               }}
                               contentStyle={{
                                 borderRadius: "10px",
@@ -1903,19 +1817,19 @@ const handleShare = async () => {
                                 />
                               )}
 
-                            <Bar
-                              dataKey="numericValue"
-                              name="Value"
-                              radius={[5, 5, 0, 0]}
-                              maxBarSize={42}
-                            >
-                              {chartRows.map((item) => (
-                                <Cell
-                                  key={`${item.state}-${item.indicator_key}-${item.year}`}
-                                  fill={getYearColor(item.year)}
-                                />
-                              ))}
-                            </Bar>
+                            <Legend />
+
+                            {chartYears.map((year) => (
+                              <Bar
+                                key={year}
+                                dataKey={String(year)}
+                                name={String(year)}
+                                fill={getYearColor(year)}
+                                barSize={15}
+                                maxBarSize={18}
+                                radius={[3, 3, 0, 0]}
+                              />
+                            ))}
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
@@ -1988,13 +1902,7 @@ const handleShare = async () => {
                     </p>
                   </div>
 
-                  <p className="mt-3 border-t border-gray-300 pt-3 text-[9px] italic leading-4 text-gray-500">
-                    Platform data note: This view displays records returned
-                    by CivicIntel&apos;s published Health API. Source
-                    documentation, independent audit details, QA reference,
-                    audited date, and licence information are not currently
-                    supplied by this endpoint.
-                  </p>
+                  
                 </div>
               </div>
 
@@ -2053,8 +1961,8 @@ const handleShare = async () => {
 
                     <p className="mt-3 text-sm leading-6 text-white/65">
                       This report examines {indicatorLabel.toLowerCase()} across{" "}
-                      {chartRows.length} Nigerian state
-                      {chartRows.length === 1 ? "" : "s"} using published CivicIntel
+                      {representedStateCount} Nigerian state
+                      {representedStateCount === 1 ? "" : "s"} using published CivicIntel
                       health records.
 
                       {appliedFilters.years.length === 0
@@ -2071,7 +1979,7 @@ const handleShare = async () => {
                         </p>
 
                         <p className="mt-1 text-xl font-bold text-white">
-                          {chartRows.length}
+                          {representedStateCount}
                         </p>
                       </div>
 
@@ -2116,7 +2024,9 @@ const handleShare = async () => {
                         </p>
 
                         <p className="mt-1 text-xs text-white/60">
-                          {highestHealthRecord?.state ?? "No data"}
+                          {highestHealthRecord
+                          ? `${highestHealthRecord.state} · ${highestHealthRecord.year}`
+                          : "No data"}
                         </p>
                       </div>
 
@@ -2135,7 +2045,9 @@ const handleShare = async () => {
                         </p>
 
                         <p className="mt-1 text-xs text-white/60">
-                          {lowestHealthRecord?.state ?? "No data"}
+                          {lowestHealthRecord
+                            ? `${lowestHealthRecord.state} · ${lowestHealthRecord.year}`
+                            : "No data"}
                         </p>
                       </div>
 

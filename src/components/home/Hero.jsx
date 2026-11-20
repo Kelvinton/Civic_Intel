@@ -8,8 +8,10 @@ import civicIntelLogo from "../../assets/civicintellogo1.png";
 const headingParts = [
   { text: "Exploring Nigeria Through " },
   { text: "Health", green: true },
-  { text: " & " },
+  { text: ", " },
   { text: "Education", green: true },
+  { text: " & " },
+  { text: "Governance", green: true },
   { text: " Data" },
 ];
 

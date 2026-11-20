@@ -11,12 +11,12 @@ function AdminLayout() {
       <AdminSidebar />
 
       {/* Main area */}
-      <div className="min-h-screen pl-64.5">
+      <div className="min-h-screen pl-[258px]">
         {/* Header */}
         <AdminHeader />
 
         {/* Page content */}
-        <main className="p-8">
+        <main className="p-6 lg:p-8">
           <Outlet />
         </main>
       </div>

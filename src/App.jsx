@@ -30,6 +30,10 @@ import VoterEducation from "./pages/VoterEducation.jsx";
 
 import AdminLayout from "./components/admin/AdminLayout.jsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
+import AdminDataIngest from "./pages/admin/AdminDataIngest.jsx";
+import AdminDatasetUpload from "./pages/admin/AdminDatasetUpload.jsx";
+import AdminDatasetMetadata from "./pages/admin/AdminDatasetMetadata.jsx";
+import AdminDatasetPreview from "./pages/admin/AdminDatasetPreview.jsx";
 
 // Protect only routes that require authentication.
 function RequireAuth() {
@@ -108,6 +112,13 @@ function AppContent() {
       location.pathname !== "/education"
     ) {
       sessionStorage.removeItem("civicintel_education_filters");
+    }
+
+    if (
+      previous === "/governance" &&
+      location.pathname !== "/governance"
+    ) {
+      sessionStorage.removeItem("civicintel_governance_filters");
     }
 
     previousPath.current = location.pathname;
@@ -201,11 +212,23 @@ function AppContent() {
       </Route>
 
       
+      {/* Administration Routes */}
       <Route
         path="/admin-preview"
         element={<AdminLayout />}
       >
         <Route index element={<AdminDashboard />} />
+        <Route path="data" element={<AdminDataIngest />} />
+      </Route>
+
+      <Route element={<RequireAdmin />}>
+        <Route path="/admin-preview" element={<AdminLayout />}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="data" element={<AdminDataIngest />} />
+          <Route path="upload" element={<AdminDatasetUpload />} />
+          <Route path="upload/metadata" element={<AdminDatasetMetadata />} />
+          <Route path="upload/preview" element={<AdminDatasetPreview />} />
+        </Route>
       </Route>
      
       

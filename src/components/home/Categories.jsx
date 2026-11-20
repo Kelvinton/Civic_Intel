@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 
 import OperatingRoom from "../../assets/category/operating.room.png";
 import StudentsInClass from "../../assets/category/students.inclass.png";
+import GovernanceImage from "../../assets/governance.hero.png";
 
 import {
   revealVariants,
@@ -101,6 +102,22 @@ const categoryConfig = [
       {
         key: "primary_pupil_teacher_ratio",
         label: "Primary pupil-teacher ratio",
+      },
+    ],
+  },
+  {
+    id: "governance",
+    sector: "governance",
+    title: "Governance Indicators",
+    description:
+      "Explore transparency, accountability, public institutions, and the principles that shape governance across Nigeria.",
+    image: GovernanceImage,
+    imageAlt: "Nigerian public institution",
+    link: "/governance",
+    indicators: [
+      {
+        key: "fiscal_transparency_score_pct",
+        label: "Fiscal transparency score",
       },
     ],
   },
@@ -204,7 +221,7 @@ function CategoryRow({
 }) {
   const motionSettings = useMotionSettings();
 
-  // Health enters from the right; Education enters from the left.
+  // Health and Governance enters from the right; Education enters from the left.
   const imageVariants = reverse ? imageSlideLeft : imageSlideRight;
 
   return (
@@ -356,6 +373,7 @@ function Categories() {
   const [publishedRecords, setPublishedRecords] = useState({
     health: [],
     education: [],
+    governance: [],
   });
 
   const [recordsLoaded, setRecordsLoaded] = useState(false);
@@ -421,16 +439,27 @@ function Categories() {
             selectedState
           )
         : [],
+
+    governance:
+      selectedState && recordsLoaded
+        ? getCategoryMetrics(
+            publishedRecords.governance,
+            categoryConfig[2].indicators,
+            selectedState
+          )
+        : [],
   };
 
   const [loading, setLoading] = useState({
     health: true,
     education: true,
+    governance: true,
   });
 
   const [errors, setErrors] = useState({
     health: "",
     education: "",
+    governance: "",
   });
 
   useEffect(() => {
@@ -438,14 +467,16 @@ function Categories() {
 
     async function loadPublishedRecords() {
       try {
-        const [healthRecords, educationRecords] = await Promise.all([
+        const [healthRecords, educationRecords, governanceRecords] = await Promise.all([
           fetchSectorRecords("health"),
           fetchSectorRecords("education"),
+          fetchSectorRecords("governance"),
         ]);
 
         setPublishedRecords({
           health: healthRecords,
           education: educationRecords,
+          governance: governanceRecords,
         });
 
         setRecordsLoaded(true);
@@ -453,6 +484,7 @@ function Categories() {
         setLoading({
           health: false,
           education: false,
+          governance: false,
         });
       } catch (error) {
         if (isMounted) {
@@ -464,11 +496,13 @@ function Categories() {
           setErrors({
             health: errorMessage,
             education: errorMessage,
+            governance: errorMessage,
           });
 
           setLoading({
             health: false,
             education: false,
+            governance: false,
           });
         }
       }
@@ -535,6 +569,17 @@ function Categories() {
           metrics={categoryData.education}
           loading={loading.education}
           error={errors.education}
+          selectedState={selectedState}
+          availableStates={availableStates}
+          handleChangeState={handleChangeState}
+        />
+
+        {/* Governance: text left, image right */}
+        <CategoryRow
+          category={categoryConfig[2]}
+          metrics={categoryData.governance}
+          loading={loading.governance}
+          error={errors.governance}
           selectedState={selectedState}
           availableStates={availableStates}
           handleChangeState={handleChangeState}
