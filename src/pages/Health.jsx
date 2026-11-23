@@ -12,7 +12,6 @@ import { toPng } from "html-to-image";
 import {
   BarChart,
   Bar,
-  Cell,
   CartesianGrid,
   XAxis,
   YAxis,
@@ -323,7 +322,7 @@ function Health() {
       const limit = 50;
       let offset = 0;
       let total = Infinity;
-      let isFirstPage = true;
+      
 
       try {
         while (offset < total) {
@@ -332,6 +331,11 @@ function Health() {
             limit,
             offset,
           });
+          console.log("Health records batch:", {
+  offset,
+  received: response?.items?.length,
+  total: response?.total,
+});
 
           if (!response || !Array.isArray(response.items)) {
             throw new Error(
@@ -345,20 +349,7 @@ function Health() {
           total = Number(response.total ?? allRecords.length);
           offset += response.items.length;
 
-          if (isMounted) {
-            // Update the page after every batch.
-            setHealthRecords([...allRecords]);
-          }
-
-          // Allow the overview cards and filters to display
-          // as soon as the first batch arrives.
-          if (isFirstPage) {
-            isFirstPage = false;
-
-            if (isMounted) {
-              setRecordsLoading(false);
-            }
-          }
+          
 
           if (
             response.items.length === 0 ||
@@ -367,8 +358,8 @@ function Health() {
             break;
           }
         }
-
         if (isMounted) {
+          setHealthRecords(allRecords);
           setRecordsError("");
         }
       } catch (error) {
