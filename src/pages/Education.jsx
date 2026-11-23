@@ -502,99 +502,110 @@ function Education() {
 
   // CALCULATE THE LATEST AVAILABLE STATE AVERAGE
   const nationalOverviewStats = useMemo(() => {
-    const overviewIndicatorKeys = [
-      "primary_net_enrolment_pct",
-      "primary_completion_pct",
-      "adult_literacy_pct",
-      "out_of_school_children_pct",
-      "primary_pupil_teacher_ratio",
-    ];
+  const overviewIndicators = [
+    {
+      key: "learners_all_levels",
+      label: "Total Learners",
+      calculation: "sum",
+    },
+    {
+      key: "estimated_teachers",
+      label: "Estimated Teachers",
+      calculation: "sum",
+    },
+    {
+      key: "learner_teacher_ratio",
+      label: "Average Learner-Teacher Ratio",
+      calculation: "average",
+    },
+    {
+      key: "female_learners_pct",
+      label: "Average Female Learners",
+      calculation: "average",
+    },
+    {
+      key: "female_teachers_pct",
+      label: "Average Female Teachers",
+      calculation: "average",
+    },
+  ];
 
-    return overviewIndicatorKeys.map((indicatorKey) => {
-      const indicator = availableIndicators.find(
-        (item) => item.key === indicatorKey
+  return overviewIndicators.map((overviewIndicator) => {
+    const matchingRecords = publishedEducationRecords.filter(
+      (record) =>
+        record.indicator_key === overviewIndicator.key
+    );
+
+    const stateRecords = matchingRecords.filter((record) => {
+      const stateName = String(record.state ?? "")
+        .trim()
+        .toLowerCase();
+
+      return (
+        stateName &&
+        !["national", "nigeria"].includes(stateName) &&
+        Number.isFinite(Number(record.value)) &&
+        Number.isFinite(Number(record.year))
       );
-
-      if (!indicator) {
-        return {
-          key: indicatorKey,
-          label: indicatorKey,
-          value: "—",
-          year: null,
-          stateCount: 0,
-        };
-      }
-
-      const matchingRecords = publishedEducationRecords.filter(
-        (record) => record.indicator_key === indicatorKey
-      );
-
-      const stateRecords = matchingRecords.filter((record) => {
-        const stateName = String(record.state ?? "")
-          .trim()
-          .toLowerCase();
-
-        return (
-          stateName &&
-          !["national", "nigeria"].includes(stateName) &&
-          Number.isFinite(Number(record.value)) &&
-          Number.isFinite(Number(record.year))
-        );
-      });
-
-      if (stateRecords.length === 0) {
-        return {
-          key: indicatorKey,
-          label: indicator.label,
-          value: "—",
-          year: null,
-          stateCount: 0,
-        };
-      }
-
-      const latestYear = Math.max(
-        ...stateRecords.map((record) => Number(record.year))
-      );
-
-      const latestYearRecords = stateRecords.filter(
-        (record) => Number(record.year) === latestYear
-      );
-
-      const recordsByState = new Map();
-
-      latestYearRecords.forEach((record) => {
-        const stateName = String(record.state)
-          .trim()
-          .toLowerCase();
-
-        if (!recordsByState.has(stateName)) {
-          recordsByState.set(stateName, record);
-        }
-      });
-
-      const comparableRecords = [...recordsByState.values()];
-
-      const average =
-        comparableRecords.reduce(
-          (total, record) => total + Number(record.value),
-          0
-        ) / comparableRecords.length;
-
-      const averageRecord = {
-        value: average,
-        unit: comparableRecords[0]?.unit,
-        indicator_key: indicatorKey,
-      };
-
-      return {
-        key: indicatorKey,
-        label: indicator.label,
-        value: formatOverviewValue(averageRecord),
-        year: latestYear,
-        stateCount: comparableRecords.length,
-      };
     });
-  }, [availableIndicators, publishedEducationRecords]);
+
+    if (stateRecords.length === 0) {
+      return {
+        key: overviewIndicator.key,
+        label: overviewIndicator.label,
+        value: "—",
+        year: null,
+        stateCount: 0,
+      };
+    }
+
+    const latestYear = Math.max(
+      ...stateRecords.map((record) => Number(record.year))
+    );
+
+    const latestYearRecords = stateRecords.filter(
+      (record) => Number(record.year) === latestYear
+    );
+
+    const recordsByState = new Map();
+
+    latestYearRecords.forEach((record) => {
+      const stateName = String(record.state)
+        .trim()
+        .toLowerCase();
+
+      if (!recordsByState.has(stateName)) {
+        recordsByState.set(stateName, record);
+      }
+    });
+
+    const comparableRecords = [...recordsByState.values()];
+
+    const total = comparableRecords.reduce(
+      (sum, record) => sum + Number(record.value),
+      0
+    );
+
+    const calculatedValue =
+      overviewIndicator.calculation === "sum"
+        ? total
+        : total / comparableRecords.length;
+
+    const calculationRecord = {
+      value: calculatedValue,
+      unit: comparableRecords[0]?.unit,
+      indicator_key: overviewIndicator.key,
+    };
+
+    return {
+      key: overviewIndicator.key,
+      label: overviewIndicator.label,
+      value: formatOverviewValue(calculationRecord),
+      year: latestYear,
+      stateCount: comparableRecords.length,
+    };
+  });
+}, [publishedEducationRecords]);
 
 
   // SSCE PERFORMANCE OVERVIEW
@@ -1160,7 +1171,7 @@ function Education() {
                   {stat.label}
                 </span>
 
-                <p className="mt-3 text-lg font-bold text-[#1F7A3F]">
+                <p className="mt-3 text-lg font-bold text-[#0B3C5D]">
                   {nationalOverviewLoading ? (
                     <span className="inline-block h-5 w-16 animate-pulse rounded bg-gray-300" />
                   ) : (
@@ -1169,7 +1180,9 @@ function Education() {
                 </p>
 
                 <p className="mt-1 text-xs leading-5">
-                  State average
+                  {["learners_all_levels", "estimated_teachers"].includes(stat.key)
+                    ? "Total across reporting states"
+                    : "Average across reporting states"}
                 </p>
 
                 <div className="my-2 border-t border-dashed border-gray-400" />
