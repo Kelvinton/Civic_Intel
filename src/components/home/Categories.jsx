@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 
 import OperatingRoom from "../../assets/category/operating.room.png";
 import StudentsInClass from "../../assets/category/students.inclass.png";
-import GovernanceImage from "../../assets/governance.hero.png";
+import GovernanceImage from "../../assets/governance.hero.jpg";
 
 import {
   revealVariants,
