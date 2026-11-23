@@ -92,11 +92,12 @@ function NationalSnapshot() {
         ).length;
 
         // Keep the original card content.
-        // Public Transparency remains blank until a real metric exists.
         const updatedCards = [
           {
             ...initialCards[0],
-            value: states.length,
+            value: states.filter(
+              (state) => String(state?.name ?? "").toUpperCase() !== "FCT"
+            ).length,
           },
           {
             ...initialCards[1],
