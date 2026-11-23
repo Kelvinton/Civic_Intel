@@ -226,7 +226,7 @@ function Footer() {
           }}
         >
           <p className="text-center text-xs leading-5 text-white/65 sm:text-sm">
-            &copy; {new Date().getFullYear()} Civic Intel. All rights reserved.
+            &copy; {new Date().getFullYear()} CivicIntel. All rights reserved.
           </p>
         </div>
       </div>
