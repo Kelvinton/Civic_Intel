@@ -29,11 +29,7 @@ import { getComparison } from "../api/referenceData.js";
 // import SurveyCoverageChart from "../components/SurveyCoverageChart.jsx";
 
 
-
-// --------------------------------------------------
 // Validate comparison selections
-// --------------------------------------------------
-
 function getValidComparison(value) {
   if (!value || typeof value !== "object") {
     return null;
@@ -135,11 +131,8 @@ function formatValue(value) {
   return value;
 }
 
-// --------------------------------------------------
+
 // Prepare export data
-// --------------------------------------------------
-
-
 function buildExportContent(comparison, records = null) {
   const hasRecords =
     Array.isArray(records) && records.length > 0;
@@ -242,10 +235,7 @@ function buildExportContent(comparison, records = null) {
 }
 
 
-// --------------------------------------------------
 // Export comparison
-// --------------------------------------------------
-
 function exportComparison(comparison, format, records = null) {
   const { headers, rows, hasRecords } = buildExportContent(
     comparison,
@@ -332,10 +322,7 @@ function exportComparison(comparison, format, records = null) {
 }
 
 
-// --------------------------------------------------
 // Comparison results table
-// --------------------------------------------------
-
 function ChartPlaceholder({result, loading, error, selectedStates = [], unit = "",}) {
   if (loading) {
     return (
@@ -428,12 +415,7 @@ function ChartPlaceholder({result, loading, error, selectedStates = [], unit = "
         </p>
       </div>
 
-      {result.contains_simulated_data === true && (
-        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-          Warning: This response contains simulated data. Treat
-          the figures as simulated rather than verified statistics.
-        </div>
-      )}
+      
 
       {!hasData ? (
         <div className="mt-5 rounded-lg bg-slate-50 p-5 text-center">
@@ -450,107 +432,107 @@ function ChartPlaceholder({result, loading, error, selectedStates = [], unit = "
           {/* Grouped comparison graph */}
           <div className="mt-5 w-full max-w-3xl">
             <ResponsiveContainer
-  width="100%"
-  height={Math.max(360, selectedStates.length * 55)}
->
-  <BarChart
-    data={chartData}
-    layout="vertical"
-    margin={{
-      top: 10,
-      right: 55,
-      left: 5,
-      bottom: 10,
-    }}
-    barCategoryGap="25%"
-    barGap={3}
-  >
-    <CartesianGrid
-      strokeDasharray="3 3"
-      horizontal={false}
-      stroke="#E2E8F0"
-    />
+              width="100%"
+              height={Math.max(360, selectedStates.length * 55)}
+            >
+              <BarChart
+                data={chartData}
+                layout="vertical"
+                margin={{
+                  top: 10,
+                  right: 55,
+                  left: 5,
+                  bottom: 10,
+                }}
+                barCategoryGap="25%"
+                barGap={3}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  horizontal={false}
+                  stroke="#E2E8F0"
+                />
 
-    <XAxis
-      type="number"
-      tick={{ fontSize: 10 }}
-      axisLine={false}
-      tickLine={false}
-      tickFormatter={(value) =>
-        `${formatValue(value)}${unit === "%" ? "%" : ""}`
-      }
-    />
+                <XAxis
+                  type="number"
+                  tick={{ fontSize: 10 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(value) =>
+                    `${formatValue(value)}${unit === "%" ? "%" : ""}`
+                  }
+                />
 
-    <YAxis
-      type="category"
-      dataKey="state"
-      width={85}
-      tick={{ fontSize: 10 }}
-      axisLine={false}
-      tickLine={false}
-    />
+                <YAxis
+                  type="category"
+                  dataKey="state"
+                  width={85}
+                  tick={{ fontSize: 10 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
 
-    <Tooltip
-      formatter={(value, name) => [
-        formatDisplayValue(value, unit),
-        name,
-      ]}
-      contentStyle={{
-        backgroundColor: "rgba(255, 255, 255, 0.95)",
-        borderRadius: "8px",
-        border: "1px solid #E2E8F0",
-        fontSize: "11px",
-      }}
-    />
+                <Tooltip
+                  formatter={(value, name) => [
+                    formatDisplayValue(value, unit),
+                    name,
+                  ]}
+                  contentStyle={{
+                    backgroundColor: "rgba(255, 255, 255, 0.95)",
+                    borderRadius: "8px",
+                    border: "1px solid #E2E8F0",
+                    fontSize: "11px",
+                  }}
+                />
 
-    {chartYears.map((year, index) => (
-      <Bar
-        key={year}
-        dataKey={year}
-        name={year}
-        fill={["#0B3C5D", "#1F7A3F", "#D6A756", "#7C3AED"][index % 4]}
-        radius={[0, 4, 4, 0]}
-        maxBarSize={18}
-      >
-        <LabelList
-          dataKey={year}
-          position="right"
-          formatter={(value) =>
-            value == null ? "" : formatDisplayValue(value, unit)
-          }
-          style={{
-            fontSize: 9,
-            fill: "#334155",
-          }}
-        />
-      </Bar>
-    ))}
-  </BarChart>
-</ResponsiveContainer>
+                {chartYears.map((year, index) => (
+                  <Bar
+                    key={year}
+                    dataKey={year}
+                    name={year}
+                    fill={["#0B3C5D", "#1F7A3F", "#D6A756", "#7C3AED"][index % 4]}
+                    radius={[0, 4, 4, 0]}
+                    maxBarSize={18}
+                  >
+                    <LabelList
+                      dataKey={year}
+                      position="right"
+                      formatter={(value) =>
+                        value == null ? "" : formatDisplayValue(value, unit)
+                      }
+                      style={{
+                        fontSize: 9,
+                        fill: "#334155",
+                      }}
+                    />
+                  </Bar>
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
           </div>
 
           {/* Year legend */}
-<div className="mt-4 flex flex-wrap justify-center gap-4">
-  {chartYears.map((year, index) => (
-    <div key={year} className="flex items-center gap-2">
-      <span
-        className="size-2.5 rounded-sm"
-        style={{
-          backgroundColor: [
-            "#0B3C5D",
-            "#1F7A3F",
-            "#D6A756",
-            "#7C3AED",
-          ][index % 4],
-        }}
-      />
+          <div className="mt-4 flex flex-wrap justify-center gap-4">
+            {chartYears.map((year, index) => (
+              <div key={year} className="flex items-center gap-2">
+                <span
+                  className="size-2.5 rounded-sm"
+                  style={{
+                    backgroundColor: [
+                      "#0B3C5D",
+                      "#1F7A3F",
+                      "#D6A756",
+                      "#7C3AED",
+                    ][index % 4],
+                  }}
+                />
 
-      <span className="text-xs text-slate-600">
-        {year}
-      </span>
-    </div>
-  ))}
-</div>
+                <span className="text-xs text-slate-600">
+                  {year}
+                </span>
+              </div>
+            ))}
+          </div>
 
           {/* National averages and missing records */}
           <div className="mt-6 space-y-3">
@@ -588,14 +570,33 @@ function ChartPlaceholder({result, loading, error, selectedStates = [], unit = "
   );
 }
 
-// --------------------------------------------------
-// Data Transparency
-// --------------------------------------------------
-
+// Data Transparency Record
 function ProvenancePlaceholder({ result }) {
-  const hasSources =
-    Array.isArray(result?.sources) &&
-    result.sources.length > 0;
+  const sources = Array.isArray(result?.sources)
+    ? result.sources
+    : [];
+
+  if (!sources.length) {
+    return (
+      <section className="mt-5 rounded-lg bg-[#E8EEF1] p-4 sm:p-5">
+        <h3 className="text-xs font-bold text-[#0B3C5D] sm:text-sm">
+          DATA TRANSPARENCY RECORD
+        </h3>
+
+        <div className="mt-4 rounded-lg bg-white p-4">
+          <p className="text-sm font-medium text-slate-700">
+            Source metadata unavailable
+          </p>
+
+          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+            The comparison API did not return source information
+            for this dataset. Source details cannot be confirmed
+            at this time.
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="mt-5 rounded-lg bg-[#E8EEF1] p-4 sm:p-5">
@@ -605,74 +606,170 @@ function ProvenancePlaceholder({ result }) {
         </h3>
 
         <span className="rounded-full bg-[#C6D6E0] px-2 py-1 text-[10px] text-[#0B3C5D]">
-          {hasSources
-            ? "Source records received"
-            : "Source details pending"}
+          {sources.length} {sources.length === 1 ? "source" : "sources"}
         </span>
       </div>
 
-      {hasSources ? (
-        <div className="mt-4 space-y-3 text-xs text-slate-600">
-          {result.sources.map((source, index) => (
+      <div className="mt-4 space-y-4">
+        {sources.map((source, index) => {
+
+          return (
             <div
-              key={source.source_id ?? index}
-              className="rounded-lg bg-white p-3"
+              key={source.id ?? source.source_id ?? index}
+              className="rounded-xl bg-white p-4"
             >
-              <p className="font-medium text-[#0B3C5D]">
-                Source {index + 1}
-              </p>
+              
+              {/* Source status */}
+<div>
+  <p className="text-xs font-semibold text-[#0B3C5D]">
+    Source
+  </p>
+</div>
 
-              <p className="mt-1">
-                Source ID: {formatValue(source.source_id)}
-              </p>
+              {/* Dataset identity */}
+              <div className="mt-3">
+                <p className="text-sm font-semibold text-slate-800">
+                  {formatValue(source.title)}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Publisher: {formatValue(source.publisher)}
+                </p>
+              </div>
+
+              {/* Dataset metadata */}
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                    Dataset name
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-700">
+                    {formatValue(source.dataset_name)}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                    Data vintage
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-700">
+                    {formatValue(source.vintage)}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                    Geography
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-700">
+                    {formatValue(source.geography)}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                    Last verified
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-700">
+                    {formatValue(source.last_verified)}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                    Reporting years
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-700">
+                    {Array.isArray(source.years)
+                      ? source.years.join(", ") || "—"
+                      : formatValue(source.years)}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                    States represented
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-700">
+                    {formatValue(source.states_used)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Verification and traceability */}
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                  Verification & Traceability
+                </p>
+
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-[10px] font-medium text-slate-500">
+                      QA reference
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-700">
+                      {formatValue(source.qa_reference)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-medium text-slate-500">
+                      Approved date
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-700">
+                      {source.approved_on
+                        ? new Date(source.approved_on).toLocaleDateString()
+                        : "—"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* License */}
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                  License & Usage
+                </p>
+
+                <p className="mt-2 text-xs leading-relaxed text-slate-700">
+                  {formatValue(source.license)}
+                </p>
+              </div>
+
+              {/* Source identifier */}
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                  Source ID
+                </p>
+
+                <p className="mt-1 break-all text-[11px] text-slate-500">
+                  {formatValue(source.id ?? source.source_id)}
+                </p>
+              </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="mt-4 grid gap-3 text-xs text-slate-500 sm:grid-cols-2">
-          <p>
-            <span className="font-medium text-[#0B3C5D]">
-              Primary source:
-            </span>{" "}
-            To be supplied by the connected data service
-          </p>
+          );
+        })}
+      </div>
 
-          <p>
-            <span className="font-medium text-[#0B3C5D]">
-              Data vintage:
-            </span>{" "}
-            Not available yet
-          </p>
-
-          <p>
-            <span className="font-medium text-[#0B3C5D]">
-              Audit status:
-            </span>{" "}
-            Awaiting source metadata
-          </p>
-
-          <p>
-            <span className="font-medium text-[#0B3C5D]">
-              License:
-            </span>{" "}
-            To be confirmed from the source
-          </p>
-        </div>
-      )}
-
-      <p className="mt-4 text-[10px] italic leading-relaxed text-slate-500">
-        Source details, audit records, release dates, and licensing
-        information should be confirmed against the backend's
-        source metadata.
+      <p className="mt-4 text-[10px] leading-relaxed text-slate-500">
+        Source metadata is provided by the CivicIntel data service.
+        The presence of source metadata alone does not establish
+        independent verification or guarantee data accuracy.
       </p>
     </section>
   );
 }
 
-// --------------------------------------------------
-// Analysis brief
-// --------------------------------------------------
 
+// Analysis brief
 function AnalysisBrief({ comparison, result, resultsLoading }) {
   
     const analysisData = useMemo(() => {
@@ -785,7 +882,7 @@ function AnalysisBrief({ comparison, result, resultsLoading }) {
           <p className="mt-3 text-sm leading-6 text-slate-600">
             This report examines {comparison.indicatorName.toLowerCase()} across{" "}
             {comparison.selectedStates.length} selected Nigerian states
-            using published CivicIntel data.
+            using data returned by the CivicIntel data service.
             The analysis covers{" "}
             {analysisData?.reportingYears.join(", ") || "the selected reporting period"}.
           </p>
@@ -904,10 +1001,7 @@ function AnalysisBrief({ comparison, result, resultsLoading }) {
   );
 }
 
-// --------------------------------------------------
 // Main CompareResults page
-// --------------------------------------------------
-
 function CompareResults() {
   const { isLoggedIn, loading } = useAuth();
   const location = useLocation();
@@ -962,10 +1056,7 @@ function CompareResults() {
     });
   }, [isLoggedIn, loading, navigate, comparison]);
 
-  // --------------------------------------------------
   // Fetch actual comparison results
-  // --------------------------------------------------
-
   useEffect(() => {
     if (!comparison || !isLoggedIn || loading) {
       return;
@@ -1042,7 +1133,7 @@ function CompareResults() {
                   Array.isArray(item.sources) ? item.sources : []
                 )
                 .map((item) => [
-                  item.source_id ?? JSON.stringify(item),
+                  item.id ?? item.source_id ?? JSON.stringify(item),
                   item,
                 ])
             ).values(),
@@ -1058,9 +1149,7 @@ function CompareResults() {
             ),
           ],
 
-          contains_simulated_data: results.some(
-            (item) => item.contains_simulated_data === true
-          ),
+          
 
           years_requested:
             comparison.selectedYears?.length > 0
@@ -1096,10 +1185,7 @@ function CompareResults() {
     };
   }, [comparison, isLoggedIn, loading]);
 
-  // --------------------------------------------------
   // Authentication loading screen
-  // --------------------------------------------------
-
   if (loading || !isLoggedIn) {
     return (
       <main className="flex min-h-[50vh] items-center justify-center bg-[#E7ECEF] px-4">
@@ -1110,11 +1196,8 @@ function CompareResults() {
     );
   }
 
-  // --------------------------------------------------
   // Export actual comparison records
-  // --------------------------------------------------
-
-  const handleExport = async (format) => {
+ const handleExport = async (format) => {
     setShowExportMenu(false);
     setNotice("");
 
@@ -1185,12 +1268,8 @@ function CompareResults() {
   };
 
 
-  // --------------------------------------------------
   // Share comparison as a branded PNG
-  // --------------------------------------------------
-
-  
-  const handleShare = async () => {
+   const handleShare = async () => {
     if (!shareContentRef.current || sharing) {
       return;
     }
