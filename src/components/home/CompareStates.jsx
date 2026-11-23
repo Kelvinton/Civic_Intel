@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 
 import {
@@ -29,6 +29,7 @@ function unwrapList(payload, key) {
 
 function CompareStates() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isLoggedIn, loading } = useAuth();
   const shouldReduceMotion = useReducedMotion();
   const motionSettings = useMotionSettings();
@@ -36,15 +37,26 @@ function CompareStates() {
   const [indicators, setIndicators] = useState([]);
   const [states, setStates] = useState([]);
   const [publishedRecords, setPublishedRecords] = useState([]);
-  // const [domains, setDomains] = useState([]);
-
   const [optionsLoading, setOptionsLoading] = useState(true);
   const [optionsError, setOptionsError] = useState("");
 
-  const [indicator, setIndicator] = useState("");
-  const [primaryState, setPrimaryState] = useState("");
-  const [comparisonState, setComparisonState] = useState("");
-  const [selectedYears, setSelectedYears] = useState([]);
+  const previousComparison = location.state?.comparison;
+
+  const [indicator, setIndicator] = useState(
+    previousComparison?.indicator || ""
+  );
+
+  const [primaryState, setPrimaryState] = useState(
+    previousComparison?.primaryState || ""
+  );
+
+  const [comparisonState, setComparisonState] = useState(
+    previousComparison?.comparisonState || ""
+  );
+
+  const [selectedYears, setSelectedYears] = useState(
+    previousComparison?.selectedYears || []
+  );
   const [showYearDropdown, setShowYearDropdown] = useState(false);
   const [error, setError] = useState("");
 
@@ -64,6 +76,7 @@ function CompareStates() {
         healthRecords,
         financeRecords,
         educationRecords,
+        governanceRecords,
       ] = await Promise.all([
         getIndicators(),
         getStates(),
@@ -71,8 +84,9 @@ function CompareStates() {
         getAllPublishedRecords({ sector: "health" }),
         getAllPublishedRecords({ sector: "finance" }),
         getAllPublishedRecords({ sector: "education" }),
+        getAllPublishedRecords({ sector: "governance" }),
       ]);
-
+      
       if (!isMounted) return;
 
       const backendIndicators = unwrapList(
@@ -93,6 +107,7 @@ function CompareStates() {
         ...healthRecords,
         ...financeRecords,
         ...educationRecords,
+        ...governanceRecords,
       ]);
 
 
@@ -125,18 +140,18 @@ function CompareStates() {
 
   // Get the years available for the selected indicator.
   const availableYears = [
-  ...new Set(
-    publishedRecords
-      .filter((record) => record.indicator_key === indicator)
-      .map((record) => Number(record.year))
-      .filter(
-        (year) =>
-          Number.isInteger(year) &&
-          year >= 1900 &&
-          year <= 2100
-      )
-  ),
-].sort((a, b) => a - b);
+    ...new Set(
+      publishedRecords
+        .filter((record) => record.indicator_key === indicator)
+        .map((record) => Number(record.year))
+        .filter(
+          (year) =>
+            Number.isInteger(year) &&
+            year >= 1900 &&
+            year <= 2100
+        )
+    ),
+  ].sort((a, b) => a - b);
 
   // Add or remove an individual year.
   function toggleYear(year) {

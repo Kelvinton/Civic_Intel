@@ -144,7 +144,25 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
   const [showPasswordRecovery, setShowPasswordRecovery] = useState(false);
 
   const handleBack = () => {
-    // Return to the actual page the visitor came from.
+    if (
+      destination?.pathname === "/compare-results" &&
+      destination.state?.comparison
+    ) {
+      navigate(
+      {
+        pathname: "/",
+        hash: "#compare-states",
+      },
+      {
+        replace: true,
+        state: {
+          comparison: destination.state.comparison,
+        },
+      }
+    );
+      return;
+    }
+
     if (window.history.state?.idx > 0) {
       navigate(-1);
     } else {
