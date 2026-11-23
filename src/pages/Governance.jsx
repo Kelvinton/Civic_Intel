@@ -29,7 +29,7 @@ import {
   subscribeToMedia,
 } from "../api/media.js";
 
-import governanceHero from "../assets/governance.hero.png";
+import governanceHero from "../assets/governance.hero.jpg";
 import civicIntelLogo from "../assets/civicintellogo1.png";
 
 function isValidNumericValue(value) {
