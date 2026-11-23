@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 
 import civicIntel from "../../assets/civicintel.hero.logo.png";
-import civicIntelLogo from "../../assets/civicintellogo1.png";
+// import civicIntelLogo from "../../assets/civicintellogo1.png";
 
 const headingParts = [
   { text: "Exploring Nigeria Through " },
@@ -135,7 +135,7 @@ function Hero() {
           "
         >
           <p className="mb-4 text-xs uppercase tracking-wide text-white">
-            Nigeria · Health and education data
+            Nigeria · Health, education and governance data
           </p>
 
           {/* Heading and typewriter effect */}
@@ -285,7 +285,7 @@ function Hero() {
               "
             />
 
-            <img
+            {/* <img
               src={civicIntelLogo}
               alt="CivicIntel logo"
               className="
@@ -294,7 +294,7 @@ function Hero() {
                 sm:-bottom-8 sm:w-28
                 lg:w-32
               "
-            />
+            /> */}
           </div>
         </motion.div>
       </div>
