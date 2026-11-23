@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 
@@ -56,26 +56,7 @@ const categoryConfig = [
     image: OperatingRoom,
     imageAlt: "Healthcare professionals in a hospital operating room",
     link: "/health",
-    indicators: [
-      {
-        key: "anc4_pct",
-        label: "Antenatal Care 4+ visits",
-      },
-      {
-        key: "hiv_prevalence_pct",
-        label: "HIV prevalence among adults 15–49",
-      },
-      {
-        key: "maternal_mortality_ratio",
-        label: "Maternal mortality ratio",
-      },
-      {
-        key: "under_five_mortality",
-        label: "Under Five Mortality ratio",
-      },
-
     
-    ],
   },
   {
     id: "education",
@@ -86,24 +67,7 @@ const categoryConfig = [
     image: StudentsInClass,
     imageAlt: "Schoolchildren participating in a classroom lesson",
     link: "/education",
-    indicators: [
-      {
-        key: "primary_net_enrolment_pct",
-        label: "Primary net enrolment rate",
-      },
-      {
-        key: "primary_completion_pct",
-        label: "Primary completion rate",
-      },
-      {
-        key: "adult_literacy_pct",
-        label: "Adult literacy rate",
-      },
-      {
-        key: "primary_pupil_teacher_ratio",
-        label: "Primary pupil-teacher ratio",
-      },
-    ],
+    
   },
   {
     id: "governance",
@@ -114,12 +78,7 @@ const categoryConfig = [
     image: GovernanceImage,
     imageAlt: "Nigerian public institution",
     link: "/governance",
-    indicators: [
-      {
-        key: "fiscal_transparency_score_pct",
-        label: "Fiscal transparency score",
-      },
-    ],
+    
   },
 ];
 
@@ -159,26 +118,40 @@ async function fetchSectorRecords(sector) {
   return allRecords;
 }
 
-// Get the latest available Lagos record for each selected indicator.
-function getCategoryMetrics(records, indicators, selectedState) {
-  return indicators.map((indicator) => {
-    const matchingRecords = records
-      .filter(
-        (record) =>
-          record.state?.toLowerCase() === selectedState.toLowerCase() &&
-          record.indicator_key === indicator.key &&
-          record.value !== null &&
-          record.value !== undefined
-      )
-      .sort((a, b) => Number(b.year) - Number(a.year));
+// Get the latest available record for each selected indicator.
+function getCategoryMetrics(records, selectedState) {
+  const stateRecords = records.filter(
+    (record) =>
+      record.state?.toLowerCase() === selectedState.toLowerCase() &&
+      record.value !== null &&
+      record.value !== undefined
+  );
 
-    const record = matchingRecords[0];
+  const indicatorMap = new Map();
 
-    return {
-      ...indicator,
-      record: record ?? null,
-    };
+  stateRecords.forEach((record) => {
+    const existingRecord = indicatorMap.get(record.indicator_key);
+
+    if (
+      !existingRecord ||
+      Number(record.year) > Number(existingRecord.year)
+    ) {
+      indicatorMap.set(record.indicator_key, record);
+    }
   });
+
+  const uniqueIndicators = Array.from(indicatorMap.values());
+
+  // Shuffle indicators randomly
+  const shuffledIndicators = [...uniqueIndicators].sort(
+    () => Math.random() - 0.5
+  );
+
+  return shuffledIndicators.slice(0, 4).map((record) => ({
+    key: record.indicator_key,
+    label: record.indicator,
+    record,
+  }));
 }
 
 function getRandomItem(items) {
@@ -376,7 +349,6 @@ function Categories() {
     governance: [],
   });
 
-  const [recordsLoaded, setRecordsLoaded] = useState(false);
 
   function handleChangeState() {
     const otherStates = availableStates.filter(
@@ -421,34 +393,23 @@ function Categories() {
     };
   }, []);
 
-  const categoryData = {
-    health:
-      selectedState && recordsLoaded
-        ? getCategoryMetrics(
-            publishedRecords.health,
-            categoryConfig[0].indicators,
-            selectedState
-          )
-        : [],
-
-    education:
-      selectedState && recordsLoaded
-        ? getCategoryMetrics(
-            publishedRecords.education,
-            categoryConfig[1].indicators,
-            selectedState
-          )
-        : [],
-
-    governance:
-      selectedState && recordsLoaded
-        ? getCategoryMetrics(
-            publishedRecords.governance,
-            categoryConfig[2].indicators,
-            selectedState
-          )
-        : [],
-  };
+  const categoryData = useMemo(
+    () => ({
+      health: getCategoryMetrics(
+        publishedRecords.health,
+        selectedState
+      ),
+      education: getCategoryMetrics(
+        publishedRecords.education,
+        selectedState
+      ),
+      governance: getCategoryMetrics(
+        publishedRecords.governance,
+        selectedState
+      ),
+    }),
+    [publishedRecords, selectedState]
+  );
 
   const [loading, setLoading] = useState({
     health: true,
@@ -479,7 +440,6 @@ function Categories() {
           governance: governanceRecords,
         });
 
-        setRecordsLoaded(true);
 
         setLoading({
           health: false,
@@ -519,6 +479,7 @@ function Categories() {
 
   return (
     <section id="categories" className="bg-white text-black">
+      
       {/* Section heading */}
       <div className="bg-[#dce3e6] pb-4 pt-12">
         <div className="mx-auto flex max-w-6xl items-center gap-2 px-5 sm:px-8 lg:px-4">
