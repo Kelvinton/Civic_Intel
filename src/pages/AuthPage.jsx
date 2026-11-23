@@ -117,6 +117,16 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
 
   useEffect(() => {
     if (isLoggedIn) {
+      if (location.state?.exploreDraft) {
+        navigate("/compare-results", {
+          replace: true,
+          state: {
+            comparison: location.state.exploreDraft,
+          },
+        });
+        return;
+      }
+
       navigate(
         {
           pathname: destination?.pathname || "/",
@@ -128,7 +138,7 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
         }
       );
     }
-  }, [isLoggedIn, navigate, destination]);
+  }, [isLoggedIn, navigate, destination, location.state]);
 
   // Controls whether the password recovery modal is visible.
   const [showPasswordRecovery, setShowPasswordRecovery] = useState(false);
