@@ -1,12 +1,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link,  useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 
 import {
   BarChart,
   Bar,
-  Cell,
   CartesianGrid,
   XAxis,
   YAxis,
@@ -97,7 +96,6 @@ function getSavedGovernanceFilters() {
 
 function Governance() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { isLoggedIn } = useAuth();
   const motionSettings = useMotionSettings();
 
@@ -711,17 +709,28 @@ function Governance() {
               No Governance indicators have been published yet.
             </p>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              {overviewStats.map((item) => (
-                <div
+            
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              {overviewStats.map((item, index) => (
+                <article
                   key={item.indicatorKey}
-                  className="rounded-xl border border-white/15 bg-white/10 p-6"
+                  className="group relative min-h-28 overflow-hidden rounded-md border border-transparent border-l-4 bg-[#F0F1F0] p-3.5 shadow-sm transform-gpu transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.02] hover:border-[#1F7A3F] hover:shadow-xl active:scale-[0.98] motion-reduce:transform-none motion-reduce:transition-none"
+                  style={{
+                    borderLeftColor: [
+                      "#1F7A3F",
+                      "#8B2922",
+                      "#145C3B",
+                      "#0B3C5D",
+                      "#D6A400",
+                    ][index % 5],
+                    transitionDelay: `${index * 40}ms`,
+                  }}
                 >
-                  <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/75">
-                    Governance data
+                  <span className="inline-block rounded-full bg-[#0B3C5D] px-3 py-1 text-[9px] font-medium text-white">
+                    {item.label}
                   </span>
 
-                  <p className="mt-4 text-3xl font-bold text-white">
+                  <p className="mt-3 text-lg font-bold text-[#0B3C5D]">
                     {item.average.toLocaleString(undefined, {
                       maximumFractionDigits: 1,
                     })}
@@ -732,22 +741,19 @@ function Governance() {
                       : ""}
                   </p>
 
-                  <p className="mt-2 text-sm font-medium leading-5 text-white/85">
-                    {item.label}
+                  <p className="mt-1 text-xs leading-5">
+                    Average across reporting states
                   </p>
 
-                  <div className="mt-5 border-t border-dashed border-white/20 pt-4">
-                    <p className="text-xs text-white/65">
-                      State average · {item.latestYear}
-                    </p>
+                  <div className="my-2 border-t border-dashed border-gray-400" />
 
-                    <p className="mt-2 text-xs text-white/65">
-                      Based on {item.reportingStates} state records
-                    </p>
-                  </div>
-                </div>
+                  <p className="text-[10px] text-gray-600">
+                    {item.latestYear} · {item.reportingStates} states
+                  </p>
+                </article>
               ))}
             </div>
+
           )}
         </div>
       </section>
