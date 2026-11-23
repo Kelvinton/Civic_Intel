@@ -241,9 +241,7 @@ function VoterEducation() {
                     </h2>
                     </div>
 
-                    <button className="text-[10px] font-medium text-[#0B3C5D]">
-                    See all articles →
-                    </button>
+                    
                 </div>
 
                 <div className="flex min-h-[120px] flex-col items-center justify-center rounded-xl border border-gray-100 bg-white px-5 py-7 text-center shadow-sm">
@@ -362,7 +360,7 @@ function VoterEducation() {
                     <div className="mb-3 flex items-center gap-3">
                     <span className="h-px w-8 bg-[#0B3C5D]/30" />
                     <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-[#0B3C5D]/70">
-                        Downloadable Resources
+                        Upcoming Resources
                     </p>
                     </div>
 
@@ -403,9 +401,12 @@ function VoterEducation() {
                         your voting rights and participating responsibly.
                     </p>
 
-                    <div className="mt-4 rounded-full border border-gray-300 px-4 py-2 text-center text-[10px] font-medium text-gray-500">
-                        Download PDF
-                    </div>
+                    <p
+                    className="mt-4 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-center text-[10px] font-medium text-gray-400"
+                    aria-label="PDF resource not yet available"
+                    >
+                        PDF resource coming soon
+                    </p>
                     </div>
                 </article>
 
@@ -437,9 +438,12 @@ function VoterEducation() {
                         transparency and citizen participation in Nigeria.
                     </p>
 
-                    <div className="mt-4 rounded-full border border-gray-300 px-4 py-2 text-center text-[10px] font-medium text-gray-500">
-                        Download PDF
-                    </div>
+                    <p
+                    className="mt-4 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-center text-[10px] font-medium text-gray-400"
+                    aria-label="PDF resource not yet available"
+                    >
+                     PDF resource coming soon
+                    </p>
                     </div>
                 </article>
 
@@ -470,9 +474,12 @@ function VoterEducation() {
                         public dialogue and democratic participation.
                     </p>
 
-                    <div className="mt-4 rounded-full border border-gray-300 px-4 py-2 text-center text-[10px] font-medium text-gray-500">
-                        Download PDF
-                    </div>
+                    <p
+                    className="mt-4 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-center text-[10px] font-medium text-gray-400"
+                    aria-label="PDF resource not yet available"
+                    >
+                        PDF resource coming soon
+                    </p>
                     </div>
                 </article>
 

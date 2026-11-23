@@ -546,7 +546,7 @@ function Media() {
             </p>
 
             <a
-              href="mailto:civicintel@gmail.com"
+              href="mailto:civicintelafrica@gmail.com"
               className="mt-3 inline-block text-sm font-medium text-[#14552E] transition hover:underline"
             >
               Email: civicintelafrica@gmail.com
