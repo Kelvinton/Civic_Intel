@@ -129,6 +129,88 @@ function getLatestRecord(records, stateName, indicatorKey, selectedYear) {
   );
 }
 
+function getBestIndicator(records, states, selectedYear) {
+  if (!records.length || !states.length) return null;
+
+  const validStates = new Set(
+    states.map((state) => normalizeStateName(state.name))
+  );
+
+  function rankIndicators(sourceRecords) {
+    const indicatorGroups = {};
+
+    sourceRecords.forEach((record) => {
+      const normalizedState = normalizeStateName(record.state);
+
+      if (
+        !record.indicator_key ||
+        record.value == null ||
+        !validStates.has(normalizedState)
+      ) {
+        return;
+      }
+
+      if (!indicatorGroups[record.indicator_key]) {
+        indicatorGroups[record.indicator_key] = {
+          name: record.indicator,
+          records: [],
+        };
+      }
+
+      indicatorGroups[record.indicator_key].records.push(record);
+    });
+
+    const candidates = Object.entries(indicatorGroups).map(
+      ([key, data]) => {
+        const latestYear = Math.max(
+          ...data.records.map((record) => Number(record.year))
+        );
+
+        const latestYearRecords = data.records.filter(
+          (record) => Number(record.year) === latestYear
+        );
+
+        const reportingStates = new Set(
+          latestYearRecords.map((record) =>
+            normalizeStateName(record.state)
+          )
+        );
+
+        return {
+          key,
+          name: data.name,
+          coverage: reportingStates.size,
+          latestYear,
+        };
+      }
+    );
+
+    candidates.sort((a, b) => {
+      if (b.coverage !== a.coverage) {
+        return b.coverage - a.coverage;
+      }
+
+      return b.latestYear - a.latestYear;
+    });
+
+    return candidates[0] || null;
+  }
+
+  if (selectedYear !== "latest") {
+    const yearRecords = records.filter(
+      (record) => String(record.year) === selectedYear
+    );
+
+    const selectedYearBest = rankIndicators(yearRecords);
+
+    if (selectedYearBest) return selectedYearBest;
+
+    return null;
+  }
+
+  return rankIndicators(records);
+}
+
 function formatValue(record) {
   if (!record || record.value == null) {
     return "Not available";
@@ -148,7 +230,6 @@ function formatValue(record) {
 }
 
 function States() {
-  const [indicator, setIndicator] = useState("health");
   const [year, setYear] = useState("latest");
   const [search, setSearch] = useState("");
   const [initialStates, setInitialStates] = useState([]);
@@ -156,6 +237,7 @@ function States() {
   const [states, setStates] = useState([]);
   const [healthRecords, setHealthRecords] = useState([]);
   const [educationRecords, setEducationRecords] = useState([]);
+  const [governanceRecords, setGovernanceRecords] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -170,12 +252,13 @@ function States() {
         setLoading(true);
         setError("");
 
-        const [statesData, healthData, educationData] =
-          await Promise.all([
-            getStates(),
-            getAllPublishedRecords({ sector: "health" }),
-            getAllPublishedRecords({ sector: "education" }),
-          ]);
+        const [statesData, healthData, educationData, governanceData] =
+        await Promise.all([
+          getStates(),
+          getAllPublishedRecords({ sector: "health" }),
+          getAllPublishedRecords({ sector: "education" }),
+          getAllPublishedRecords({ sector: "governance" }),
+        ]);
 
         if (!isMounted) return;
 
@@ -190,6 +273,8 @@ function States() {
         setInitialStates(shuffledStates.slice(0, 9));
         setHealthRecords(healthData);
         setEducationRecords(educationData);
+        setGovernanceRecords(governanceData);
+        
       } catch (err) {
         if (!isMounted) return;
 
@@ -210,8 +295,8 @@ function States() {
   }, []);
 
   const allRecords = useMemo(
-    () => [...healthRecords, ...educationRecords],
-    [healthRecords, educationRecords]
+    () => [...healthRecords, ...educationRecords, ...governanceRecords],
+    [healthRecords, educationRecords, governanceRecords]
   );
 
   const availableYears = useMemo(() => {
@@ -239,31 +324,17 @@ function States() {
 
   
 
-  const activeRecords =
-    indicator === "health" ? healthRecords : educationRecords;
+  const healthIndicator = getBestIndicator(healthRecords, states, year);
+const educationIndicator = getBestIndicator(educationRecords, states, year);
+const governanceIndicator = getBestIndicator(governanceRecords, states, year);
 
-  const activeIndicatorKey =
-    indicator === "health"
-      ? "anc4_pct"
-      : "primary_completion_pct";
+const healthIndicatorKey = healthIndicator?.key;
+const educationIndicatorKey = educationIndicator?.key;
+const governanceIndicatorKey = governanceIndicator?.key;
 
-  const activeIndicatorLabel =
-    indicator === "health"
-      ? "ANC 4+ coverage"
-      : "Primary completion rate";
-
-  const secondaryRecords =
-    indicator === "health" ? educationRecords : healthRecords;
-
-  const secondaryIndicatorKey =
-    indicator === "health"
-      ? "primary_completion_pct"
-      : "anc4_pct";
-
-  const secondaryIndicatorLabel =
-    indicator === "health"
-      ? "Primary completion rate"
-      : "ANC 4+ coverage";
+const healthIndicatorLabel = healthIndicator?.name || "No indicator available";
+const educationIndicatorLabel = educationIndicator?.name || "No indicator available";
+const governanceIndicatorLabel = governanceIndicator?.name || "No indicator available";
 
   return (
     <main className="min-h-screen bg-[#E7EDF0] pt-18 text-[#0B3C5D] sm:pt-20">
@@ -289,8 +360,8 @@ function States() {
 
             <p className="mt-4 max-w-md text-sm leading-6 text-[#394951]">
               Browse Nigeria's 36 states and the FCT. Explore
-              published health and education indicators with
-              reporting years and source attribution.
+              published health, education and governance indicators
+              with reporting years and source attribution.
             </p>
           </div>
 
@@ -320,20 +391,9 @@ function States() {
         <motion.div
           {...motionSettings}
           variants={revealVariants}
-          className="relative z-10 mx-auto -mt-5 grid max-w-4xl gap-5 rounded-2xl bg-[#0B3C5D] p-5 text-white shadow-lg sm:grid-cols-2 sm:p-6"
+          className="relative z-10 mx-auto -mt-5 grid max-w-4xl gap-5 rounded-2xl bg-[#0B3C5D] p-5 text-white shadow-lg sm:grid-cols-1 sm:p-6"
         >
-          <label className="flex flex-col gap-3 text-sm font-semibold">
-            Indicator
-
-            <select
-              value={indicator}
-              onChange={(event) => setIndicator(event.target.value)}
-              className="rounded-xl bg-white px-4 py-3 font-normal text-[#0B3C5D] outline-none"
-            >
-              <option value="health">ANC 4+ Coverage</option>
-              <option value="education">Primary Completion Rate</option>
-            </select>
-          </label>
+          
 
           <label className="flex flex-col gap-3 text-sm font-semibold">
             Year
@@ -359,8 +419,21 @@ function States() {
           variants={revealVariants}
           className="mt-5 text-center text-xs text-gray-500"
         >
-          Showing published {activeIndicatorLabel.toLowerCase()} records.
+          Showing selected indicators across Health, Education and Governance.
           Reporting years are displayed for each state.
+        </motion.p>
+
+        <motion.p
+          {...motionSettings}
+          variants={revealVariants}
+          className="mx-auto mt-2 max-w-2xl text-center text-xs leading-5 text-gray-500"
+        >
+          Data note: State cards display one selected indicator each from
+          Health, Education and Governance, chosen based on available data
+          coverage. These indicators provide a snapshot of each sector and
+          do not represent the entire sector. Reporting years vary by state;
+          when "Latest available" is selected, each state displays its most
+          recent published record for each selected indicator.
         </motion.p>
 
         {/* Search */}
@@ -406,17 +479,24 @@ function States() {
           <>
             <div className="grid gap-x-7 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
               {filteredStates.map((state) => {
-                const valueRecord = getLatestRecord(
-                  activeRecords,
+                const healthRecord = getLatestRecord(
+                  healthRecords,
                   state.name,
-                  activeIndicatorKey,
+                  healthIndicatorKey,
                   year
                 );
 
-                const secondaryRecord = getLatestRecord(
-                  secondaryRecords,
+                const educationRecord = getLatestRecord(
+                  educationRecords,
                   state.name,
-                  secondaryIndicatorKey,
+                  educationIndicatorKey,
+                  year
+                );
+
+                const governanceRecord = getLatestRecord(
+                  governanceRecords,
+                  state.name,
+                  governanceIndicatorKey,
                   year
                 );
 
@@ -455,37 +535,64 @@ function States() {
                           {state.zone}
                         </p>
 
-                        <div className="mt-3 grid grid-cols-2 gap-3">
-                          <div>
-                            <p className="text-sm font-medium">
-                              {formatValue(valueRecord)}
-                            </p>
+                        <div className="mt-3 grid grid-cols-1 gap-3">
+                          <div className="mt-3 grid grid-cols-3 gap-2">
+                            {/* Health */}
+                            <div className="min-w-0 border-t border-white/10 pt-2">
+                              <p className="wrap-break-word text-xs font-semibold leading-tight">
+                                {formatValue(healthRecord)}
+                              </p>
 
-                            <p className="mt-1 text-[9px] uppercase text-white/60">
-                              {activeIndicatorLabel}
-                            </p>
+                              <p className="mt-1 wrap-break-word text-[8px] leading-3 uppercase text-white/60">
+                                Health — {healthIndicatorLabel}
+                              </p>
 
-                            <p className="mt-1 text-[10px] text-white/50">
-                              {valueRecord
-                                ? `Year: ${valueRecord.year}`
-                                : "No published record"}
-                            </p>
-                          </div>
+                              <p className="mt-1 wrap-break-word text-[9px] leading-3 text-white/50">
+                                {healthRecord
+                                  ? `Year: ${healthRecord.year}`
+                                  : year === "latest"
+                                    ? "No published record"
+                                    : `No data for ${year}`}
+                              </p>
+                            </div>
 
-                          <div>
-                            <p className="text-sm font-medium">
-                              {formatValue(secondaryRecord)}
-                            </p>
+                            {/* Education */}
+                            <div className="min-w-0 border-t border-white/10 pt-2">
+                              <p className="wrap-break-word text-xs font-semibold leading-tight">
+                                {formatValue(educationRecord)}
+                              </p>
 
-                            <p className="mt-1 text-[9px] uppercase text-white/60">
-                              {secondaryIndicatorLabel}
-                            </p>
+                              <p className="mt-1 wrap-break-word  text-[8px] leading-3 uppercase text-white/60">
+                                Education — {educationIndicatorLabel}
+                              </p>
 
-                            <p className="mt-1 text-[10px] text-white/50">
-                              {secondaryRecord
-                                ? `Year: ${secondaryRecord.year}`
-                                : "No published record"}
-                            </p>
+                              <p className="mt-1 wrap-break-word text-[9px] leading-3 text-white/50">
+                                {educationRecord
+                                  ? `Year: ${educationRecord.year}`
+                                  : year === "latest"
+                                    ? "No published record"
+                                    : `No data for ${year}`}
+                              </p>
+                            </div>
+
+                            {/* Governance */}
+                            <div className="min-w-0 border-t border-white/10 pt-2">
+                              <p className="wrap-break-word text-xs font-semibold leading-tight">
+                                {formatValue(governanceRecord)}
+                              </p>
+
+                              <p className="mt-1 wrap-break-word text-[8px] leading-3 uppercase text-white/60">
+                                Governance — {governanceIndicatorLabel}
+                              </p>
+
+                              <p className="mt-1 wrap-break-word text-[9px] leading-3 text-white/50">
+                                {governanceRecord
+                                  ? `Year: ${governanceRecord.year}`
+                                  : year === "latest"
+                                    ? "No published record"
+                                    : `No data for ${year}`}
+                              </p>
+                            </div>
                           </div>
                         </div>
 

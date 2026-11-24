@@ -150,28 +150,40 @@ function IndicatorSection({ title, records }) {
         {title}
       </h2>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 lg:gap-8">
-        {visibleIndicators.map((record) => (
-          <article
-            key={record.indicator_key}
-            className="flex min-h-37.5 flex-col rounded-lg bg-white p-3 sm:min-h-41 sm:p-4"
-          >
-            <p className="text-lg font-bold text-[#161616]">
-              {formatValue(record)}
-            </p>
+      {indicators.length > 0 ? (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 lg:gap-8">
+          {visibleIndicators.map((record) => (
+            <article
+              key={record.indicator_key}
+              className="flex min-h-37.5 flex-col rounded-lg bg-white p-3 sm:min-h-41 sm:p-4"
+            >
+              <p className="text-lg font-bold text-[#161616]">
+                {formatValue(record)}
+              </p>
 
-            <p className="mt-2 text-xs leading-5 text-gray-500">
-              {record.indicator}
-            </p>
+              <p className="mt-2 text-xs leading-5 text-gray-500">
+                {record.indicator}
+              </p>
 
-            <div className="my-3 border-t border-dashed border-gray-200" />
+              <div className="my-3 border-t border-dashed border-gray-200" />
 
-            <p className="mt-auto text-[10px] text-gray-500">
-              Published record • {record.year}
-            </p>
-          </article>
-        ))}
-      </div>
+              <p className="mt-auto text-[10px] text-gray-500">
+                Published record • {record.year}
+              </p>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-gray-300 bg-white/60 px-5 py-8 text-center">
+          <p className="text-sm font-semibold text-gray-700">
+            No published {title.toLowerCase()} records available
+          </p>
+
+          <p className="mt-2 text-xs text-gray-500">
+            Data for this sector has not been published for this state yet.
+          </p>
+        </div>
+      )}
 
       {indicators.length > 5 && (
         <button
@@ -193,6 +205,7 @@ function StateDetails() {
   const [states, setStates] = useState([]);
   const [healthRecords, setHealthRecords] = useState([]);
   const [educationRecords, setEducationRecords] = useState([]);
+  const [governanceRecords, setGovernanceRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -204,12 +217,17 @@ function StateDetails() {
         setLoading(true);
         setError("");
 
-        const [statesData, healthData, educationData] =
-          await Promise.all([
-            getStates(),
-            getAllPublishedRecords({ sector: "health" }),
-            getAllPublishedRecords({ sector: "education" }),
-          ]);
+        const [
+          statesData,
+          healthData,
+          educationData,
+          governanceData,
+        ] = await Promise.all([
+          getStates(),
+          getAllPublishedRecords({ sector: "health" }),
+          getAllPublishedRecords({ sector: "education" }),
+          getAllPublishedRecords({ sector: "governance" }),
+        ]);
 
         if (!isMounted) return;
 
@@ -217,6 +235,7 @@ function StateDetails() {
         
         setHealthRecords(healthData);
         setEducationRecords(educationData);
+        setGovernanceRecords(governanceData);
       } catch (err) {
         if (isMounted) {
           setError(
@@ -266,9 +285,20 @@ function StateDetails() {
     );
   }, [educationRecords, state]);
 
+  const selectedGovernanceRecords = useMemo(() => {
+    if (!state) return [];
+
+    return governanceRecords.filter(
+      (record) =>
+        normalizeStateName(record.state) ===
+        normalizeStateName(state.name)
+    );
+  }, [governanceRecords, state]);
+
   const allSelectedRecords = [
     ...selectedHealthRecords,
     ...selectedEducationRecords,
+    ...selectedGovernanceRecords,
   ];
 
   // const datasetIds = [
@@ -399,6 +429,11 @@ function StateDetails() {
         <IndicatorSection
           title="EDUCATION"
           records={selectedEducationRecords}
+        />
+
+        <IndicatorSection
+          title="GOVERNANCE"
+          records={selectedGovernanceRecords}
         />
 
         {/* Source and methodology */}
