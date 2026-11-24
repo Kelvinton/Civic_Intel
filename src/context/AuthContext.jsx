@@ -173,6 +173,7 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  
   // SIGNUP
   const signup = useCallback(async (formData) => {
     const payload = {
@@ -204,28 +205,37 @@ export function AuthProvider({ children }) {
       body: JSON.stringify(payload),
     });
 
-    let currentUser = getUserFromResponse(data);
-
-    // Only attempt to retrieve the profile if a token exists.
-    if (!currentUser && getAccessToken()) {
-      try {
-        const me = await apiRequest("/users/me");
-
-        currentUser = getUserFromResponse(me);
-      } catch {
-        currentUser = null;
-      }
-    }
-
-    if (currentUser) {
-      setUser(currentUser);
-    }
-
+    // Signup does not authenticate the user.
+    // The user must verify their email before logging in.
     return {
       ...data,
-      user: currentUser,
+      email: payload.email,
     };
   }, []);
+
+
+  // VERIFY EMAIL
+  const verifyEmail = useCallback(async (email, otp) => {
+    return apiRequest("/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({
+        email: normalizeEmail(email),
+        otp: String(otp).trim(),
+      }),
+    });
+  }, []);
+
+  // RESEND VERIFICATION CODE
+  const resendVerification = useCallback(async (email) => {
+    return apiRequest("/auth/resend-verification", {
+      method: "POST",
+      body: JSON.stringify({
+        email: normalizeEmail(email),
+      }),
+    });
+  }, []);
+
+
 
   // LOGOUT
   const logout = useCallback(async () => {
@@ -248,6 +258,8 @@ export function AuthProvider({ children }) {
     loading,
     login,
     signup,
+    verifyEmail,
+    resendVerification,
     logout,
     refreshUser,
   };
