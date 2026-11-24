@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import PasswordRecovery from "./PasswordRecovery.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 import civicIntelLogo from "../assets/signup.logo.png";
 
 const initialLogin = {
@@ -113,6 +114,7 @@ function AuthInput({
 function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { verifyEmail, resendVerification } = useAuth();
   const destination = location.state?.from;
 
   useEffect(() => {
@@ -142,6 +144,24 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
 
   // Controls whether the password recovery modal is visible.
   const [showPasswordRecovery, setShowPasswordRecovery] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [verificationOtp, setVerificationOtp] = useState("");
+  const [verificationError, setVerificationError] = useState("");
+  const [verificationMessage, setVerificationMessage] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [resendingCode, setResendingCode] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
+
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+
+    const timer = setTimeout(() => {
+      setResendCountdown((previous) => previous - 1);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [resendCountdown]);
 
   const handleBack = () => {
     if (
@@ -237,6 +257,66 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
     return Object.keys(nextErrors).length === 0;
   };
 
+    const handleVerifyEmail = async (event) => {
+    event.preventDefault();
+
+    if (verifying) return;
+
+    if (!/^\d{6}$/.test(verificationOtp)) {
+      setVerificationError("Enter the six-digit verification code.");
+      return;
+    }
+
+    setVerifying(true);
+    setVerificationError("");
+    setVerificationMessage("");
+
+    try {
+      await verifyEmail(verificationEmail, verificationOtp);
+
+      setShowVerificationModal(false);
+
+      navigate("/login", {
+        replace: true,
+        state: {
+          from: destination,
+          message: "Your email has been verified successfully. You can now log in.",
+        },
+      });
+    } catch (error) {
+      setVerificationError(
+        error.message || "Verification failed. Please check your code."
+      );
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (resendingCode || !verificationEmail) return;
+
+    setResendingCode(true);
+    setVerificationError("");
+    setVerificationMessage("");
+
+    try {
+      await resendVerification(verificationEmail);
+
+      setResendCountdown(30);
+      setVerificationMessage("Code sent!");
+
+      setTimeout(() => {
+        setVerificationMessage("");
+      }, 1000);
+    } catch (error) {
+      setVerificationError(
+        error.message || "Unable to resend the verification code."
+      );
+    } finally {
+      setResendingCode(false);
+    }
+  };
+  
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -257,28 +337,12 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
           termsAccepted: signup.agreeToTerms,
         });
 
-        if (result?.user) {
-          navigate(
-            {
-              pathname: destination?.pathname || "/",
-              hash: destination?.hash || "",
-            },
-            {
-              replace: true,
-              state: destination?.state,
-            }
-          );
-        } else {
-          navigate("/login", {
-            replace: true,
-            state: {
-              from: destination,
-              message:
-                result?.message ||
-                "Your registration request was submitted. Please log in or follow any verification instructions.",
-            },
-          });
-        }
+        setVerificationEmail(result?.email || signup.email.trim());
+        setVerificationOtp("");
+        setVerificationError("");
+        setVerificationMessage("");
+        setResendCountdown(30);
+        setShowVerificationModal(true);
       } else {
         await onLogin({
           email: login.email.trim(),
@@ -307,6 +371,7 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
       setSubmitting(false);
     }
   };
+
 
   if (isLoggedIn) {
     return (
@@ -480,7 +545,7 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
                           "South Africa",
                           "United States",
                           "United Kingdom",
-                          "Austraila",
+                          "Australia",
                           "Canada",
                           "Europe",
                           "Other",
@@ -677,6 +742,141 @@ function AuthPage({ mode = "login", isLoggedIn, onLogin, onSignup }) {
         <PasswordRecovery
           onBackToLogin={() => setShowPasswordRecovery(false)}
         />
+      )}
+
+      {/* Email verification modal */}
+      {showVerificationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-3 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="verification-title"
+            className="my-auto w-full max-w-md rounded-2xl bg-white p-3 shadow-2xl sm:p-7"
+          >
+            {/* Logo */}
+            <div className="mb-2 flex justify-center">
+              <img
+                src={civicIntelLogo}
+                alt="CivicIntel"
+                className="h-10 w-auto object-contain"
+              />
+            </div>
+
+            {/* Email icon */}
+            <div className="text-center">
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[#1F7A3F]/10 text-[#1F7A3F]">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  className="h-8 w-8"
+                  aria-hidden="true"
+                >
+                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                  <path d="m3 7 9 6 9-6" />
+                </svg>
+              </div>
+
+              <h2
+                id="verification-title"
+                className="text-2xl font-bold text-[#0B3C5D]"
+              >
+                Verify Your Email
+              </h2>
+
+              <p className="mt-3 text-sm leading-6 text-gray-600">
+                We've sent a six-digit verification code to:
+              </p>
+
+              <p className="mt-1 break-all font-semibold text-[#1F7A3F]">
+                {verificationEmail}
+              </p>
+            </div>
+
+            {/* Verification form */}
+            <form onSubmit={handleVerifyEmail} className="mt-8 space-y-5">
+              <div>
+                <label
+                  htmlFor="verificationOtp"
+                  className="mb-2 block text-sm font-medium text-gray-800"
+                >
+                  Verification Code
+                </label>
+
+                <input
+                  id="verificationOtp"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={verificationOtp}
+                  onChange={(event) => {
+                    setVerificationOtp(
+                      event.target.value.replace(/\D/g, "").slice(0, 6)
+                    );
+                    setVerificationError("");
+                  }}
+                  placeholder="Enter 6-digit code"
+                  required
+                  className="w-full rounded-xl border border-gray-300 px-4 py-4 text-center text-xl font-semibold tracking-[0.4em] text-[#0B3C5D] placeholder:text-sm placeholder:font-normal placeholder:tracking-normal outline-none focus:border-[#1F7A3F] focus:ring-2 focus:ring-[#1F7A3F]/15"
+                />
+              </div>
+
+              {/* Error message */}
+              {verificationError && (
+                <p
+                  role="alert"
+                  className="rounded-lg bg-red-50 p-3 text-sm text-red-700"
+                >
+                  {verificationError}
+                </p>
+              )}
+
+              {/* Success message */}
+              {verificationMessage && (
+                <p
+                  role="status"
+                  className="rounded-lg bg-green-50 p-3 text-sm text-green-700"
+                >
+                  {verificationMessage}
+                </p>
+              )}
+
+              {/* Verify button */}
+              <button
+                type="submit"
+                disabled={verifying || verificationOtp.length !== 6}
+                className="w-full rounded-full bg-[#1F7A3F] px-5 py-3 font-medium text-white transition hover:bg-[#176331] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {verifying ? "Verifying..." : "Verify Email"}
+              </button>
+            </form>
+
+            {/* Resend code */}
+            <div className="mt-7 text-center">
+              <p className="text-sm text-gray-600">
+                Didn't receive the code?
+              </p>
+
+              <button
+                type="button"
+                onClick={handleResendCode}
+                disabled={resendingCode || resendCountdown > 0}
+                className="mt-2 font-semibold text-[#1F7A3F]  disabled:opacity-50"
+              >
+                {resendingCode
+                  ? "Sending..."
+                  : resendCountdown > 0
+                    ? `Resend code in ${resendCountdown}s`
+                    : "Resend verification code"}
+              </button>
+            </div>
+          </motion.div>
+        </div>
       )}
     </>
   );
