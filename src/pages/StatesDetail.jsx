@@ -118,7 +118,7 @@ function formatValue(record) {
 }
 
 
-function IndicatorSection({ title, records }) {
+function IndicatorSection({ title, records, loading }) {
   const [showAll, setShowAll] = useState(false);
 
   // Keep only the latest published record for each indicator.
@@ -150,7 +150,13 @@ function IndicatorSection({ title, records }) {
         {title}
       </h2>
 
-      {indicators.length > 0 ? (
+      {loading ? (
+        <div className="rounded-lg border border-dashed border-gray-300 bg-white/60 px-5 py-8 text-center">
+          <p className="text-sm text-gray-500">
+            Loading {title.toLowerCase()} indicators...
+          </p>
+        </div>
+      ) : indicators.length > 0 ? (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 lg:gap-8">
           {visibleIndicators.map((record) => (
             <article
@@ -209,41 +215,72 @@ function StateDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [sectorLoading, setSectorLoading] = useState({
+    health: true,
+    education: true,
+    governance: true,
+  });
+
   useEffect(() => {
     let isMounted = true;
+    const controller = new AbortController();
 
     async function loadStateData() {
       try {
-        setLoading(true);
         setError("");
 
-        const [
-          statesData,
-          healthData,
-          educationData,
-          governanceData,
-        ] = await Promise.all([
-          getStates(),
-          getAllPublishedRecords({ sector: "health" }),
-          getAllPublishedRecords({ sector: "education" }),
-          getAllPublishedRecords({ sector: "governance" }),
-        ]);
+        // 1. Load the states directory first.
+        const statesData = await getStates({
+          signal: controller.signal,
+        });
 
         if (!isMounted) return;
 
         setStates(Array.isArray(statesData) ? statesData : []);
-        
-        setHealthRecords(healthData);
-        setEducationRecords(educationData);
-        setGovernanceRecords(governanceData);
-      } catch (err) {
-        if (isMounted) {
-          setError(
-            err.message || "Unable to load this state's published data."
-          );
+
+        // Display the state profile immediately.
+        setLoading(false);
+
+        // 2. Load each sector independently.
+        async function loadSector(sector, setRecords) {
+          try {
+            const records = await getAllPublishedRecords({
+              sector,
+              signal: controller.signal,
+            });
+
+            if (isMounted) {
+              setRecords(records);
+            }
+          } catch (err) {
+            if (!controller.signal.aborted) {
+              console.error(`Failed to load ${sector} records:`, err);
+            }
+          } finally {
+            if (isMounted) {
+              setSectorLoading((previous) => ({
+                ...previous,
+                [sector]: false,
+              }));
+            }
+          }
         }
+
+        await Promise.all([
+          loadSector("health", setHealthRecords),
+          loadSector("education", setEducationRecords),
+          loadSector("governance", setGovernanceRecords),
+        ]);
+      } catch (err) {
+        if (!isMounted || controller.signal.aborted) return;
+
+        setError(
+          err.message || "Unable to load this state's published data."
+        );
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
 
@@ -251,6 +288,7 @@ function StateDetails() {
 
     return () => {
       isMounted = false;
+      controller.abort();
     };
   }, []);
 
@@ -424,16 +462,19 @@ function StateDetails() {
         <IndicatorSection
           title="HEALTH"
           records={selectedHealthRecords}
+          loading={sectorLoading.health}
         />
 
         <IndicatorSection
           title="EDUCATION"
           records={selectedEducationRecords}
+          loading={sectorLoading.education}
         />
 
         <IndicatorSection
           title="GOVERNANCE"
           records={selectedGovernanceRecords}
+          loading={sectorLoading.governance}
         />
 
         {/* Source and methodology */}

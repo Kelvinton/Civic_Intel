@@ -241,24 +241,22 @@ function States() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [recordsLoading, setRecordsLoading] = useState(true);
 
   const motionSettings = useMotionSettings();
 
   useEffect(() => {
     let isMounted = true;
+    const controller = new AbortController();
 
     async function loadDirectory() {
       try {
-        setLoading(true);
         setError("");
 
-        const [statesData, healthData, educationData, governanceData] =
-        await Promise.all([
-          getStates(),
-          getAllPublishedRecords({ sector: "health" }),
-          getAllPublishedRecords({ sector: "education" }),
-          getAllPublishedRecords({ sector: "governance" }),
-        ]);
+        // 1. Load states first so the directory can appear immediately.
+        const statesData = await getStates({
+          signal: controller.signal,
+        });
 
         if (!isMounted) return;
 
@@ -271,19 +269,46 @@ function States() {
         );
 
         setInitialStates(shuffledStates.slice(0, 9));
-        setHealthRecords(healthData);
-        setEducationRecords(educationData);
-        setGovernanceRecords(governanceData);
-        
+
+        // Show the state cards without waiting for sector records.
+        setLoading(false);
+
+        // 2. Load each sector independently.
+        async function loadSector(sector, setRecords) {
+          try {
+            const records = await getAllPublishedRecords({
+              sector,
+              signal: controller.signal,
+            });
+
+            if (isMounted) {
+              setRecords(records);
+            }
+          } catch (err) {
+            if (!controller.signal.aborted) {
+              console.error(`Failed to load ${sector} records:`, err);
+            }
+          }
+        }
+
+        await Promise.all([
+          loadSector("health", setHealthRecords),
+          loadSector("education", setEducationRecords),
+          loadSector("governance", setGovernanceRecords),
+        ]);
       } catch (err) {
-        if (!isMounted) return;
+        if (!isMounted || controller.signal.aborted) return;
 
         console.error("Failed to load state directory:", err);
+
         setError(
           err.message || "Unable to load state directory data."
         );
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+          setRecordsLoading(false);
+        }
       }
     }
 
@@ -291,6 +316,7 @@ function States() {
 
     return () => {
       isMounted = false;
+      controller.abort();
     };
   }, []);
 
@@ -543,8 +569,12 @@ const governanceIndicatorLabel = governanceIndicator?.name || "No indicator avai
                                 {formatValue(healthRecord)}
                               </p>
 
-                              <p className="mt-1 wrap-break-word text-[8px] leading-3 uppercase text-white/60">
-                                Health — {healthIndicatorLabel}
+                              <p className="mt-1 text-[8px] leading-3 uppercase text-white/60 font-semibold">
+                                Health
+                              </p>
+
+                              <p className="wrap-break-word text-[8px] leading-3 text-white/60">
+                                {healthIndicatorLabel}
                               </p>
 
                               <p className="mt-1 wrap-break-word text-[9px] leading-3 text-white/50">
@@ -562,8 +592,12 @@ const governanceIndicatorLabel = governanceIndicator?.name || "No indicator avai
                                 {formatValue(educationRecord)}
                               </p>
 
-                              <p className="mt-1 wrap-break-word  text-[8px] leading-3 uppercase text-white/60">
-                                Education — {educationIndicatorLabel}
+                              <p className="mt-1 text-[8px] leading-3 uppercase text-white/60 font-semibold">
+                                Education
+                              </p>
+
+                              <p className="wrap-break-word text-[8px] leading-3 text-white/60">
+                                {educationIndicatorLabel}
                               </p>
 
                               <p className="mt-1 wrap-break-word text-[9px] leading-3 text-white/50">
@@ -581,8 +615,12 @@ const governanceIndicatorLabel = governanceIndicator?.name || "No indicator avai
                                 {formatValue(governanceRecord)}
                               </p>
 
-                              <p className="mt-1 wrap-break-word text-[8px] leading-3 uppercase text-white/60">
-                                Governance — {governanceIndicatorLabel}
+                              <p className="mt-1 text-[8px] leading-3 uppercase text-white/60 font-semibold">
+                                Governance
+                              </p>
+
+                              <p className="wrap-break-word text-[8px] leading-3 text-white/60">
+                                {governanceIndicatorLabel}
                               </p>
 
                               <p className="mt-1 wrap-break-word text-[9px] leading-3 text-white/50">
@@ -613,6 +651,12 @@ const governanceIndicatorLabel = governanceIndicator?.name || "No indicator avai
                   </motion.div>
                 );
               })}
+
+              {recordsLoading && (
+                <p className="mt-6 text-center text-xs text-gray-500">
+                  Loading published sector indicators...
+                </p>
+              )}
             </div>
 
             {filteredStates.length === 0 && (
