@@ -160,10 +160,13 @@ function Governance() {
   // LOAD STATES
   useEffect(() => {
     let isMounted = true;
+    const controller = new AbortController();
 
     async function loadStates() {
       try {
-        const response = await getStates();
+        const response = await getStates({
+          signal: controller.signal,
+        });
 
         if (!Array.isArray(response)) {
           throw new Error("The states response was not a list.");
@@ -192,11 +195,13 @@ function Governance() {
 
     return () => {
       isMounted = false;
+      controller.abort();
     };
   }, []);
 
   useEffect(() => {
     let isMounted = true;
+    const controller = new AbortController();
 
     const loadGovernanceRecords = async () => {
       try {
@@ -243,8 +248,11 @@ function Governance() {
 
     loadGovernanceRecords();
 
+        loadGovernanceRecords();
+
     return () => {
       isMounted = false;
+      controller.abort();
     };
   }, []);
 
@@ -288,6 +296,7 @@ function Governance() {
   // LOAD GOVERNANCE MEDIA
   useEffect(() => {
     let isMounted = true;
+    
 
     function updateGovernanceMedia(response) {
       if (!isMounted || !Array.isArray(response?.items)) return;

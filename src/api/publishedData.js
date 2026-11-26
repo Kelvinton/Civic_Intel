@@ -8,6 +8,7 @@ export function getPublishedRecords({
   year,
   limit = 100,
   offset = 0,
+  signal,
 } = {}) {
   const params = new URLSearchParams();
 
@@ -28,7 +29,8 @@ export function getPublishedRecords({
   }
 
   return apiRequest(
-    `/published/records?${params.toString()}`
+    `/published/records?${params.toString()}`,
+    { signal }
   );
 }
 
@@ -38,6 +40,7 @@ export async function getAllPublishedRecords({
   indicator,
   year,
   limit = 100,
+  signal,
 } = {}) {
   let allRecords = [];
   let offset = 0;
@@ -51,6 +54,7 @@ export async function getAllPublishedRecords({
       year,
       limit,
       offset,
+      signal,
     });
 
     const items = response.items || [];

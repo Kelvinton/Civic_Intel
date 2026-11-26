@@ -34,8 +34,8 @@ export function getComparison({
 }
 
 // Keep these in case other components use them.
-export function getStates() {
-  return apiRequest("/states");
+export function getStates({ signal } = {}) {
+  return apiRequest("/states", { signal });
 }
 
 export function getIndicators() {

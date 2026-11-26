@@ -373,6 +373,7 @@ function Education() {
   // Public request: no login is required to view these summaries.
   useEffect(() => {
     let isMounted = true;
+    const controller = new AbortController();
 
     async function loadNationalEducationData() {
       try {
@@ -382,6 +383,7 @@ function Education() {
           sector: "education",
           limit: batchSize,
           offset: 0,
+          signal: controller.signal,
         });
 
         const total = Number(firstResponse?.total) || 0;
@@ -399,6 +401,7 @@ function Education() {
             sector: "education",
             limit: batchSize,
             offset,
+            signal: controller.signal,
           });
 
           const items = Array.isArray(response?.items)
@@ -435,6 +438,7 @@ function Education() {
 
     return () => {
       isMounted = false;
+      controller.abort();
     };
   }, []);
 
@@ -728,6 +732,7 @@ function Education() {
     if (!isLoggedIn || !appliedFilters) return;
 
     let isMounted = true;
+    const controller = new AbortController();
 
     async function loadEducationRecords() {
       try {
@@ -738,6 +743,7 @@ function Education() {
           indicator: appliedFilters.indicator,
           limit: batchSize,
           offset: 0,
+          signal: controller.signal,
         });
 
         const total = Number(firstResponse?.total) || 0;
@@ -756,6 +762,7 @@ function Education() {
             indicator: appliedFilters.indicator,
             limit: batchSize,
             offset,
+            signal: controller.signal,
           });
 
           const items = Array.isArray(response?.items)
@@ -802,8 +809,9 @@ function Education() {
 
     loadEducationRecords();
 
-    return () => {
+   return () => {
       isMounted = false;
+      controller.abort();
     };
   }, [isLoggedIn, appliedFilters, retryCount]);
 

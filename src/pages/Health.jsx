@@ -316,48 +316,64 @@ function Health() {
   // LOAD ALL PUBLISHED HEALTH RECORDS
   useEffect(() => {
     let isMounted = true;
+    const controller = new AbortController();
 
     async function loadHealthRecords() {
       const allRecords = [];
       const limit = 50;
-      let offset = 0;
-      let total = Infinity;
-      
 
       try {
-        while (offset < total) {
-          const response = await getPublishedRecords({
-            sector: "health",
-            limit,
-            offset,
-          });
-          console.log("Health records batch:", {
-  offset,
-  received: response?.items?.length,
-  total: response?.total,
-});
+        // Fetch the first batch to determine the total number of records.
+        const firstResponse = await getPublishedRecords({
+          sector: "health",
+          limit,
+          offset: 0,
+          signal: controller.signal,
+        });
 
-          if (!response || !Array.isArray(response.items)) {
-            throw new Error(
-              "The Health records response was not in the expected format."
-            );
-          }
+        if (!firstResponse || !Array.isArray(firstResponse.items)) {
+          throw new Error(
+            "The Health records response was not in the expected format."
+          );
+        }
 
-          allRecords.push(...response.items);
-         
+        allRecords.push(...firstResponse.items);
 
-          total = Number(response.total ?? allRecords.length);
-          offset += response.items.length;
+        const total = Number(firstResponse.total ?? allRecords.length);
 
-          
+        // Calculate the remaining offsets.
+        const offsets = [];
 
-          if (
-            response.items.length === 0 ||
-            offset >= total
-          ) {
-            break;
+        for (let offset = 50; offset < total; offset += limit) {
+          offsets.push(offset);
+        }
+
+        // Fetch remaining batches in groups of five.
+        for (let i = 0; i < offsets.length; i += 5) {
+          const batchOffsets = offsets.slice(i, i + 5);
+
+          const responses = await Promise.all(
+            batchOffsets.map((offset) =>
+              getPublishedRecords({
+                sector: "health",
+                limit,
+                offset,
+                signal: controller.signal,
+              })
+            )
+          );
+
+          for (const response of responses) {
+            if (!response || !Array.isArray(response.items)) {
+              throw new Error(
+                "The Health records response was not in the expected format."
+              );
+            }
+
+            allRecords.push(...response.items);
           }
         }
+
         if (isMounted) {
           setHealthRecords(allRecords);
           setRecordsError("");
@@ -381,6 +397,7 @@ function Health() {
 
     return () => {
       isMounted = false;
+      controller.abort();
     };
   }, []);
 
@@ -440,11 +457,13 @@ function Health() {
   };
   }, []);
 
-  const healthReleases = healthMedia
-  .filter((release) =>
-    release.category?.toLowerCase().includes("health")
-  )
-  .slice(0, 3);
+  const healthReleases = useMemo(() => {
+    return healthMedia
+      .filter((release) =>
+        release.category?.toLowerCase().includes("health")
+      )
+      .slice(0, 3);
+  }, [healthMedia]);
 
   
   // STATE AVERAGE HEALTH OVERVIEW 
@@ -613,20 +632,20 @@ function Health() {
     if (!appliedFilters) {
       return [];
     }
-    const selectedStates = appliedFilters.states ?? [];
-    const selectedYears = appliedFilters.years ?? [];
+    const selectedStates = new Set(appliedFilters.states ?? []);
+    const selectedYears = new Set(appliedFilters.years ?? []);
     return healthRecords
       .filter((record) => {
         const matchesIndicator =
         record.indicator_key === appliedFilters.indicator;
 
         const matchesState =
-          selectedStates.length === 0 ||
-          selectedStates.includes(record.state);
+        selectedStates.size === 0 ||
+        selectedStates.has(record.state);
 
         const matchesYear =
-          selectedYears.length === 0 ||
-          selectedYears.includes(String(record.year));
+        selectedYears.size === 0 ||
+        selectedYears.has(String(record.year));
 
         const isNotNational =
           String(record.state).trim().toLowerCase() !== "national";
@@ -782,13 +801,39 @@ function Health() {
     );
   }, [stateChartData]);
 
-  const chartYears = [
-    ...new Set(stateChartData.map((item) => String(item.year))),
-  ].sort((a, b) => Number(a) - Number(b));
+  const chartYears = useMemo(() => {
+    return [
+      ...new Set(stateChartData.map((item) => String(item.year))),
+    ].sort((a, b) => Number(a) - Number(b));
+  }, [stateChartData]);
 
-  const representedStateCount = new Set(
-    chartRows.map((record) => record.state)
-  ).size;
+  const representedStateCount = useMemo(() => {
+    return new Set(chartRows.map((record) => record.state)).size;
+  }, [chartRows]);
+
+  const chartReportingPeriod = useMemo(() => {
+    return [
+      ...new Set(chartRows.map((record) => String(record.year))),
+    ]
+      .sort((a, b) => Number(a) - Number(b))
+      .join(", ") || "No reporting year";
+  }, [chartRows]);
+
+  const chartDatasetIds = useMemo(() => {
+    return [
+      ...new Set(
+        chartRows
+          .map((item) => item.dataset_id)
+          .filter(Boolean)
+      ),
+    ].join(", ") || "Not provided by API";
+  }, [chartRows]);
+
+  const chartTooltipStyle = {
+    borderRadius: "10px",
+    border: "1px solid #E2E8F0",
+    fontSize: "12px",
+  };
 
   // NATIONAL BENCHMARK VALUE
   const benchmarkValue = nationalBenchmark
@@ -965,25 +1010,27 @@ function Health() {
       
   };
 
-  const pdfChartData = chartRows.reduce((periods, record) => {
-    const year = String(record.year);
+  const pdfChartData = useMemo(() => {
+    return chartRows.reduce((periods, record) => {
+      const year = String(record.year);
 
-    let period = periods.find((item) => item.year === year);
+      let period = periods.find((item) => item.year === year);
 
-    if (!period) {
-      period = { year, rows: [] };
-      periods.push(period);
-    }
+      if (!period) {
+        period = { year, rows: [] };
+        periods.push(period);
+      }
 
-    period.rows.push({
-      state: record.state,
-      value: record.numericValue,
-      color: getYearColorRGB(record.year),
-      colorLabel: `Year ${year}`,
-    });
+      period.rows.push({
+        state: record.state,
+        value: record.numericValue,
+        color: getYearColorRGB(record.year),
+        colorLabel: `Year ${year}`,
+      });
 
-    return periods;
-  }, []);
+      return periods;
+    }, []);
+  }, [chartRows]);
 
   const handleExportPDF = async () => {
     if (exportRows.length === 0) {
@@ -1782,11 +1829,7 @@ const handleShare = async () => {
 
                                 return record ? `State: ${record.state}` : label;
                               }}
-                              contentStyle={{
-                                borderRadius: "10px",
-                                border: "1px solid #E2E8F0",
-                                fontSize: "12px",
-                              }}
+                              contentStyle={chartTooltipStyle}
                             />
 
                             {benchmarkValue !== null &&
@@ -1876,13 +1919,7 @@ const handleShare = async () => {
                       <strong className="text-[#0B3C5D]">
                         Dataset ID:
                       </strong>{" "}
-                      {[
-                        ...new Set(
-                          chartRows
-                            .map((item) => item.dataset_id)
-                            .filter(Boolean)
-                        ),
-                      ].join(", ") || "Not provided by API"}
+                      {chartDatasetIds}
                     </p>
 
                     <p>
@@ -1980,13 +2017,7 @@ const handleShare = async () => {
                         </p>
 
                         <p className="mt-1 text-xl font-bold text-white">
-                          {[
-                            ...new Set(
-                              chartRows.map((record) => String(record.year))
-                            ),
-                          ]
-                            .sort((a, b) => Number(a) - Number(b))
-                            .join(", ") || "No reporting year"}
+                          {chartReportingPeriod}
                         </p>
                       </div>
                     </div>
@@ -2269,6 +2300,7 @@ const handleShare = async () => {
                           }
                           alt={release.title || ""}
                           loading="lazy"
+                          decoding="async"
                           className="h-48 w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
                         />
                       </div>
