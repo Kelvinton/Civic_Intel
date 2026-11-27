@@ -14,6 +14,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { ChevronDown, Share2 } from "lucide-react";
+import { toPng } from "html-to-image";
 
 import {
   revealVariants,
@@ -22,8 +23,13 @@ import {
 } from "../animation.js";
 
 import { useAuth } from "../context/AuthContext.jsx";
+import { apiRequest } from "../api/api.js";
 import { getStates } from "../api/referenceData.js";
 import { getPublishedRecords } from "../api/publishedData.js";
+import {
+  exportData,
+  formatDisplayValue,
+} from "../utility/exportData.js";
 import {
   getMedia,
   subscribeToMedia,
@@ -98,9 +104,38 @@ function Governance() {
   const navigate = useNavigate();
   const { isLoggedIn } = useAuth();
   const motionSettings = useMotionSettings();
+  const shareContentRef = useRef(null);
 
   const stateDropdownRef = useRef(null);
   const yearDropdownRef = useRef(null);
+  const [sharing, setSharing] = useState(false);
+  const [shareNotice, setShareNotice] = useState("");
+  const [shareNoticeType, setShareNoticeType] = useState("");
+
+  useEffect(() => {
+    if (!shareNotice) return;
+
+    const timer = setTimeout(() => {
+      setShareNotice("");
+      setShareNoticeType("");
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [shareNotice]);
+
+  const [savingIndicator, setSavingIndicator] = useState(false);
+  const [saveNotice, setSaveNotice] = useState("");
+  const [saveNoticeType, setSaveNoticeType] = useState("");
+  useEffect(() => {
+    if (!saveNotice) return;
+
+    const timer = setTimeout(() => {
+      setSaveNotice("");
+      setSaveNoticeType("");
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [saveNotice]);
 
   const [states, setStates] = useState([]);
   const [statesLoading, setStatesLoading] = useState(true);
@@ -247,8 +282,6 @@ function Governance() {
     };
 
     loadGovernanceRecords();
-
-        loadGovernanceRecords();
 
     return () => {
       isMounted = false;
@@ -551,13 +584,32 @@ function Governance() {
     });
   }, [stateChartData]);
 
+
   const chartYears = useMemo(() => {
     return [
       ...new Set(stateChartData.map((record) => Number(record.year))),
     ].sort((a, b) => a - b);
   }, [stateChartData]);
 
+  const exportRows = stateChartData.map((record) => ({
+    State: record.state,
+    Indicator: indicatorLabel,
+    Year: record.year,
+    Value: formatDisplayValue(record.value, record.unit),
+  }));
 
+  const exportYearLabel =
+  !appliedFilters || appliedFilters.years.length === 0
+    ? "All available years"
+    : appliedFilters.years.slice().sort((a, b) => a - b).join(", ");
+
+  const exportFilename = `civicintel-governance-${
+    appliedFilters?.indicator ?? "data"
+  }-${
+    appliedFilters?.years?.length
+      ? appliedFilters.years.join("-")
+      : "all-years"
+  }`;
 
   
 
@@ -586,6 +638,213 @@ function Governance() {
       recordCount: filteredGovernanceRecords.length,
     };
   }, [stateChartData, filteredGovernanceRecords]);
+
+  const handleExportCSV = () => {
+    if (!exportRows.length) return;
+
+    exportData({
+      format: "csv",
+      headers: ["State", "Indicator", "Year", "Value"],
+      rows: exportRows,
+      fileName: exportFilename,
+      title: "CivicIntel Governance Data Report",
+      subtitle: `${indicatorLabel} — Nigeria`,
+      metadata: {
+        Sector: "Governance",
+        Indicator: indicatorLabel,
+        States:
+          appliedFilters.states.length === 0
+            ? "All available states"
+            : appliedFilters.states.join(", "),
+        Year: exportYearLabel,
+        Source: "CivicIntel published Governance records",
+      },
+    });
+
+    setExportOpen(false);
+  };
+
+  const handleExportXLSX = () => {
+    if (!exportRows.length) return;
+
+    exportData({
+      format: "xlsx",
+      headers: ["State", "Indicator", "Year", "Value"],
+      rows: exportRows,
+      fileName: exportFilename,
+      title: "CivicIntel Governance Data Report",
+      subtitle: `${indicatorLabel} — Nigeria`,
+      metadata: {
+        Sector: "Governance",
+        Indicator: indicatorLabel,
+        States:
+          appliedFilters.states.length === 0
+            ? "All available states"
+            : appliedFilters.states.join(", "),
+        Year: exportYearLabel,
+        Source: "CivicIntel published Governance records",
+      },
+    });
+
+    setExportOpen(false);
+  };
+
+  const handleExportPDF = () => {
+    if (!exportRows.length) return;
+
+    const pdfChartData = stateChartData.map((record) => ({
+      state: record.state,
+      value: record.numericValue,
+      color: ["#0B3C5D", "#1F7A3F", "#D6A756"][
+        chartYears.indexOf(Number(record.year)) % 3
+      ],
+      colorLabel: String(record.year),
+    }));
+
+    exportData({
+      format: "pdf",
+      headers: ["State", "Indicator", "Year", "Value"],
+      rows: exportRows,
+      fileName: exportFilename,
+      title: "CivicIntel Governance Data Report",
+      subtitle: `${indicatorLabel} — Nigeria`,
+      metadata: {
+        Sector: "Governance",
+        Indicator: indicatorLabel,
+        States:
+          appliedFilters.states.length === 0
+            ? "All available states"
+            : appliedFilters.states.join(", "),
+        Year: exportYearLabel,
+        Source: "CivicIntel published Governance records",
+      },
+      chartData: pdfChartData,
+      chartTitle: `${indicatorLabel} by State`,
+      chartUnit: indicatorUnit,
+      landscape: true,
+    });
+
+    setExportOpen(false);
+  };
+
+
+  const handleShare = async () => {
+    if (!shareContentRef.current || sharing) return;
+
+    try {
+      setSharing(true);
+      setShareNotice("");
+      setShareNoticeType("");
+
+      const image = await toPng(shareContentRef.current, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: "#082C40",
+      });
+
+      const response = await fetch(image);
+      const blob = await response.blob();
+
+      const file = new File(
+        [blob],
+        "civicintel-governance-report.png",
+        { type: "image/png" }
+      );
+
+      if (
+        navigator.canShare &&
+        navigator.canShare({ files: [file] })
+      ) {
+        await navigator.share({
+          title: "CivicIntel Governance Report",
+          text: "Explore Governance data with CivicIntel.",
+          files: [file],
+        });
+
+        setShareNotice("Report shared successfully.");
+        setShareNoticeType("success");
+      } else if (navigator.share) {
+        await navigator.share({
+          title: "CivicIntel Governance Report",
+          text: "Explore Governance data with CivicIntel.",
+          url: window.location.href,
+        });
+      } else {
+        setShareNotice(
+          "Sharing is not supported in this browser. Try using a mobile browser or download the report instead."
+        );
+        setShareNoticeType("error");
+      }
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        console.error("Unable to share Governance report:", error);
+
+        setShareNotice("Unable to share the Governance report.");
+        setShareNoticeType("error");
+      }
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const handleSaveIndicator = async () => {
+    if (!isLoggedIn) {
+      handleLogin();
+      return;
+    }
+
+    if (!appliedFilters || chartData.length === 0) {
+      setSaveNotice("No Governance data available to save.");
+      setSaveNoticeType("error");
+      return;
+    }
+
+    const statesToSave = [
+      ...new Set(chartData.map((record) => record.state)),
+    ];
+
+    if (statesToSave.length < 2) {
+      setSaveNotice("Select at least two states before saving.");
+      setSaveNoticeType("error");
+      return;
+    }
+
+    const yearsToSave = [
+      ...new Set(chartData.map((record) => Number(record.year))),
+    ].sort((a, b) => a - b);
+
+    try {
+      setSavingIndicator(true);
+      setSaveNotice("");
+      setSaveNoticeType("");
+
+      const payload = {
+        id: crypto.randomUUID(),
+        title: `Governance — ${indicatorLabel}`,
+        indicator: appliedFilters.indicator,
+        states: statesToSave,
+        years: yearsToSave,
+        saved_at: new Date().toISOString(),
+      };
+
+      await apiRequest("/saved-comparisons", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      setSaveNotice("Governance indicator saved successfully.");
+      setSaveNoticeType("success");
+    } catch (error) {
+      console.error("Unable to save Governance indicator:", error);
+
+      setSaveNotice(
+        error.message || "Unable to save Governance indicator."
+      );
+      setSaveNoticeType("error");
+    } finally {
+      setSavingIndicator(false);
+    }
+  };
 
   const handleLogin = () => {
     navigate("/login", {
@@ -665,7 +924,7 @@ function Governance() {
           </h1>
 
           <p className="mt-4 max-w-lg text-sm leading-6 text-[#38464D]">
-            Explore public-sector performance, transparency,
+            Explore public sector performance, transparency,
             accountability and governance indicators across Nigeria.
             Compare available records by state and reporting year.
           </p>
@@ -826,7 +1085,7 @@ function Governance() {
                   ref={stateDropdownRef}
                   className="relative"
                 >
-                  <summary className="cursor-pointer list-none rounded-xl border border-gray-300 bg-[#C5D2D9] px-4 py-3 text-sm">
+                  <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden rounded-xl border border-gray-300 bg-[#C5D2D9] px-4 py-3 text-sm">
                     {selectedStates.length === 0
                       ? "All states"
                       : `${selectedStates.length} states selected`}
@@ -905,7 +1164,7 @@ function Governance() {
                   ref={yearDropdownRef}
                   className="relative"
                 >
-                  <summary className="flex cursor-pointer list-none items-center justify-between rounded-xl border border-slate-300 bg-[#C5D2D9] px-3 py-3 text-sm text-slate-700">
+                  <summary className="flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center justify-between rounded-xl border border-slate-300 bg-[#C5D2D9] px-3 py-3 text-sm text-slate-700">
                     {selectedYears.length === 0
                       ? "All available years"
                       : `${selectedYears.length} years selected`}
@@ -1016,7 +1275,10 @@ function Governance() {
               </p>
             </div>
           ) : (
-            <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,2.1fr)_minmax(300px,0.9fr)]">
+            <div
+              ref={shareContentRef}
+              className="grid items-start gap-8 lg:grid-cols-[minmax(0,2.1fr)_minmax(300px,0.9fr)]"
+            >
 
               {/* CHART PANEL */}
               <div className="min-w-0 bg-white p-4 text-[#0B2F45] shadow-xl sm:p-6">
@@ -1334,44 +1596,173 @@ function Governance() {
                 </div>
 
                 {/* ACTION BUTTONS */}
-                <div className="flex flex-col gap-3">
+                 {/* EXPORT AND SAVE BUTTONS */}
+                <div 
+                  data-share-exclude="true"
+                  className="flex flex-col gap-3"
+                >
+
+                  {/* SHARE REPORT */}
                   <button
                     type="button"
-                    disabled
-                    className="flex w-full items-center justify-center gap-3 rounded-full border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white opacity-50"
+                    onClick={handleShare}
+                    disabled={sharing || chartRows.length === 0}
+                    className="flex w-full items-center justify-center gap-3 rounded-full border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <span>Share report</span>
+                    <span>{sharing ? "Preparing report..." : "Share report"}</span>
+
                     <Share2 size={18} />
+
                   </button>
 
+                  {shareNotice && (
+                    <p
+                      role="status"
+                      aria-live="polite"
+                      className={`rounded-lg px-3 py-2 text-xs leading-5 ${
+                        shareNoticeType === "success"
+                          ? "border border-green-400/30 bg-green-500/10 text-green-200"
+                          : "border border-red-400/30 bg-red-500/10 text-red-200"
+                      }`}
+                    >
+                      {shareNotice}
+                    </p>
+                  )}
+
+                  {/* EXPORT DROPDOWN */}
                   <div className="relative w-full">
                     <button
                       type="button"
                       onClick={() =>
                         setExportOpen((previous) => !previous)
                       }
-                      disabled
+                      disabled={chartRows.length === 0}
                       aria-label="Choose export format"
                       aria-expanded={exportOpen}
-                      className="flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold text-white opacity-50"
+                      className="flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      Export
-                      <ChevronDown size={18} />
+                      <span>Export</span>
+
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className={`transition-transform duration-200 ${
+                          exportOpen ? "rotate-180" : ""
+                        }`}
+                        aria-hidden="true"
+                      >
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
                     </button>
+
+                    {exportOpen && (
+                      <div className="absolute right-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-xl border border-gray-200 bg-white py-2 text-[#20272B] shadow-xl">
+                        <p className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                          Choose format
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={handleExportPDF}
+                          className="w-full px-4 py-2.5 text-left text-sm transition hover:bg-[#EAF2EC] hover:text-[#1F7A3F]"
+                        >
+                          Export PDF
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleExportCSV}
+                          className="w-full px-4 py-2.5 text-left text-sm transition hover:bg-[#EAF2EC] hover:text-[#1F7A3F]"
+                        >
+                          Export CSV
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleExportXLSX}
+                          className="w-full px-4 py-2.5 text-left text-sm transition hover:bg-[#EAF2EC] hover:text-[#1F7A3F]"
+                        >
+                          Export XLSX
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  <button
-                    type="button"
-                    disabled
-                    className="flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold text-white opacity-50"
-                  >
-                    Save indicator
-                  </button>
+                  {/* SAVE INDICATOR */}
+                  <div className="flex flex-col gap-3">
+                    <button
+                      type="button"
+                      onClick={handleSaveIndicator}
+                      disabled={savingIndicator || chartRows.length === 0}
+                      className="flex w-full items-center justify-center gap-3 rounded-full bg-[#1F7A3F] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#176331] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span>
+                        {savingIndicator ? "Saving..." : "Save indicator"}
+                      </span>
 
-                  <p className="text-center text-[10px] leading-5 text-white/45">
-                    Sharing, exporting and saving will be enabled
-                    when Governance records are available.
-                  </p>
+                      {savingIndicator ? (
+                        <svg
+                          className="h-5 w-5 animate-spin"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          aria-hidden="true"
+                        >
+                          <circle
+                            cx="12"
+                            cy="12"
+                            r="9"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            className="opacity-25"
+                          />
+                          <path
+                            d="M21 12a9 9 0 0 0-9-9"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      ) : (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="19"
+                          height="19"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <path d="m7 10 5 5 5-5" />
+                          <path d="M12 15V3" />
+                        </svg>
+                      )}
+                    </button>
+
+                    {saveNotice && (
+                      <p
+                        role="status"
+                        aria-live="polite"
+                        className={`rounded-lg px-3 py-2 text-xs leading-5 ${
+                          saveNoticeType === "success"
+                            ? "border border-green-400/30 bg-green-500/10 text-green-200"
+                            : "border border-red-400/30 bg-red-500/10 text-red-200"
+                        }`}
+                      >
+                        {saveNotice}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </aside>
             </div>

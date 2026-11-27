@@ -36,12 +36,18 @@ const footerSections = [
 function Footer() {
   const footerRef = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
 
   useEffect(() => {
     const motionQuery = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
+
     );
+    
 
     const handleMotionChange = (event) => {
       setPrefersReducedMotion(event.matches);
@@ -50,7 +56,10 @@ function Footer() {
     // Set up the observer without synchronously updating state.
     const observer = new IntersectionObserver(
       ([entry]) => {
-        setIsVisible(entry.isIntersecting);
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.unobserve(entry.target);
+        }
       },
       {
         threshold: 0.05,
@@ -90,9 +99,9 @@ function Footer() {
       ref={footerRef}
       className="w-full overflow-hidden bg-[#0B3C5D] text-white"
     >
-      <div className="mx-auto max-w-7xl px-5 py-12 sm:px-8 sm:py-14 lg:px-16">
+      <div className="mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-14 lg:px-16">
         {/* Main footer layout */}
-        <div className="grid grid-cols-2 gap-x-5 gap-y-10 sm:grid-cols-2 sm:gap-x-8 md:grid-cols-5 md:gap-x-6 xl:grid-cols-[260px_150px_180px_160px_230px] xl:gap-x-8">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-2 sm:gap-x-8 sm:gap-y-10 md:grid-cols-5 md:gap-x-6 xl:grid-cols-[260px_150px_180px_160px_230px] xl:gap-x-8">
           {/* Brand */}
           <div
             className={`${revealClass()} col-span-2 min-w-0 md:col-span-1`}
@@ -108,11 +117,11 @@ function Footer() {
               <img
                 src={civicIntelLogo}
                 alt="Civic Intel"
-                className="h-16 w-auto max-w-full object-contain"
+                className="h-12 w-auto max-w-full object-contain sm:h-16"
               />
             </a>
 
-            <p className="mt-4 max-w-xs text-sm leading-6 text-white/75">
+            <p className="mt-3 max-w-sm text-[13px] leading-6 text-white/75 sm:mt-4 sm:max-w-xs sm:text-sm">
               A public data platform for health and education indicators.
               Exploring Nigeria through reliable data and insights.
             </p>
@@ -127,11 +136,11 @@ function Footer() {
                 transitionDelay: getRevealDelay(180 + index * 160),
               }}
             >
-              <h3 className="mb-5 text-sm font-semibold uppercase tracking-wider">
+              <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] sm:mb-5 sm:text-sm">
                 {section.title}
               </h3>
 
-              <ul className="space-y-3 text-sm text-white/75">
+              <ul className="space-y-3 text-[13px] leading-6 text-white/75 sm:text-sm">
                 {section.links.map((link) => (
                   <li key={link.label}>
                     <a
@@ -148,12 +157,12 @@ function Footer() {
 
           {/* Contact */}
           <div
-            className={`${revealClass()} min-w-0`}
+            className={`${revealClass()} col-span-2 min-w-0 sm:col-span-1`}
             style={{
               transitionDelay: getRevealDelay(500),
             }}
           >
-            <h3 className="mb-5 text-sm font-semibold uppercase tracking-wider">
+            <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] sm:mb-5 sm:text-sm">
               Contact
             </h3>
 
@@ -220,7 +229,7 @@ function Footer() {
 
         {/* Copyright */}
         <div
-          className={`${revealClass()} mt-10 border-t border-white/20 pt-6 sm:mt-12`}
+          className={`${revealClass()} mt-8 border-t border-white/20 pt-5 sm:mt-12 sm:pt-6`}
           style={{
             transitionDelay: getRevealDelay(650),
           }}
