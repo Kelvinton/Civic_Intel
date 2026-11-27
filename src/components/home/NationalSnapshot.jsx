@@ -175,14 +175,28 @@ function NationalSnapshot() {
         <motion.div
           {...motionSettings}
           variants={staggerContainer}
+          viewport={{ once: true, amount: 0.15 }}
           className="grid grid-cols-1 gap-3 px-8 sm:grid-cols-2 lg:grid-cols-4"
         >
           {snapshot.map((card) => (
             <motion.article
               key={card.label}
-              variants={revealVariants}
+              variants={{
+                hidden: {
+                  opacity: 0,
+                  y: 20,
+                },
+                visible: {
+                  opacity: 1,
+                  y: 0,
+                  transition: {
+                    duration: 0.45,
+                    ease: [0.22, 1, 0.36, 1],
+                  },
+                },
+              }}
               whileHover={{
-                y: -8,
+                y: window.matchMedia("(hover: hover)").matches ? -5 : 0,
                 transition: {
                   duration: 0.25,
                   ease: "easeOut",

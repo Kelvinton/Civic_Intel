@@ -1296,7 +1296,7 @@ function Education() {
                 </div>
 
                 <details ref={stateDropdownRef} className="relative">
-                  <summary className="flex cursor-pointer list-none items-center justify-between rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm">
+                  <summary className="flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center justify-between rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm">
                     <span>
                       {state.length === 0
                         ? "All states"
@@ -1367,7 +1367,7 @@ function Education() {
                 </div>
 
                 <details ref={yearDropdownRef} className="relative">
-                  <summary className="flex cursor-pointer list-none items-center justify-between rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm">
+                  <summary className="flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center justify-between rounded-xl border border-[#B7C5CB] bg-[#B5C7D1] px-3 py-3 text-sm">
                     <span>
                       {year.length === 0
                         ? "All available years"

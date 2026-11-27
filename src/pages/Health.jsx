@@ -1485,7 +1485,7 @@ const handleShare = async () => {
                 </div>
 
                 <details ref={stateDropdownRef} className="relative">
-                  <summary className="cursor-pointer list-none rounded-xl border border-gray-300  px-4 py-3 text-sm bg-[#C5D2D9]">
+                  <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden rounded-xl border border-gray-300 px-4 py-3 text-sm bg-[#C5D2D9]">
                     {state.length === 0
                       ? "All states"
                       : `${state.length} state${state.length > 1 ? "s" : ""} selected`}
@@ -1562,7 +1562,7 @@ const handleShare = async () => {
                   className="relative"
                 >
                   <summary
-                    className={`flex cursor-pointer list-none items-center justify-between rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-700 bg-[#C5D2D9] ${
+                    className={`flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center justify-between rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-700 bg-[#C5D2D9] ${
                       recordsLoading || yearOptions.length === 0
                         ? "cursor-not-allowed opacity-50"
                         : ""

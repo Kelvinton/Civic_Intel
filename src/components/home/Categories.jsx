@@ -82,40 +82,22 @@ const categoryConfig = [
   },
 ];
 
-// Fetch every page of published records for a sector.
-async function fetchSectorRecords(sector) {
-  const allRecords = [];
-  const limit = 100;
-  let offset = 0;
-  let total = Infinity;
+// Fetch published records for a specific state and sector.
+async function fetchSectorRecords(sector, state) {
+  const response = await getPublishedRecords({
+    sector,
+    state,
+    limit: 100,
+    offset: 0,
+  });
 
-  while (offset < total) {
-    const response = await getPublishedRecords({
-      sector,
-      limit,
-      offset,
-    });
-
-    if (!response || !Array.isArray(response.items)) {
-      throw new Error(
-        `The ${sector} records response was not in the expected format.`
-      );
-    }
-
-    allRecords.push(...response.items);
-
-    total = Number(response.total ?? allRecords.length);
-    offset += response.items.length;
-
-    if (
-      response.items.length === 0 ||
-      response.items.length < limit
-    ) {
-      break;
-    }
+  if (!response || !Array.isArray(response.items)) {
+    throw new Error(
+      `The ${sector} records response was not in the expected format.`
+    );
   }
 
-  return allRecords;
+  return response.items;
 }
 
 // Get the latest available record for each selected indicator.
@@ -427,12 +409,32 @@ function Categories() {
     let isMounted = true;
 
     async function loadPublishedRecords() {
+      if (!selectedState) return;
+
+      setLoading({
+        health: true,
+        education: true,
+        governance: true,
+      });
+
+      setErrors({
+        health: "",
+        education: "",
+        governance: "",
+      });
+
       try {
-        const [healthRecords, educationRecords, governanceRecords] = await Promise.all([
-          fetchSectorRecords("health"),
-          fetchSectorRecords("education"),
-          fetchSectorRecords("governance"),
+        const [
+          healthRecords,
+          educationRecords,
+          governanceRecords,
+        ] = await Promise.all([
+          fetchSectorRecords("health", selectedState),
+          fetchSectorRecords("education", selectedState),
+          fetchSectorRecords("governance", selectedState),
         ]);
+
+        if (!isMounted) return;
 
         setPublishedRecords({
           health: healthRecords,
@@ -440,31 +442,30 @@ function Categories() {
           governance: governanceRecords,
         });
 
-
         setLoading({
           health: false,
           education: false,
           governance: false,
         });
       } catch (error) {
-        if (isMounted) {
-          const errorMessage =
-            error instanceof Error
-              ? error.message
-              : "Could not load published records.";
+        if (!isMounted) return;
 
-          setErrors({
-            health: errorMessage,
-            education: errorMessage,
-            governance: errorMessage,
-          });
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "Could not load published records.";
 
-          setLoading({
-            health: false,
-            education: false,
-            governance: false,
-          });
-        }
+        setErrors({
+          health: errorMessage,
+          education: errorMessage,
+          governance: errorMessage,
+        });
+
+        setLoading({
+          health: false,
+          education: false,
+          governance: false,
+        });
       }
     }
 
@@ -473,7 +474,7 @@ function Categories() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [selectedState]);
 
  
 

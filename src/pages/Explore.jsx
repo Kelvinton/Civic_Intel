@@ -16,11 +16,9 @@ import {
   useMotionSettings,
 } from "../animation.js";
 
-// --------------------------------------------------
-// CONSTANTS
-// --------------------------------------------------
 
-const domains = ["Health", "Education"];
+// CONSTANTS
+const domains = ["Health", "Education", "Governance"];
 
 const steps = [
   "Domain",
@@ -29,10 +27,6 @@ const steps = [
   "Years",
   "Review",
 ];
-
-// --------------------------------------------------
-// HELPER FUNCTIONS
-// --------------------------------------------------
 
 // Handles common API response wrappers.
 function unwrapResponse(response) {
@@ -59,11 +53,7 @@ function unwrapList(response, key) {
 
 
 
-
-// --------------------------------------------------
 // REUSABLE UI COMPONENTS
-// --------------------------------------------------
-
 function SectionCard({ children, className = "" }) {
   return (
     <section
@@ -90,10 +80,7 @@ function SectionDescription({ children }) {
   );
 }
 
-// --------------------------------------------------
 // EXPLORE HERO
-// --------------------------------------------------
-
 function ExploreHero() {
   const motionSettings = useMotionSettings();
 
@@ -156,10 +143,7 @@ function ExploreHero() {
   );
 }
 
-// --------------------------------------------------
 // STEP PROGRESS
-// --------------------------------------------------
-
 function StepProgress({ activeStep, onStepClick }) {
   return (
     <div className="mx-auto w-full max-w-6xl px-3 pt-7 sm:px-8 sm:pt-8">
@@ -249,12 +233,11 @@ function StepProgress({ activeStep, onStepClick }) {
   );
 }
 
-// --------------------------------------------------
 // DOMAIN OPTION
-// --------------------------------------------------
-
 function DomainOption({ domain, selected, onClick }) {
   const health = domain === "Health";
+  const education = domain === "Education";
+  const governance = domain === "Governance";
 
   return (
     <button
@@ -270,8 +253,10 @@ function DomainOption({ domain, selected, onClick }) {
       <span
         className={`inline-flex rounded-full px-3 py-1 text-[10px] font-medium uppercase ${
           health
-            ? "bg-[#BFE0C7] text-[#1F7A3F]"
-            : "bg-[#C6D6E0] text-[#0B3C5D]"
+          ? "bg-[#BFE0C7] text-[#1F7A3F]"
+          : education
+            ? "bg-[#C6D6E0] text-[#0B3C5D]"
+            : "bg-[#F3D9B5] text-[#925A16]"
         }`}
       >
         {domain}
@@ -283,8 +268,12 @@ function DomainOption({ domain, selected, onClick }) {
 
       <span className="mt-2 block text-xs leading-relaxed text-slate-600 sm:text-sm">
         {health
-          ? "Coverage, outcomes, systems and financing indicators."
-          : "Enrolment, completion, learning outcomes and exams."}
+        ? "Coverage, outcomes, systems and financing indicators."
+        : education
+          ? "Enrolment, completion, learning outcomes and exams."
+          : governance
+            ? "Governance, public institutions, accountability and civic indicators."
+            : ""}
       </span>
 
       {selected && (
@@ -308,10 +297,7 @@ function DomainOption({ domain, selected, onClick }) {
   );
 }
 
-// --------------------------------------------------
 // MAIN EXPLORE PAGE
-// --------------------------------------------------
-
 function Explore() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -322,10 +308,7 @@ function Explore() {
   // Restore selections after returning from login.
   const restoredDraft = location.state?.exploreDraft;
 
-  // ------------------------------------------------
   // BACKEND DATA
-  // ------------------------------------------------
-
   const [states, setStates] = useState([]);
   const [indicators, setIndicators] = useState([]);
 
@@ -426,12 +409,11 @@ function Explore() {
     }
   };
 
-  // ------------------------------------------------
   // USER SELECTIONS
-  // ------------------------------------------------
-
   const initialDomain =
-    restoredDraft?.domain === "Education"
+  restoredDraft?.domain === "Governance"
+    ? "Governance"
+    : restoredDraft?.domain === "Education"
       ? "Education"
       : "Health";
 
@@ -483,22 +465,19 @@ function Explore() {
   const [activeStep, setActiveStep] = useState(0);
   const [comparisonMessage, setComparisonMessage] = useState("");
 
- // ------------------------------------------------
-// FILTER BACKEND INDICATORS BY DOMAIN
-// ------------------------------------------------
+  // FILTER BACKEND INDICATORS BY DOMAIN
+  const availableIndicators = useMemo(() => {
+    return indicators.filter((item) => {
+      const classification = String(
+        item.sector ||
+          item.domain ||
+          item.category ||
+          ""
+      ).toLowerCase();
 
-const availableIndicators = useMemo(() => {
-  return indicators.filter((item) => {
-    const classification = String(
-      item.sector ||
-        item.domain ||
-        item.category ||
-        ""
-    ).toLowerCase();
-
-    return classification.includes(domain.toLowerCase());
-  });
-}, [indicators, domain]);
+      return classification.includes(domain.toLowerCase());
+    });
+  }, [indicators, domain]);
 
   // Use the selected indicator if it is valid.
   // Otherwise, automatically use the first available indicator.
@@ -510,15 +489,12 @@ const availableIndicators = useMemo(() => {
   
 
   const availableYears = useMemo(() => {
-  return Array.isArray(selectedIndicator?.years)
-    ? [...selectedIndicator.years].sort((a, b) => a - b)
-    : [];
-}, [selectedIndicator]);
+    return Array.isArray(selectedIndicator?.years)
+      ? [...selectedIndicator.years].sort((a, b) => a - b)
+      : [];
+  }, [selectedIndicator]);
 
-  // ------------------------------------------------
   // VALID STATES
-  // ------------------------------------------------
-
   const selectedStates = useMemo(() => {
     if (statesLoading || statesError) {
       return rawSelectedStates;
@@ -538,10 +514,7 @@ const availableIndicators = useMemo(() => {
     statesError,
   ]);
 
-  // ------------------------------------------------
   // SELECTION HANDLERS
-  // ------------------------------------------------
-
   const toggleState = (stateName) => {
     setComparisonMessage("");
 
@@ -562,11 +535,11 @@ const availableIndicators = useMemo(() => {
   };
 
   const changeDomain = (nextDomain) => {
-  setDomain(nextDomain);
-  setIndicator("");
-  setSelectedYears([]);
-  setComparisonMessage("");
-};
+    setDomain(nextDomain);
+    setIndicator("");
+    setSelectedYears([]);
+    setComparisonMessage("");
+  };
 
   const handleStepClick = (index) => {
     if (index <= activeStep) {
@@ -575,10 +548,7 @@ const availableIndicators = useMemo(() => {
     }
   };
 
-  // ------------------------------------------------
   // STEP VALIDATION
-  // ------------------------------------------------
-
   const handleNextStep = () => {
     setComparisonMessage("");
 

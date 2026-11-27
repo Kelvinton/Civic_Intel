@@ -9,12 +9,7 @@ import {
 } from "../../animation.js";
 
 import { useAuth } from "../../context/AuthContext.jsx";
-import {
-  getIndicators,
-  getStates,
-} from "../../api/referenceData.js";
-
-import { getAllPublishedRecords } from "../../api/publishedData.js";
+import { getCompareOptions } from "../../api/referenceData.js";
 
 // Handles both direct API responses and responses wrapped in data.
 function unwrapList(payload, key) {
@@ -36,7 +31,6 @@ function CompareStates() {
 
   const [indicators, setIndicators] = useState([]);
   const [states, setStates] = useState([]);
-  const [publishedRecords, setPublishedRecords] = useState([]);
   const [optionsLoading, setOptionsLoading] = useState(true);
   const [optionsError, setOptionsError] = useState("");
 
@@ -62,74 +56,48 @@ function CompareStates() {
 
   // Fetch comparison options from the backend.
   useEffect(() => {
-  let isMounted = true;
+    let isMounted = true;
 
-  async function loadCompareOptions() {
-    setOptionsLoading(true);
-    setOptionsError("");
+    async function loadCompareOptions() {
+      setOptionsLoading(true);
+      setOptionsError("");
 
-    try {
-      const [
-        indicatorsResponse,
-        statesResponse,
-        demographicsRecords,
-        healthRecords,
-        financeRecords,
-        educationRecords,
-        governanceRecords,
-      ] = await Promise.all([
-        getIndicators(),
-        getStates(),
-        getAllPublishedRecords({ sector: "demographics" }),
-        getAllPublishedRecords({ sector: "health" }),
-        getAllPublishedRecords({ sector: "finance" }),
-        getAllPublishedRecords({ sector: "education" }),
-        getAllPublishedRecords({ sector: "governance" }),
-      ]);
-      
-      if (!isMounted) return;
+      try {
+        const response = await getCompareOptions();
 
-      const backendIndicators = unwrapList(
-        indicatorsResponse,
-        "indicators"
-      );
+        if (!isMounted) return;
 
-      const backendStates = unwrapList(
-        statesResponse,
-        "states"
-      );
+        const backendIndicators = unwrapList(
+          response,
+          "indicators"
+        );
 
-      setIndicators(backendIndicators);
-      setStates(backendStates);
+        const backendStates = unwrapList(
+          response,
+          "states"
+        );
 
-      setPublishedRecords([
-        ...demographicsRecords,
-        ...healthRecords,
-        ...financeRecords,
-        ...educationRecords,
-        ...governanceRecords,
-      ]);
+        setIndicators(backendIndicators);
+        setStates(backendStates);
+      } catch (err) {
+        if (!isMounted) return;
 
-
-    } catch (err) {
-      if (!isMounted) return;
-
-      setOptionsError(
-        err.message || "Unable to load comparison options."
-      );
-    } finally {
-      if (isMounted) {
-        setOptionsLoading(false);
+        setOptionsError(
+          err.message || "Unable to load comparison options."
+        );
+      } finally {
+        if (isMounted) {
+          setOptionsLoading(false);
+        }
       }
     }
-  }
 
-  loadCompareOptions();
+    loadCompareOptions();
 
-  return () => {
-    isMounted = false;
-  };
-}, []);
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Display all indicators returned by the backend.
   const availableIndicators = indicators;
@@ -141,9 +109,8 @@ function CompareStates() {
   // Get the years available for the selected indicator.
   const availableYears = [
     ...new Set(
-      publishedRecords
-        .filter((record) => record.indicator_key === indicator)
-        .map((record) => Number(record.year))
+      (selectedIndicator?.years || [])
+        .map(Number)
         .filter(
           (year) =>
             Number.isInteger(year) &&
